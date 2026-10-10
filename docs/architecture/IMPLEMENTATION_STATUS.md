@@ -103,16 +103,4 @@ Preserved frontend verification: typecheck, zero-warning lint, nine tests and bu
 
 **DEMO_BLOCKED — preparation only.** Phase 8B has not passed the mandatory human/speech acceptance gate. No release candidate is certified and no new Phase 9 live rehearsal, reset, public release or real notification was performed.
 
-222 backend tests passed in 48.999 seconds. Fresh frontend nine tests, lint, typecheck and build pass. Read-only health/inventory, fixed dated plan, bilingual presentation/recovery/checklist documents and isolated reset safeguards are prepared. The reset preserves seeded fixtures, rejects active/foreign/unmarked tenants and requires explicit CLI/PowerShell confirmation; live data was not reset. No RC, commit/tag, public release, deployment, new live rehearsal or real send was performed. See docs/demo/PHASE9_READINESS.md for exact blockers and evidence.
-
-## Continuation — 10 October 2026
-
-Subsequent owner-requested local login fix: username/password entry is now deployed on loopback ports 3017 and 3011, using the existing SmileCare demo administrator and a protected ignored password file. Both live credential exchanges and protected workspace reads passed; wrong passwords were rejected and prior bookings remained confirmed. Explicitly enabled local demo access only; production/staging demo prohibition and tenant membership checks remain. Fresh backend suite: 229 tests passed in 64.625 seconds; frontend nine tests/typecheck/lint and both application image builds passed. Live receipt: artifacts/phase9/demo-login-verification.json. This login fix does not certify voice acceptance or release readiness.
-
-The existing demo containers were restored with --no-recreate --no-build --pull never after Docker became available. All prior three Phase 8B bookings remain confirmed and no call session is active. No reset, new SIP acceptance call, image replacement, model download or release certification occurred. The configured dashboard is http://127.0.0.1:3011/dashboard; port 3017 is not this scoped stack.
-
-Reset now fails closed if Docker status cannot be verified, before Python/SQLite maintenance; a Windows subprocess regression executes the actual wrapper with a failed diagnostic. Readiness now requires all negative/rejection/ambiguous/question controls and registered SIP establishment/clean termination evidence. Missing evidence cannot become a pass.
-
-Fresh full backend run: 224 tests passed in 111.824 seconds. The focused preparation suite passed 8 tests in 10.513 seconds, including the additional wrapper test added after the full run. Source check: 168 files, zero failures. Offline redacted secret scan: 283 files, zero findings. Frontend was unchanged; its prior Phase 9 checks are historical, not rerun today.
-
-Current evidence: artifacts/phase9/readiness-20261010.json and continuation-20261010.json. Release remains DEMO_BLOCKED: human-heard/visual acceptance, acoustic question safety and a committed source candidate are still missing.
+243 backend tests passed in 55.353 seconds. Fresh frontend nine tests, lint, typecheck and build pass. Read-only health/inventory, fixed dated plan, bilingual presentation/recovery/checklist documents and isolated reset safeguards are prepared. The reset preserves seeded fixtures, rejects active/foreign/unmarked tenants and requires explicit CLI/PowerShell confirmation; live data was not reset. No RC, commit/tag, public release, deployment, new live rehearsal or real send was performed. See docs/demo/PHASE9_READINESS.md for exact blockers and evidence.

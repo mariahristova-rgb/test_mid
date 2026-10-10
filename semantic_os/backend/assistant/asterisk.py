@@ -99,6 +99,7 @@ class ARIBridge:
             call = await self.runtime.threaded(self.manager.start, actor, cfg.assistant_id, None,
                 provider_call_id=channel_id, external_key='ari:'+channel_id)
             self.call_ids[channel_id] = call['id']
+            transport.keypad_mode=call.get('booking_confirmation_mode')=='keypad'
             if transport.closed: return
             await self.request('POST', 'channels/'+quote(channel_id, safe='')+'/answer')
             await self.request('POST', 'bridges/'+bridge+'/addChannel', channel=channel_id+','+external)
@@ -122,7 +123,19 @@ class ARIBridge:
         channel = event.get('channel', {})
         id = channel.get('id', '')
         if not isinstance(id, str) or not 0 < len(id) <= 200: return
-        if event.get('type') in ('StasisEnd', 'ChannelDestroyed') and id in self.sessions:
+        if event.get('type')=='ChannelDtmfReceived':
+            transport=self.sessions.get(id)
+            duration=event.get('duration_ms')
+            if (id not in self.call_ids or not transport or not transport.keypad_mode or transport.closed
+                    or event.get('digit') not in ('0','1') or type(duration) is not int or not 20<=duration<=6000):return
+            from hashlib import sha256
+            timestamp=event.get('timestamp')
+            if not isinstance(timestamp,str) or not 1<=len(timestamp)<=100:return
+            identifier='dtmf:'+sha256((id+timestamp+event['digit']).encode()).hexdigest()[:32]
+            try:transport.queue.put_nowait({'event':'dtmf','digit':event['digit'],'utterance_id':identifier,
+                'received_at':self.manager.clock().isoformat()})
+            except asyncio.QueueFull:await transport.close()
+        elif event.get('type') in ('StasisEnd', 'ChannelDestroyed') and id in self.sessions:
             await self.sessions[id].close()
             # Cancel by provider ID without waiting on the database audio/model transaction.
             if id in self.call_ids: self.manager.providers.cancel_llm(self.settings.tenant_id, self.call_ids[id])

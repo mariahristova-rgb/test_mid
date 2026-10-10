@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from time import monotonic
 from pydantic import ValidationError
 from .audio import TurnBuffer
-from .domain import AudioFrame, RecognitionResult, DomainError
+from .domain import AudioFrame, RecognitionResult, KeypadInput, DomainError
 from .voice import TERMINAL
 from .language import tr
 from .observability import correlation_id
@@ -81,6 +81,7 @@ class VoiceRuntime:
         buffer = TurnBuffer(max_seconds=config.max_utterance_seconds, silence_ms=config.turn_silence_ms)
         pending, queued_at, submitted = {}, {}, set()
         received_utterances = set()
+        keypad_ready=False
         started, last_activity = monotonic(), monotonic()
         packet_window, packet_count = monotonic(), 0
         epoch, playing, processing, closed, utterance = 0, False, False, False, 0
@@ -124,7 +125,7 @@ class VoiceRuntime:
                 if request_epoch==epoch: last_activity=monotonic()
 
         async def play(text, turn_id, snapshot, deadline=None, finalized_at=None):
-            nonlocal playing,last_activity
+            nonlocal playing,last_activity,keypad_ready
             current_epoch = epoch
             limit = config.max_latency_ms / 1000 if deadline is None else max(.001, deadline - monotonic())
             playing = True
@@ -146,6 +147,9 @@ class VoiceRuntime:
                             duration_ms=(monotonic()-finalized_at)*1000)
                     if encoding == 'mulaw': await asyncio.sleep(.02)
                 await transport.send_event({'event': 'audio_done', 'turn_id': turn_id})
+                if current_epoch==epoch and not closed and snapshot.get('booking_confirmation_mode')=='keypad':
+                    armed=await self.threaded(manager.arm_keypad,principal,call['id'])
+                    keypad_ready=bool(armed and current_epoch==epoch and not closed)
             finally:
                 playing=False
                 if current_epoch==epoch: last_activity=monotonic()
@@ -157,6 +161,9 @@ class VoiceRuntime:
             snapshot = manager.store.get('call_sessions', principal.tenant_id, call['id'])
             if snapshot['status'] in TERMINAL:
                 return snapshot
+            if isinstance(item,KeypadInput):
+                if request_epoch!=epoch:raise DomainError('generation_cancelled',409)
+                return manager.process_keypad(actor,call['id'],item)
             if isinstance(item, RecognitionResult):
                 text, turn_id = item.text, item.utterance_id
             else:
@@ -171,7 +178,7 @@ class VoiceRuntime:
             return manager.process_text(actor, call['id'], text, turn_id)
 
         def process(item, request_epoch):
-            key = item.utterance_id if isinstance(item, RecognitionResult) else item[3]
+            key = item.utterance_id if isinstance(item, (RecognitionResult,KeypadInput)) else item[3]
             token = correlation_id.set(turn_correlation(key))
             try:
                 return process_item(item, request_epoch)
@@ -273,13 +280,21 @@ class VoiceRuntime:
                 if kind in ('stop', 'disconnect'):
                     break
                 if kind == 'barge_in':
+                    keypad_ready=False
                     epoch += 1
                     manager.providers.cancel_llm(principal.tenant_id, call['id'])
                     playing = False
                     await transport.clear()
                     continue
                 if kind == 'mark': continue
-                if kind == 'recognition' and not transport.twilio:
+                if kind == 'dtmf':
+                    if not getattr(transport,'rtp',False) or call['provider']!='asterisk':raise DomainError('forbidden',403)
+                    if call.get('booking_confirmation_mode')!='keypad':continue
+                    if event.get('digit')=='1' and not keypad_ready:continue
+                    item=KeypadInput(digit=event['digit'],utterance_id=event['utterance_id'],received_at=event['received_at'])
+                    key,active=item.utterance_id,False
+                    keypad_ready=False
+                elif kind == 'recognition' and not transport.twilio:
                     recognition = RecognitionResult.model_validate({key: value for key, value in event.items() if key != 'event'})
                     if call['provider'] != 'mock': raise DomainError('forbidden', 403)
                     if not recognition.final:
@@ -304,6 +319,7 @@ class VoiceRuntime:
                     item, active = buffer.feed(frame)
                     if item is None:
                         if active:
+                            keypad_ready=False
                             last_activity = monotonic()
                             if playing or processing:
                                 epoch += 1
@@ -318,6 +334,7 @@ class VoiceRuntime:
                     raise DomainError('invalid_input', 422)
                 last_activity = monotonic()
                 if active and (playing or processing):
+                    keypad_ready=False
                     epoch += 1
                     manager.providers.cancel_llm(principal.tenant_id, call['id'])
                     playing = False

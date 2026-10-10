@@ -406,5 +406,7 @@
   "booking_confirmation_unclear": "I could not clearly understand your confirmation. Please confirm the proposed details or say cancel.",
   "username": "Username",
   "password": "Password",
-  "demoLoginNotice": "Sign in to the local SmileCare demo."
+  "demoLoginNotice": "Sign in to the local SmileCare demo.",
+  "call:keypad_confirmed": "Caller confirmed booking by keypad",
+  "call:keypad_rejected": "Caller rejected booking by keypad"
 }

@@ -157,6 +157,11 @@ class BookingWorkflow:
                     self.store.operations.trace_voice(principal.tenant_id, 'confirmation_evaluated', correlation,
                         call_id=conversation.get('call_session_id'), decision='change', intent_source='literal_pending')
                 return {'response': tr(locale, 'booking_date'), 'booking_status': state.status}
+            if (conversation['channel']=='voice' and conversation.get('voice_confirmation_mode')=='keypad'
+                    and decision=='confirm'):
+                state.locale=locale
+                self.save(principal,conversation,state)
+                return {'response':tr(locale,'voice_keypad_required'),'booking_status':state.status,'keypad_required':True}
         # A valid pending proposal supplies context; literal consent does not need
         # a second probabilistic intent veto. Tool authorization still runs below.
         if decision in ('confirm', 'reject'):

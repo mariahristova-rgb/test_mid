@@ -63,6 +63,7 @@ class EscalationPolicy(Contract):
 
 
 class VoiceConfig(Contract):
+    booking_confirmation_mode: Literal['speech','keypad'] = 'speech'
     locale: Locale = 'bg-BG'
     telephony_provider: Literal['mock', 'twilio', 'asterisk'] = 'mock'
     stt_provider: Literal['mock', 'azure', 'faster_whisper'] = 'mock'
@@ -384,6 +385,12 @@ class RecognitionResult(Contract):
     final: bool = True
     locale: Locale | None = None
     confidence: float = Field(default=0.0, ge=0, le=1)
+
+
+class KeypadInput(Contract):
+    digit: Literal['0','1']
+    utterance_id: str = Field(min_length=1,max_length=100)
+    received_at: datetime
 
 
 class AudioTransport(Protocol):

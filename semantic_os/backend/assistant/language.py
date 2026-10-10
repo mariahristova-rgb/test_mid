@@ -7,6 +7,8 @@ from .domain import Locale, LOCALES, DomainError
 
 TEXT = {
     'en-US': {
+        'voice_keypad_required':'To book the proposed appointment, press 1 after the details finish. Press 0 to cancel.',
+        'voice_keypad_proposal':'Please check: {name}, {date}, {duration} minutes. Press 1 to book, or 0 to cancel.',
         'booking_confirmation_unclear':'I could not clearly understand your confirmation. Please confirm the proposed details or say cancel.',
         'voice_booking_confirm':'Please confirm: {name}, {date}, {duration} minutes. Say: yes, I confirm.',
         'invalid_model_output': 'The model returned an invalid response. No booking was confirmed.',
@@ -68,6 +70,8 @@ TEXT = {
         'usage_warning': 'Your usage is approaching the plan limit.',
     },
     'bg-BG': {
+        'voice_keypad_required':'За да запишете предложения час, натиснете едно след края на предложението. За отказ натиснете нула.',
+        'voice_keypad_proposal':'Моля, проверете: {name}, {date}, {duration} минути. За записване натиснете едно, за отказ натиснете нула.',
         'booking_confirmation_unclear':'Не разбрах ясно потвърждението. Моля, потвърдете предложените данни или кажете отказ.',
         'voice_booking_confirm':'Моля, потвърдете: {name}, {date}, {duration} минути. Кажете: да, потвърждавам.',
         'invalid_model_output': 'Моделът върна невалиден отговор. Не е потвърден час.',

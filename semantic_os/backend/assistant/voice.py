@@ -95,7 +95,8 @@ class VoiceSessionManager:
             conversation = self.orchestrator.conversation(principal, assistant_id, 'voice')
             self.store.update('conversations', principal.tenant_id, conversation['id'], {'active_locale': active_locale})
             id = uid()
-            self.store.update('conversations', principal.tenant_id, conversation['id'], {'call_session_id': id})
+            self.store.update('conversations', principal.tenant_id, conversation['id'], {'call_session_id': id,
+                'voice_confirmation_mode':cfg.booking_confirmation_mode})
             provider_id = provider_call_id or 'mock:' + id
             session = telephony.start(provider_id, active_locale)
             masked = caller if caller == 'anonymous' else caller[:4] + '***' + caller[-3:]
@@ -103,6 +104,7 @@ class VoiceSessionManager:
                 'conversation_id': conversation['id'], 'provider_call_id': provider_id, 'connection_id': connection_id,
                 'caller_identifier': masked, 'voice_locale': active_locale, 'locale_explicit': locale is not None,
                 'owner_user_id': principal.user_id,
+                'booking_confirmation_mode':cfg.booking_confirmation_mode,
                 'locale_established': False, 'recording_enabled': recording, 'transcript_storage': transcript_storage,
                 'transcripts': [], 'events': [{'event': 'start', 'at': self.clock().isoformat()}],
                 'started_at': self.clock().isoformat(), 'ended_at': None, 'duration_seconds': 0,
@@ -183,6 +185,9 @@ class VoiceSessionManager:
             elif command in switch:
                 call = self.event(principal, call_id, 'language', locale=switch[command], event_id='language:' + utterance_id)
                 result = {'response': tr(call['voice_locale'], 'voice_language_switched')}
+                pending_state=self.store.get('conversations',principal.tenant_id,call['conversation_id']).get('booking_state') or {}
+                if call.get('booking_confirmation_mode')=='keypad' and pending_state.get('status')=='awaiting_confirmation':
+                    result['booking_status']='awaiting_confirmation'
             else:
                 if not call['locale_explicit'] and not call['locale_established']:
                     detected, confidence = LanguageResolver().detect(text)
@@ -217,7 +222,8 @@ class VoiceSessionManager:
             if result.get('booking_status')=='awaiting_confirmation':
                 state=self.store.get('conversations',principal.tenant_id,call['conversation_id'])['booking_state']
                 from .language import format_date
-                result['response']=tr(call['voice_locale'],'voice_booking_confirm',name=state['contact_name'],
+                prompt='voice_keypad_proposal' if call.get('booking_confirmation_mode')=='keypad' else 'voice_booking_confirm'
+                result['response']=tr(call['voice_locale'],prompt,name=state['contact_name'],
                     date=format_date(state['starts_at'],call['voice_locale'],state['timezone']),duration=state['duration_minutes'])
                 if result.get('confirmation_unclear'):
                     result['response']=tr(call['voice_locale'],'booking_confirmation_unclear')+' '+result['response']
@@ -229,6 +235,9 @@ class VoiceSessionManager:
                     'booking_alternatives',slots=format_date(slots[0],call['voice_locale'],timezone))
             changes = {'last_response': result['response'], 'last_activity_at': self.clock().isoformat(),
                        'locale_established': True, 'status': call['status'] if call['status'] in TERMINAL else 'listening'}
+            if call.get('booking_confirmation_mode')=='keypad':
+                changes['keypad_prompt_approval_id']=state['approval_id'] if result.get('booking_status')=='awaiting_confirmation' else None
+                changes['keypad_approval_id'],changes['keypad_armed_at']=None,None
             if call['status'] in TERMINAL:
                 changes['last_response'] = ''
             if call['transcript_storage']:
@@ -248,6 +257,60 @@ class VoiceSessionManager:
             call = self.store.update('call_sessions', principal.tenant_id, call_id, changes)
             self.store.add('provider_events', principal.tenant_id, {'call_id': call_id, 'fingerprint': sha256(text.encode()).hexdigest()}, external_key=key)
             self.record_event(principal, call, 'transcript')
+            return call
+
+    def arm_keypad(self, principal, call_id):
+        """Private runtime hook: invoked only after full proposal playback survives its epoch."""
+        with self.store.transaction():
+            call=self.store.get('call_sessions',principal.tenant_id,call_id)
+            if call['status'] in TERMINAL or call.get('booking_confirmation_mode')!='keypad':return False
+            conversation=self.store.get('conversations',principal.tenant_id,call['conversation_id'])
+            state=conversation.get('booking_state') or {}
+            if state.get('status')!='awaiting_confirmation':return False
+            if call.get('keypad_prompt_approval_id')!=state.get('approval_id'):return False
+            approval=self.store.get('approvals',principal.tenant_id,state['approval_id'])
+            if approval['status']!='pending' or datetime.fromisoformat(approval['expires_at'])<=self.clock():return False
+            self.store.update('call_sessions',principal.tenant_id,call_id,{'keypad_approval_id':approval['id'],'keypad_armed_at':self.clock().isoformat()})
+            return True
+
+    @timed('voice_turn')
+    def process_keypad(self, principal, call_id, item):
+        """Trusted call-control input, not a transcript or model-provided authorization."""
+        from .domain import KeypadInput
+        item=KeypadInput.model_validate(item)
+        principal=self.store.principal(principal.subject,principal.tenant_id);principal.require('execute')
+        with self.store.transaction():
+            call=self.store.get('call_sessions',principal.tenant_id,call_id)
+            if call['status'] in TERMINAL or call.get('booking_confirmation_mode')!='keypad':raise DomainError('invalid_transition',409)
+            key='voice-keypad:'+call_id+':'+item.utterance_id
+            if self.store.find('provider_events',principal.tenant_id,key):return {**call,'duplicate':True}
+            conversation=self.store.get('conversations',principal.tenant_id,call['conversation_id'])
+            state=conversation.get('booking_state') or {}
+            if state.get('status')!='awaiting_confirmation':return {**call,'ignored_utterance':True}
+            approval=self.store.get('approvals',principal.tenant_id,state['approval_id'])
+            if approval['status']!='pending' or datetime.fromisoformat(approval['expires_at'])<=self.clock():raise DomainError('expired',409)
+            if item.digit=='1' and (call.get('keypad_approval_id')!=approval['id'] or not call.get('keypad_armed_at')
+                    or item.received_at<datetime.fromisoformat(call['keypad_armed_at'])):
+                return {**call,'ignored_utterance':True}
+            if item.digit=='0':
+                self.store.update('approvals',principal.tenant_id,approval['id'],{'status':'cancelled'})
+                self.store.update('conversations',principal.tenant_id,conversation['id'],{'booking_state':{**state,'status':'cancelled'}})
+                response=tr(call['voice_locale'],'booking_cancelled')
+            else:
+                assistant=self.store.get('assistants',principal.tenant_id,call['assistant_id'])
+                self.store.update('approvals',principal.tenant_id,approval['id'],{'locale':call['voice_locale']})
+                with self.providers.llm_session(assistant,conversation,principal,self.store,correlation_id.get() or uid()) as provider:
+                    self.orchestrator.booking.executor.handoff(principal,assistant,conversation,'CreateAppointment',approval['arguments'],call['voice_locale'],approval['correlation_id'],provider=provider)
+                    if hasattr(provider,'check_cancelled'):provider.check_cancelled()
+                    result=self.orchestrator.approve(principal,approval['id'])
+                    if hasattr(provider,'check_cancelled'):provider.check_cancelled()
+                    response=result['response']
+            call=self.store.update('call_sessions',principal.tenant_id,call_id,{'last_response':response,
+                'keypad_approval_id':None,'keypad_armed_at':None,'last_activity_at':self.clock().isoformat()})
+            for message in self.store.list('messages',principal.tenant_id,conversation['id']):
+                self.store.update('messages',principal.tenant_id,message['id'],{'content':'','attachments':[]})
+            self.store.add('provider_events',principal.tenant_id,{'call_id':call_id,'source':'trusted_keypad','approval_id':approval['id']},external_key=key)
+            self.record_event(principal,call,'keypad_confirmed' if item.digit=='1' else 'keypad_rejected')
             return call
 
     def event(self, principal, call_id, action, *, locale=None, text='', destination='human', event_id=None,

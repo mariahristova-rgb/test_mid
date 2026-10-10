@@ -406,5 +406,7 @@
   "booking_confirmation_unclear": "Не разбрах ясно потвърждението. Моля, потвърдете предложените данни или кажете отказ.",
   "username": "Потребителско име",
   "password": "Парола",
-  "demoLoginNotice": "Влезте в локалната демонстрация на SmileCare."
+  "demoLoginNotice": "Влезте в локалната демонстрация на SmileCare.",
+  "call:keypad_confirmed": "Клиентът потвърди часа с клавиатурата",
+  "call:keypad_rejected": "Клиентът отказа часа с клавиатурата"
 }

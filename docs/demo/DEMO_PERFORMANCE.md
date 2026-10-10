@@ -1,6 +1,6 @@
 # Demo performance evidence
 
-DEMO_BLOCKED. No new Phase 9 live or inference benchmark was run. The measurements below are explicitly historical Phase 8B data from 9 October 2026, not a newly accepted rehearsal. Current Phase 9 checks are read-only health/configuration probes and fresh regressions.
+DEMO_BLOCKED. No new Phase 9 live voice or Qwen benchmark was run. The table below is explicitly historical Phase 8B data from 9 October 2026, not a newly accepted rehearsal. Subsequent Phase 9 synthetic fixed-date TTS/STT probes are recorded separately; they do not establish live or human acceptance.
 
 | Historical call | Locale | Confirmation STT ms | Consent decision ms | Confirmation TTS ms | Finalized speech → first confirmation packet ms |
 |---|---|---|---|---|---|

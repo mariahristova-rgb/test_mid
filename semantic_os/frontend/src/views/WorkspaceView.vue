@@ -60,11 +60,13 @@ onMounted(() => {
       polling = true;
       try {
         const selected = callActivity.value?.call.id;
-        const [recentCalls, bookings, activity] = await Promise.all([request('/api/calls'), request('/api/appointments'),
-          selected ? request(`/api/calls/${selected}/activity`) : Promise.resolve(null)]);
+        const [recentCalls, bookings, activity, snapshot] = await Promise.all([request('/api/calls'), request('/api/appointments'),
+          selected ? request(`/api/calls/${selected}/activity`) : Promise.resolve(null),
+          page.value === 'dashboard' ? request('/api/bootstrap') : Promise.resolve(null)]);
         if (revision === inboxRevision && !busy.value) {
           calls.value = recentCalls; appointments.value = bookings;
           if (activity && selected === callActivity.value?.call.id) callActivity.value = activity;
+          if (snapshot && page.value === 'dashboard') data.value = snapshot;
         }
       } catch (e) { error.value = e instanceof Error ? e.message : t('error'); }
       finally { polling = false; }

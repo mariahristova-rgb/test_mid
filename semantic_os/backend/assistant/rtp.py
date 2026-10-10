@@ -44,6 +44,7 @@ class RTPAudioTransport(asyncio.DatagramProtocol):
         self.queue, self.decoder = asyncio.Queue(maxsize=128), RTPDecoder()
         self.socket, self.peer, self.closed = None, None, False
         self.operations, self.tenant_id = operations, tenant_id
+        self.keypad_mode=False
         self.sequence, self.timestamp, self.ssrc = secrets.randbelow(65536), secrets.randbits(32), secrets.randbits(32)
 
     def connection_made(self, transport): self.socket = transport

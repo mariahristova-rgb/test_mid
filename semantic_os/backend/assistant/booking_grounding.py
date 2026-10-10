@@ -5,13 +5,31 @@ DAY=r'(?:(?:next|следващия|следващият)\s+)?(?:today|tomorrow|
 BG_HOURS={'нула':0,'един':1,'едно':1,'два':2,'две':2,'три':3,'четири':4,'пет':5,'шест':6,'седем':7,'осем':8,'девет':9,'десет':10,
     'единадесет':11,'дванадесет':12,'тринадесет':13,'четиринадесет':14,'петнадесет':15,'шестнадесет':16,'седемнадесет':17,'осемнадесет':18,'деветнадесет':19}
 MERIDIAN=r'(a\.?m\.?|p\.?m\.?|a|p)'
+MONTHS={name:index for index,pair in enumerate(zip(
+    ('януари','февруари','март','април','май','юни','юли','август','септември','октомври','ноември','декември'),
+    ('january','february','march','april','may','june','july','august','september','october','november','december')),1) for name in pair}
+
+
+def explicit_absolute_date(text):
+    """Literal day/month/year only; a missing year is never inferred from the model."""
+    numeric=re.search(r'\b(?:\d{4}-\d{2}-\d{2}|\d{2}[./]\d{2}[./]\d{4})(?:T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})?)?',text)
+    if numeric:return numeric[0]
+    names='|'.join(MONTHS)
+    forward=re.search(r'\b(\d{1,2})(?:st|nd|rd|th)?\s+('+names+r')\s*,?\s+(\d{4})\b',text.casefold())
+    reverse=re.search(r'\b('+names+r')\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s+(\d{4})\b',text.casefold())
+    if forward:day,month,year=forward[1],forward[2],forward[3]
+    elif reverse:month,day,year=reverse[1],reverse[2],reverse[3]
+    else:return None
+    # Calendar validity is checked by parse_date; invalid explicit dates cause
+    # clarification rather than falling back to an old proposal.
+    return f'{int(year):04d}-{MONTHS[month]:02d}-{int(day):02d}'
 
 def explicit_entities(text, *, collecting_name=False):
     lower=text.casefold()
     day=re.search(r'\b('+DAY+r')\b',lower)
     # Exact weekday synonym observed in multilingual ASR; never fuzzy-match unknown dates.
     day_text=day[0].replace('понедельник','понеделник') if day else None
-    absolute=re.search(r'\b(?:\d{4}-\d{2}-\d{2}|\d{2}[./]\d{2}[./]\d{4})(?:T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})?)?',text)
+    absolute=explicit_absolute_date(text)
     clock=re.search(r'\b(\d{1,2}):(\d{2})\s*'+MERIDIAN+r'?\b',lower)
     hour,minute=None,0
     if clock:
@@ -27,10 +45,10 @@ def explicit_entities(text, *, collecting_name=False):
                 match=re.search(r'\bв\s+('+'|'.join(BG_HOURS)+r')\s+часа\b',lower)
                 if match: hour=BG_HOURS[match[1]]
     full=None
-    if absolute and 'T' in absolute[0]: full=absolute[0]
+    if absolute and 'T' in absolute: full=absolute
     elif hour is not None and 0<=hour<=23 and 0<=minute<=59:
         time=f'{hour:02d}:{minute:02d}'
-        full=(day_text+' '+time) if day else (absolute[0]+' '+time) if absolute else time
+        full=(absolute+' '+time) if absolute else (day_text+' '+time) if day else time
     duration=None
     amount=re.search(r'\b(\d+)\s*(?:minutes?|минути|минута|мин)\b',lower)
     if amount and 5<=int(amount[1])<=480: duration=int(amount[1])

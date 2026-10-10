@@ -1,6 +1,7 @@
 """Prepare blocked-demo operational documents from actual audit/test evidence."""
 from datetime import datetime, timezone
 import hashlib
+import argparse
 import json
 from pathlib import Path
 import re
@@ -16,13 +17,20 @@ def write(name,text):
 
 
 def main():
-    readiness=json.loads((EVIDENCE/'readiness.json').read_text(encoding='utf-8'))
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--audit',type=Path,default=EVIDENCE/'readiness.json')
+    parser.add_argument('--tests',type=Path,default=EVIDENCE/'backend-tests.txt')
+    args=parser.parse_args()
+    readiness=json.loads(args.audit.read_text(encoding='utf-8'))
     inventory=json.loads((EVIDENCE/'version-inventory.json').read_text(encoding='utf-8'))
-    tests=(EVIDENCE/'backend-tests.txt').read_text(encoding='utf-8')
+    tests=args.tests.read_text(encoding='utf-8')
     match=re.search(r'Ran (\d+) tests in ([\d.]+)s',tests)
     if not match or not tests.rstrip().endswith('OK'):raise RuntimeError('Fresh backend regression report required')
     observed=f"{match[1]} backend tests passed in {match[2]} seconds"
     verified=readiness['verified_at']
+    inventory['git_commit']=readiness.get('git_commit')
+    inventory['git_state']='local preparation checkpoint; release-source freeze pending' if inventory['git_commit'] else 'uncommitted source'
+    source_description=(f"Local preparation checkpoint: {inventory['git_commit']}. Subsequent source changes must be reviewed/committed before freezing an RC. No release tag or remote push was created." if inventory['git_commit'] else 'Git has no commit and Git-visible source/config/docs are untracked; no committed release candidate exists.')
     blocked='**DEMO_BLOCKED — preparation only.** Phase 8B has not passed the mandatory human/speech acceptance gate. No release candidate is certified and no new Phase 9 live rehearsal, reset, public release or real notification was performed.'
     blockers='\n'.join('- '+b for b in readiness['blockers'])
     image_table='| Service | Running image ID | Runtime state |\n|---|---|---|\n'+'\n'.join(f"| {r['component'].removeprefix('docker_')} | {r['evidence']['image_id']} | {r['status']} |" for r in readiness['components'] if r['component'].startswith('docker_'))
@@ -50,7 +58,7 @@ Fresh verification: {observed}. Frontend nine tests, lint, typecheck and build w
 
 ## Reproducibility inventory, not a release
 
-Git has an unborn codex/phase1-repository-audit branch, no commit and Git-visible source/config/docs untracked. This is documented uncommitted work, not a clean committed RC. No new branch/tag/version, remote push or public release was created. Frontend's existing application version is 0.1.0; no independent backend release version is declared. RC identifier and Git commit remain null.
+{source_description} Frontend's existing application version is 0.1.0; no independent backend release version is declared. RC identifier remains null while the mandatory gates are blocked.
 
 Qwen: {inventory['qwen']['source_revision']}, Q4_K_M, SHA-256 {inventory['qwen']['quantized_sha256']}. Original BF16 assets are untouched. STT: {inventory['stt']['version']}. TTS: BG38 {inventory['tts_models'][1][1]} and MioCodec {inventory['tts_models'][0][1]}; Windows Ivan remains evaluation-only. Migration version: {inventory['database_migration_version']}.
 
@@ -207,7 +215,7 @@ Release decision: **DEMO_BLOCKED**. Do not relabel mandatory voice/persistence/U
     historical=json.loads((ROOT/'artifacts/phase8b/three-call-results.json').read_text(encoding='utf-8'))
     perf='''# Demo performance evidence
 
-DEMO_BLOCKED. No new Phase 9 live or inference benchmark was run. The measurements below are explicitly historical Phase 8B data from 9 October 2026, not a newly accepted rehearsal. Current Phase 9 checks are read-only health/configuration probes and fresh regressions.
+DEMO_BLOCKED. No new Phase 9 live voice or Qwen benchmark was run. The table below is explicitly historical Phase 8B data from 9 October 2026, not a newly accepted rehearsal. Subsequent Phase 9 synthetic fixed-date TTS/STT probes are recorded separately; they do not establish live or human acceptance.
 
 | Historical call | Locale | Confirmation STT ms | Consent decision ms | Confirmation TTS ms | Finalized speech → first confirmation packet ms |
 |---|---|---|---|---|---|
