@@ -1,0 +1,128 @@
+[
+  {
+    "locale": "bg-BG",
+    "timezone": "Europe/Sofia",
+    "reference_at": "2030-10-08T09:00:00+00:00",
+    "provider_state": "MOCK",
+    "turns": [
+      {
+        "customer": "Здравейте, искам да запиша час за утре в 15:00.",
+        "assistant": "Часът 09.10.2030 15:00 Europe/Sofia е свободен за 30 минути. Как се казвате?",
+        "locale": "bg-BG",
+        "stage": "need_name"
+      },
+      {
+        "customer": "Казвам се Иван Иванов.",
+        "assistant": "Моля, потвърдете: Иван Иванов, 09.10.2030 15:00 Europe/Sofia, 30 минути. Отговорете „да, потвърждавам“ или използвайте бутона за потвърждение. Все още няма записан час.",
+        "locale": "bg-BG",
+        "stage": "awaiting_confirmation"
+      },
+      {
+        "customer": "Да, потвърждавам.",
+        "assistant": "Часът е потвърден за 09.10.2030 15:00 Europe/Sofia.",
+        "locale": "bg-BG",
+        "stage": "completed"
+      }
+    ],
+    "appointment_count": 1,
+    "starts_at": "2030-10-09T15:00:00+03:00",
+    "handoffs": [
+      {
+        "intent": "CheckAvailability",
+        "locale": "bg-BG",
+        "source": "receptionist",
+        "target": "executor",
+        "phase": "execution"
+      },
+      {
+        "intent": "CheckAvailability",
+        "locale": "bg-BG",
+        "source": "receptionist",
+        "target": "executor",
+        "phase": "execution"
+      },
+      {
+        "intent": "CreateAppointment",
+        "locale": "bg-BG",
+        "source": "receptionist",
+        "target": "executor",
+        "phase": "proposal"
+      },
+      {
+        "intent": "CreateAppointment",
+        "locale": "bg-BG",
+        "source": "receptionist",
+        "target": "executor",
+        "phase": "execution"
+      }
+    ],
+    "tools": [
+      "CheckAvailability",
+      "CheckAvailability",
+      "CreateAppointment"
+    ]
+  },
+  {
+    "locale": "en-US",
+    "timezone": "Europe/Sofia",
+    "reference_at": "2030-10-08T09:00:00+00:00",
+    "provider_state": "MOCK",
+    "turns": [
+      {
+        "customer": "Hello, I would like to book an appointment for tomorrow at 15:00.",
+        "assistant": "The time 10/09/2030 03:00 PM Europe/Sofia is available for 30 minutes. What is your name?",
+        "locale": "en-US",
+        "stage": "need_name"
+      },
+      {
+        "customer": "My name is John Smith.",
+        "assistant": "Please confirm: John Smith, 10/09/2030 03:00 PM Europe/Sofia, 30 minutes. Reply \"yes, confirm\" or use Confirm action. No appointment has been booked yet.",
+        "locale": "en-US",
+        "stage": "awaiting_confirmation"
+      },
+      {
+        "customer": "Yes, confirm.",
+        "assistant": "Appointment confirmed for 10/09/2030 03:00 PM Europe/Sofia.",
+        "locale": "en-US",
+        "stage": "completed"
+      }
+    ],
+    "appointment_count": 1,
+    "starts_at": "2030-10-09T15:00:00+03:00",
+    "handoffs": [
+      {
+        "intent": "CheckAvailability",
+        "locale": "en-US",
+        "source": "receptionist",
+        "target": "executor",
+        "phase": "execution"
+      },
+      {
+        "intent": "CheckAvailability",
+        "locale": "en-US",
+        "source": "receptionist",
+        "target": "executor",
+        "phase": "execution"
+      },
+      {
+        "intent": "CreateAppointment",
+        "locale": "en-US",
+        "source": "receptionist",
+        "target": "executor",
+        "phase": "proposal"
+      },
+      {
+        "intent": "CreateAppointment",
+        "locale": "en-US",
+        "source": "receptionist",
+        "target": "executor",
+        "phase": "execution"
+      }
+    ],
+    "tools": [
+      "CheckAvailability",
+      "CheckAvailability",
+      "CreateAppointment"
+    ]
+  }
+]

@@ -1,0 +1,19 @@
+# Optional evaluated neural worker replaces the baseline TTS service; never adds a duplicate.
+services:
+  stt:
+    environment: {STT_CPU_THREADS: "4", OMP_NUM_THREADS: "4"}
+    cpus: 4
+  tts:
+    build: {context: .., dockerfile: deploy/Dockerfile.bgtts-eval}
+    environment:
+      LOCAL_TTS_KIND: bgtts38
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    volumes: ["${BG_TTS_DIRECTORY:?Verified neural speech cache required}:/models:ro"]
+    mem_limit: 2200m
+    cpus: 2
+    healthcheck: {start_period: 180s, retries: 30}
+  backend:
+    environment:
+      LOCAL_TTS_KIND: bgtts38
+      LLM_TIMEOUT: "60"

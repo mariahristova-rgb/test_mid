@@ -1,0 +1,34 @@
+.git
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+frontend/node_modules/
+frontend/dist/
+
+backend/__pycache__/
+backend/tests/
+
+# Test and static-analysis caches can be unreadable to Docker Desktop's
+# elevated sender on Windows and are never needed inside the production image.
+**/.pytest_cache/
+**/.ruff_cache/
+**/.audit-reports/
+
+# Never bake local identity configuration or secrets into the deployment.
+**/.env
+**/.env.*
+**/.ontelyx-workspace/
+.assistant-data/
+**/*.sqlite*
+**/*.db
+**/*.key
+**/*.log
+frontend/tests/
+**/.assistant-model-cache/
+**/*.gguf
+**/*.safetensors
+**/*.onnx
+**/*.onnx.json

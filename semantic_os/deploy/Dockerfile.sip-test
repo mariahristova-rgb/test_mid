@@ -1,0 +1,11 @@
+# Upstream PJSUA softphone, cross-compiled for Windows loopback tests; not another server stack.
+FROM debian:trixie-slim AS build
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential mingw-w64 curl ca-certificates && rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+RUN curl -fsSL https://github.com/pjsip/pjproject/archive/5a457451fa2712ba18e12b01738e8ff3af2b26fd.tar.gz -o source.tar.gz && tar -xzf source.tar.gz && mv pjproject-* pjproject
+WORKDIR /build/pjproject
+RUN ./configure --host=x86_64-w64-mingw32 --disable-video --disable-sound --disable-ssl --disable-libyuv --disable-ffmpeg --disable-openh264 CFLAGS="-O2" LDFLAGS="-static -static-libgcc -static-libstdc++" && make dep && make -j4
+RUN mkdir /out && cp pjsip-apps/bin/pjsua*-mingw32* /out/ && cp COPYING /out/ && sha256sum /out/* > /out/SHA256SUMS
+FROM debian:trixie-slim
+COPY --from=build /out /out
+CMD ["sh","-c","ls -l /out"]

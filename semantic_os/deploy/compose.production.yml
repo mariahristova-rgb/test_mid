@@ -1,0 +1,45 @@
+name: test-mid-production
+services:
+  backend:
+    image: ${ASSISTANT_BACKEND_IMAGE:?Use a reviewed image digest}
+    environment:
+      ASSISTANT_ENV: production
+      ASSISTANT_DEMO: "false"
+      ASSISTANT_DATABASE: /data/assistant.sqlite3
+      ASSISTANT_ENCRYPTION_KEY: ${ASSISTANT_ENCRYPTION_KEY:?Required managed keyring}
+      ASSISTANT_BACKUP_ENCRYPTION_KEY: ${ASSISTANT_BACKUP_ENCRYPTION_KEY:?Required separate managed backup key}
+      ASSISTANT_BACKUP_ENABLED: "true"
+      ASSISTANT_BACKUP_DIRECTORY: /backups
+      ASSISTANT_BACKUP_INTERVAL_SECONDS: ${ASSISTANT_BACKUP_INTERVAL_SECONDS:-86400}
+      ASSISTANT_BACKUP_RETENTION_DAYS: ${ASSISTANT_BACKUP_RETENTION_DAYS:-7}
+      ASSISTANT_MESSAGING_WORKER_ENABLED: "true"
+      ASSISTANT_ALLOW_MOCK_BILLING: "false"
+      ASSISTANT_ENABLE_LIVE_MESSAGING: "false"
+      ASSISTANT_ENABLE_LIVE_VOICE: "false"
+      ASSISTANT_UI_ORIGIN: ${ASSISTANT_UI_ORIGIN:?Required public HTTPS origin}
+      ASSISTANT_PLATFORM_ADMIN_SUBJECTS: ${ASSISTANT_PLATFORM_ADMIN_SUBJECTS:?Required verified subject allowlist}
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN:?Required custom identity domain}
+      AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:?Required API audience}
+    read_only: true
+    tmpfs: [/tmp]
+    volumes: [production-data:/data, production-backups:/backups]
+    stop_grace_period: 60s
+    restart: unless-stopped
+  frontend:
+    image: ${ASSISTANT_FRONTEND_IMAGE:?Use a reviewed image digest}
+    read_only: true
+    tmpfs: [/tmp]
+  edge:
+    image: nginxinc/nginx-unprivileged:stable-alpine
+    entrypoint: [nginx, -g, "daemon off;"]
+    ports: ["443:8443"]
+    read_only: true
+    tmpfs: [/tmp]
+    volumes:
+      - ./nginx-production.conf:/etc/nginx/nginx.conf:ro
+      - ${ASSISTANT_CERTIFICATE_DIRECTORY:?Managed certificate directory}/site.crt:/run/secrets/site.crt:ro
+      - ${ASSISTANT_CERTIFICATE_DIRECTORY}/site.key:/run/secrets/site.key:ro
+    depends_on: [backend, frontend]
+volumes:
+  production-data:
+  production-backups:

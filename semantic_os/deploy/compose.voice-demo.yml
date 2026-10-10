@@ -1,0 +1,67 @@
+# Deployment recipe only. Owner image/artifacts/credentials are mandatory; not launched by Phase 7.
+services:
+  asterisk:
+    image: ${ASTERISK_IMAGE:?Provide a reviewed pinned owner Asterisk image with ARI/PJSIP/chan_rtp}
+    ports:
+      - "127.0.0.1:5060:5060/udp"
+      - "127.0.0.1:10000-10099:10000-10099/udp"
+    volumes:
+      - ../../artifacts/voice-demo/asterisk/pjsip.conf:/etc/asterisk/pjsip.conf:ro
+      - ../../artifacts/voice-demo/asterisk/extensions.conf:/etc/asterisk/extensions.conf:ro
+      - ../../artifacts/voice-demo/asterisk/ari.conf:/etc/asterisk/ari.conf:ro
+      - ../../artifacts/voice-demo/asterisk/http.conf:/etc/asterisk/http.conf:ro
+      - ../../artifacts/voice-demo/asterisk/rtp.conf:/etc/asterisk/rtp.conf:ro
+    networks:
+      voice_private:
+        ipv4_address: 172.30.7.2
+    restart: "no"
+  gateway:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.voice
+    ports:
+      - "127.0.0.1:8001:8000"
+    environment:
+      ASSISTANT_ENV: development
+      ASSISTANT_DEMO: "false"
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN:?Configure a verified dashboard identity}
+      AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:?Configure the verified API audience}
+      ASSISTANT_ENCRYPTION_KEY: ${ASSISTANT_ENCRYPTION_KEY:?Set demo encryption key}
+      ASSISTANT_DATABASE: /data/assistant.sqlite3
+      ASSISTANT_UI_ORIGIN: http://127.0.0.1:3011
+      LLM_PROVIDER: local
+      LLM_MODEL: qwen3-4b
+      LLM_SERVED_MODEL: ${LLM_SERVED_MODEL:-Qwen3-4B}
+      LLM_ENDPOINT: ${LLM_ENDPOINT:?Existing authenticated Qwen endpoint required}
+      LLM_API_KEY: ${LLM_API_KEY:?Set the existing inference secret through environment}
+      LLM_ALLOW_PRIVATE_HTTP: ${LLM_ALLOW_PRIVATE_HTTP:-false}
+      LLM_MAX_TOKENS: 256
+      LLM_CONTEXT_LENGTH: ${LLM_CONTEXT_LENGTH:-4096}
+      LLM_TIMEOUT: 20
+      SELF_HOSTED_VOICE_ENABLED: "true"
+      LOCAL_SPEECH_CONFIG: /models/speech-config.json
+      ARI_ENDPOINT: http://172.30.7.2:8088/ari
+      ARI_USERNAME: testmid-voice
+      ARI_PASSWORD: ${ARI_PASSWORD:?Match generated private ARI configuration}
+      ARI_TENANT_ID: smilecare-demo
+      ARI_ASSISTANT_ID: default
+      ARI_SERVICE_SUBJECT: smilecare-demo-admin
+      VOICE_RTP_ADVERTISE_HOST: 172.30.7.3
+      ASTERISK_RTP_HOST: 172.30.7.2
+    volumes:
+      - ../../.assistant-data/smilecare-demo:/data
+      - ${LOCAL_MODEL_ROOT:?Existing reviewed local speech artifacts required}:/models:ro
+    networks:
+      voice_private:
+        ipv4_address: 172.30.7.3
+      inference_egress: {}
+    depends_on:
+      - asterisk
+    restart: "no"
+networks:
+  voice_private:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.7.0/24
+  inference_egress: {}

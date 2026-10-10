@@ -1,0 +1,17 @@
+# Billing architecture
+
+Provider-independent entities: SubscriptionPlan, Subscription, SubscriptionItem, BillingCustomer, BillingInvoice, PaymentEvent and immutable billing usage. The PaymentProvider port covers customer/checkout/subscription creation/update/cancellation, invoices/status and verified events. The installed provider is **MOCK**. There is no real charge, card collection, payment SDK or live checkout URL.
+
+Platform operators configure bilingual plan names, currency, monthly/annual integer minor-unit prices, trial/grace periods, rank, retention and category limits. Plans are versioned; active subscriptions and invoices snapshot their terms. Existing subscriptions do not silently adopt edited prices. Customer currency is fixed; no foreign-exchange arithmetic is performed. Current supported display currencies use two minor digits. This is configuration support, not a commercial price or currency recommendation.
+
+Subscription states: trialing, active, past_due, suspended, cancelled, expired. Trials are configured and non-resettable. Upgrades prepare a full new billing period checkout, with explicit confirmation. No unverified proration is applied. Downgrades/interval changes are scheduled for renewal, subject to resource caps. Cancellation becomes effective at period end. Expired trials lose execution access. Unpaid renewal invoices enter a fixed grace period; repeated failure events cannot extend it indefinitely. Payment can recover billing suspension, but not platform/security suspension.
+
+Mock checkout records an invoice and local provider-session identifier. `POST /api/billing/invoices/{id}/mock-pay` is a controlled fixture using the same signature-verified event path. It requires `ASSISTANT_ALLOW_MOCK_BILLING=true` or an explicit local demo app. Default production enablement is false. Real payments cannot be activated by this adapter.
+
+`POST /webhooks/payments/{tenant}` verifies the exact body HMAC using encrypted tenant fixture credentials, then validates customer, invoice, expected integer amount/currency, event freshness and subscription revision. Event IDs are deduplicated with immutable fingerprints. Already-paid invoices do not renew twice; underpayment, stale first events and out-of-order activation are rejected. Paid usage invoices do not reset subscription periods.
+
+Usage records snapshot rates and calculate overage with integer multiplication. Only trusted billable events can contribute charge_minor; default operational/mock events are nonbillable. Tenant mock reports cannot assert billable=true. Closed UTC-month usage invoices are idempotent and separate from monthly/annual base subscriptions. Reconciliation reports compare internal/vendor totals and require review; they do not invent charges or release uncertain sends.
+
+Bilingual billing notices are prepared as mock records, not sent as real mail. UI formats monetary minor-unit strings using BigInt and Intl, preserving large amounts and Bulgarian decimal formatting. Billing errors/statuses/periods/limits are localized.
+
+Production blockers: real hosted provider, platform-owned payment credentials, verified webhook/account contracts, taxes/VAT/legal invoice requirements, refunds/disputes, confirmed usage reconciliation and payment email delivery. The mock invoice display is not a legal tax invoice. Never treat tenant-controlled mock webhook credentials as authority for a future real platform payment account.

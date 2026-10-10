@@ -1,0 +1,38 @@
+name: Offline assistant checks
+on: [push, pull_request]
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: semantic_os/frontend/package-lock.json
+      - run: pip install -c semantic_os/backend/requirements.lock -r semantic_os/backend/requirements.txt -r semantic_os/backend/requirements-messaging.txt
+      - run: pip install -r semantic_os/backend/requirements-dev.txt
+      - run: pip-audit -r semantic_os/backend/requirements.lock --no-deps --disable-pip
+      - run: python scripts/check_source.py
+      - run: python -m unittest discover -s semantic_os/backend/tests -v
+      - run: npm ci --ignore-scripts
+        working-directory: semantic_os/frontend
+      - run: npm test && npm run typecheck && npm run lint && npm run build
+        working-directory: semantic_os/frontend
+      - run: npm audit --audit-level=moderate
+        working-directory: semantic_os/frontend
+      - run: python scripts/demo_saas.py --output docs/architecture/SAAS_DEMO.json
+      - run: python scripts/check_migrations.py --output artifacts/migration.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-verification
+          path: |
+            artifacts/migration.json
+            docs/architecture/SAAS_DEMO.json
+            semantic_os/frontend/dist
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,73 @@
+{
+  "environment": {
+    "os": "Windows",
+    "python": "3.12.10",
+    "logical_cpus": 16,
+    "transport": "in_process_ASGI_testclient",
+    "database": "temporary_SQLite_WAL",
+    "providers": "MOCK",
+    "rate_limits": "raised_only_for_fixture_workload"
+  },
+  "workloads": {
+    "conversation_agent_tool_concurrency_1": {
+      "operations": 30,
+      "wall_seconds": 2.956304600003932,
+      "operations_per_second": 10.147804120035566,
+      "p50_ms": 73.38820000586566,
+      "p95_ms": 115.94870000408264,
+      "errors": 0,
+      "error_rate": 0.0
+    },
+    "conversation_agent_tool_concurrency_4": {
+      "operations": 30,
+      "wall_seconds": 2.163785500000813,
+      "operations_per_second": 13.864590552061989,
+      "p50_ms": 280.6810999973095,
+      "p95_ms": 390.7446000011987,
+      "errors": 0,
+      "error_rate": 0.0
+    },
+    "conversation_agent_tool_concurrency_8": {
+      "operations": 30,
+      "wall_seconds": 2.241109599999618,
+      "operations_per_second": 13.386226180105211,
+      "p50_ms": 569.9141999939457,
+      "p95_ms": 688.7617000029422,
+      "errors": 0,
+      "error_rate": 0.0
+    },
+    "indexed_usage_queries": {
+      "operations": 30,
+      "wall_seconds": 0.9144067999950494,
+      "ledger_rows": 360
+    },
+    "messaging_jobs": {
+      "inbound": 10,
+      "outbound": 10,
+      "wall_seconds": 0.5631799999973737,
+      "dead_letters": 0
+    },
+    "provider_rate_limit": {
+      "retry_jobs": 1,
+      "real_sends": 0
+    },
+    "synthetic_call_admission": {
+      "attempts": 8,
+      "accepted": 4,
+      "rejected": 4,
+      "actual_phone_calls_or_audio_load": false
+    }
+  },
+  "resources": {
+    "process_cpu_seconds": 10.640625,
+    "peak_python_allocated_bytes": 7119633,
+    "database_file_bytes": 2273280
+  },
+  "limitations": [
+    "Single process and one SQLite writer lock",
+    "TestClient/tracemalloc overhead is included",
+    "No real LLM/speech/carrier/payment requests",
+    "Python allocation peak is not OS RSS",
+    "No production capacity or SLA conclusion"
+  ]
+}

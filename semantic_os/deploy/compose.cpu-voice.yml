@@ -1,0 +1,110 @@
+# Single process owns the existing SQLite database and Voice Gateway; no duplicate agent/database runtime.
+services:
+  qwen:
+    image: ghcr.io/ggml-org/llama.cpp@sha256:33868c035b21dc63f7c60b7438774283fd99215bc319114eb03de5df4ce7cd6b
+    command: ["-m","/models/Qwen3-4B-Q4_K_M.gguf","--alias","Qwen3-4B","--ctx-size","4096","--threads","4","--batch-size","128","--ubatch-size","64","--parallel","1","--n-gpu-layers","0","--jinja","--chat-template-kwargs","{\"enable_thinking\":false}","--reasoning","off","--no-webui","--n-predict","128","--host","0.0.0.0","--port","8080","--api-key-file","/run/secrets/inference_key"]
+    volumes: ["qwen_cache:/models:ro"]
+    secrets: [inference_key]
+    mem_limit: 4g
+    cpus: 4
+    networks: {voice_private: {ipv4_address: 172.30.7.6}, localhost_publish: {}}
+    ports: ["127.0.0.1:8087:8080"]
+    healthcheck: {test: ["CMD","curl","-f","http://127.0.0.1:8080/health"], interval: 10s, timeout: 5s, retries: 30, start_period: 90s}
+    restart: "no"
+  stt:
+    build: {context: .., dockerfile: deploy/Dockerfile.speech, target: stt}
+    environment: {SPEECH_KIND: stt, SPEECH_KEY_FILE: /run/secrets/speech_key, STT_CONFIG: /models/worker-config.json, OMP_NUM_THREADS: "2"}
+    secrets: [speech_key]
+    volumes: ["${WHISPER_DIRECTORY:?Verified multilingual small cache required}:/models:ro"]
+    mem_limit: 1200m
+    cpus: 2
+    networks: {voice_private: {ipv4_address: 172.30.7.4}}
+    healthcheck: {test: ["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"], interval: 10s, timeout: 5s, retries: 30}
+    restart: "no"
+  tts:
+    build: {context: .., dockerfile: deploy/Dockerfile.speech, target: tts}
+    environment: {SPEECH_KIND: tts, SPEECH_KEY_FILE: /run/secrets/speech_key}
+    secrets: [speech_key]
+    mem_limit: 256m
+    cpus: 1
+    networks: {voice_private: {ipv4_address: 172.30.7.5}}
+    healthcheck: {test: ["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"], interval: 10s, timeout: 5s, retries: 10}
+    restart: "no"
+  backend:
+    build: {context: .., dockerfile: deploy/Dockerfile.backend-cpu}
+    environment:
+      ASSISTANT_ENV: development
+      ASSISTANT_DEMO: "true"
+      ASSISTANT_DEMO_TOKEN_FILE: /run/secrets/demo_token
+      ASSISTANT_DEMO_PROXY_IP: 172.30.7.8
+      ASSISTANT_DEMO_LOGIN_ENABLED: "true"
+      ASSISTANT_DEMO_LOGIN_USERNAME: demo
+      ASSISTANT_DEMO_LOGIN_TENANT: smilecare-demo
+      ASSISTANT_DEMO_LOGIN_PASSWORD_FILE: /run/secrets/demo_login_password
+      ASSISTANT_ENCRYPTION_KEY_FILE: /run/secrets/encryption_key
+      ASSISTANT_DATABASE: /data/assistant.sqlite3
+      ASSISTANT_UI_ORIGIN: http://127.0.0.1:${VOICE_UI_PORT:-3011}
+      LLM_PROVIDER: local
+      LLM_MODEL: qwen3-4b
+      LLM_SERVED_MODEL: Qwen3-4B
+      LLM_ENDPOINT: http://172.30.7.6:8080/v1
+      LLM_API_KEY_FILE: /run/secrets/inference_key
+      LLM_ALLOW_PRIVATE_HTTP: "true"
+      LLM_MAX_TOKENS: "128"
+      LLM_CONTEXT_LENGTH: "4096"
+      LLM_TIMEOUT: "30"
+      LLM_COMPACT_INTENT: "true"
+      LLM_COMPACT_TOOLS: "true"
+      SELF_HOSTED_VOICE_ENABLED: "true"
+      STT_ENDPOINT: http://172.30.7.4:8000
+      TTS_ENDPOINT: http://172.30.7.5:8000
+      SPEECH_API_KEY_FILE: /run/secrets/speech_key
+      ARI_ENDPOINT: http://172.30.7.2:8088/ari
+      ARI_USERNAME: testmid-voice
+      ARI_PASSWORD_FILE: /run/secrets/ari_password
+      ARI_TENANT_ID: smilecare-demo
+      ARI_ASSISTANT_ID: default
+      ARI_SERVICE_SUBJECT: smilecare-demo-admin
+      VOICE_RTP_ADVERTISE_HOST: 172.30.7.3
+      ASTERISK_RTP_HOST: 172.30.7.2
+    secrets: [demo_token,encryption_key,inference_key,speech_key,ari_password,demo_login_password]
+    volumes: ["${VOICE_DEMO_DATA:?Dedicated demo database directory required}:/data"]
+    mem_limit: 512m
+    cpus: 2
+    networks: {voice_private: {ipv4_address: 172.30.7.3}}
+    depends_on: {qwen: {condition: service_healthy}, stt: {condition: service_healthy}, tts: {condition: service_healthy}, asterisk: {condition: service_started}}
+    healthcheck: {test: ["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready')"], interval: 10s, timeout: 5s, retries: 30}
+    restart: "no"
+  asterisk:
+    build: {context: .., dockerfile: deploy/Dockerfile.asterisk}
+    volumes:
+      - ${ASTERISK_CONFIG_DIRECTORY:?Generated private SIP config required}/pjsip.conf:/etc/asterisk/pjsip.conf:ro
+      - ${ASTERISK_CONFIG_DIRECTORY}/extensions.conf:/etc/asterisk/extensions.conf:ro
+      - ${ASTERISK_CONFIG_DIRECTORY}/ari.conf:/etc/asterisk/ari.conf:ro
+      - ${ASTERISK_CONFIG_DIRECTORY}/http.conf:/etc/asterisk/http.conf:ro
+      - ${ASTERISK_CONFIG_DIRECTORY}/rtp.conf:/etc/asterisk/rtp.conf:ro
+    ports: ["127.0.0.1:5060:5060/udp","127.0.0.1:10000-10099:10000-10099/udp"]
+    mem_limit: 256m
+    cpus: 1
+    networks: {voice_private: {ipv4_address: 172.30.7.2}, localhost_publish: {}}
+    restart: "no"
+  frontend:
+    build: {context: .., dockerfile: deploy/Dockerfile.frontend-demo}
+    ports: ["127.0.0.1:${VOICE_UI_PORT:-3011}:8080", "127.0.0.1:3017:8080"]
+    mem_limit: 128m
+    cpus: 1
+    networks: {voice_private: {ipv4_address: 172.30.7.8}, localhost_publish: {}}
+    depends_on: [backend]
+    restart: "no"
+networks:
+  voice_private: {internal: true, ipam: {config: [{subnet: 172.30.7.0/24}]}}
+  localhost_publish: {}
+volumes:
+  qwen_cache: {external: true, name: testmid-cpu-voice_qwen-cache}
+secrets:
+  demo_login_password: {file: "${VOICE_SECRET_DIRECTORY:?Private secret directory required}/demo_login_password.txt"}
+  inference_key: {file: "${VOICE_SECRET_DIRECTORY:?Private secret directory required}/inference_key.txt"}
+  speech_key: {file: "${VOICE_SECRET_DIRECTORY}/speech_key.txt"}
+  demo_token: {file: "${VOICE_SECRET_DIRECTORY}/demo_token.txt"}
+  encryption_key: {file: "${VOICE_SECRET_DIRECTORY}/encryption_key.txt"}
+  ari_password: {file: "${VOICE_SECRET_DIRECTORY}/ari_password.txt"}

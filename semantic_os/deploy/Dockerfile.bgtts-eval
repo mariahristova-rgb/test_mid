@@ -1,0 +1,15 @@
+# Licensed candidate evaluation only until actual synthesis, ASR and call tests pass.
+FROM python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258 AS tts
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+WORKDIR /app
+COPY backend/requirements.txt backend/requirements.lock /tmp/
+RUN pip install --no-cache-dir -c /tmp/requirements.lock -r /tmp/requirements.txt
+COPY backend/requirements-neural-tts.lock /tmp/neural-tts.lock
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates libsndfile1 && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir -c /tmp/neural-tts.lock --index-url https://download.pytorch.org/whl/cpu torch==2.11.0 torchaudio==2.11.0
+RUN pip install --no-cache-dir -c /tmp/neural-tts.lock git+https://github.com/Aratako/MioCodec@77473544375d57e96cbdfd5d7d257e8f280fa8e3
+COPY backend/assistant/bgtts_vendor /app/backend/assistant/bgtts_vendor
+COPY backend /app/backend
+RUN groupadd --gid 10001 speech && useradd --uid 10001 --gid 10001 --create-home speech
+USER 10001:10001
+CMD ["uvicorn","backend.assistant.speech_service:app","--host","0.0.0.0","--port","8000","--no-access-log","--limit-concurrency","4"]

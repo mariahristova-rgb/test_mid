@@ -1,0 +1,13 @@
+# Bulgarian and English across channels
+
+Phase 5 adds bilingual organization registration/verification, trial/checkout, subscriptions/invoices, plan/usage warnings, operations, credential controls, administrative metadata and prepared billing notices. UI/contract errors retain bg-BG/en-US resources. Money is formatted from integer minor-unit strings via BigInt/Intl, preserving exact cents even beyond JavaScript safe integers. Invoice/period dates use the tenant timezone; UTC usage-month grouping is explicitly separate from display locale. Literal translation references and template text are tested in the new screens as well as the original workspace.
+
+Supported locales are bg-BG and en-US. All channels call the same LanguageResolver: explicit customer selection, contact preference, established conversation language, reliable detection, assistant default, tenant default, then platform default. Ambiguous inputs preserve conversation language. Explicit switching updates the conversation and its contact preference; UI language stays independent.
+
+Text commands include `switch to English`, `switch to Bulgarian`, `премини на английски`, `премини на български`. Direct Web Chat also has a conversation-language selector. Agent handoffs carry tenant, assistant, conversation, contact, active locale, correlation, requested action and tool permissions. Permission snapshots are context, never authorization; current registry permissions are rechecked at execution.
+
+Booking dates use the trusted inbound timestamp, the persisted initial conversation request reference and the tenant-configured timezone (demo Europe/Sofia). Relative tomorrow and weekday dates are resolved there, not using server UTC midnight. A weekday without a time checks the mock day's availability and requests an exact time. No appointment is created until time/name and explicit confirmation are supplied. DST ambiguity/nonexistent wall times require an offset.
+
+Both locales have appointment, reschedule, cancellation, reminder, follow-up and human-escalation templates, localized email subjects/signatures and error/status labels. WhatsApp template mappings choose bg/en_US; SMS preserves Cyrillic and meters UCS-2 segments. Reminder/follow-up execution resolves the current preferred language. Localized date output always names the timezone.
+
+Tests cover both locales across email, WhatsApp, SMS and Web Chat, handoff locale, explicit switching, existing voice, Cyrillic MIME/HTML/SMS, notification templates, ambiguous preservation and Sofia/DST parsing. Real Bulgarian/English LLM quality, speech/acoustic samples, email deliverability, carrier delivery and Meta template rendering remain unverified.

@@ -1,0 +1,19 @@
+# Language and localization
+
+Required locales are bg-BG and en-US. Assistant and agent configuration must include both; invalid configuration is rejected. UI, conversation and voice locales are distinct.
+
+UI resources: `frontend/src/locales/bg-BG.json` and `en-US.json`; persistent local UI switcher updates HTML lang and authenticated user preference. Browser tokens stay in memory. `X-UI-Locale` controls API validation/error presentation. `Intl` helpers format dates/numbers/currency with explicit time zone for dates; currency codes are caller-selected, not inferred from Bulgarian locale.
+
+Conversation locale: explicit message choice → contact preference → established conversation → reliable content detection → assistant default → tenant default → platform en-US. Resolver reports source, detection confidence and uncertainty. Only a narrow high-confidence bilingual vocabulary is detected; numbers, short ambiguous or mixed-language text cannot trigger an automatic language switch. This is a deterministic heuristic, not a general language classifier. Explicit switching works in chat and voice; locale is persisted in handoff, approval and tool/notification output.
+
+Configuration exists at tenant, user, assistant, agent, contact, conversation, message, voice and template levels. Platform fallback is a resolver argument. Agent schemas/tool names/IDs stay language-neutral. Contact preferences can be changed through an authorized tenant operation, then are reused across channels linked to that contact. Unverified text/phone/email does not automatically link a person across conversations. Signed webhooks enforce the explicitly bound contact address.
+
+Voice locale determines synthetic STT/TTS selection; explicit call language events update the conversation locale. Recording and transcripts default off. Speech provider capabilities are checked with no fallback. Mock fixtures are UTF-8 bytes, not audio. Real Bulgarian/English recognition, synthesis, spoken dates/addresses/names/numbers and acoustic switching remain unverified.
+
+Notifications: localized subject, signature, appointment confirmation and reminder template seeds; administrators can edit safe placeholder-validated templates. Reminder/confirmation execution reads tenant templates. Email HTML escapes all content; WhatsApp maps bg-BG→bg and en-US→en_US in its mock rules; SMS preserves Cyrillic and distinguishes GSM-7/UCS-2 segment counts.
+
+Appointments: aware ISO timestamps or explicit localized numeric formats (`dd.mm.yyyy HH:MM`, `MM/dd/yyyy hh:mm AM/PM`) are supported. UI date entry follows UI locale, then the server returns a neutral timestamp using the configured tenant zone, default Europe/Sofia. Conversation replies retain their separate locale. Explicit weekday names plus HH:MM, today/tomorrow and bounded hour/minute durations are parsed in both languages; no unrestricted LLM date guessing is used. Ambiguous/nonexistent DST wall times require explicit offset. Locale never chooses time zone. Real spoken rendering remains unverified.
+
+Checks cover resource parity, rendered-template literal text, explicit Sofia formatting, both languages through all five mock gateways, language resolution/switching, handoffs, notifications, Cyrillic/MIME, SMS boundaries, safe errors and provider incompatibility. Mock tests do not substitute for real speech evaluation.
+
+Core Phase 2 Web Chat defaults to automatic resolution instead of sending an unconditional bg-BG choice. Explicit Bulgarian/English choices override it. Booking follow-ups persist the original request's timestamp/timezone before interpreting relative dates, and keep the reply locale through availability, details, handoff and approval. Relative temporal words in either language can be understood independently of the selected reply language. The mock provider's supported grammar and limits are documented in AI_ASSISTANT_CORE_PHASE_2.

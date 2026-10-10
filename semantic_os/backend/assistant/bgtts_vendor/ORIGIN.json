@@ -1,0 +1,11 @@
+{
+  "source": "https://huggingface.co/beleata74/BgTTS-38M-V2",
+  "revision": "3f6ca06b3ca78352eb00d8e96349c0bedaa3d2f1",
+  "license_declared": "Apache-2.0",
+  "modifications": [
+    "relative imports",
+    "safe weights_only checkpoint loading",
+    "explicit CPU and local codec paths"
+  ],
+  "training_not_performed": true
+}

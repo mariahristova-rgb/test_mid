@@ -1,0 +1,3 @@
+# Optional infrastructure SDK: vendor-recommended SMS webhook signature validator.
+# No provider SDK is imported by the core domain/agents.
+twilio>=9.0.0,<10.0.0

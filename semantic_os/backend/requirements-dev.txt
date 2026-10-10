@@ -1,0 +1,2 @@
+# Security tooling only; not installed in the runtime image.
+pip-audit==2.10.1

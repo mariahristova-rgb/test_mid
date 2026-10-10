@@ -1,0 +1,17 @@
+FROM python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258 AS base
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+WORKDIR /app
+COPY backend/requirements.txt backend/requirements.lock /tmp/
+RUN pip install --no-cache-dir -c /tmp/requirements.lock -r /tmp/requirements.txt
+RUN groupadd --gid 10001 speech && useradd --uid 10001 --gid 10001 --create-home speech
+FROM base AS tts
+RUN apt-get update && apt-get install -y --no-install-recommends espeak-ng && rm -rf /var/lib/apt/lists/*
+COPY backend /app/backend
+USER 10001:10001
+CMD ["uvicorn","backend.assistant.speech_service:app","--host","0.0.0.0","--port","8000","--no-access-log","--limit-concurrency","4"]
+FROM base AS stt
+COPY backend/requirements-stt.lock /tmp/stt.lock
+RUN pip install --no-cache-dir -c /tmp/stt.lock faster-whisper==1.2.1
+COPY backend /app/backend
+USER 10001:10001
+CMD ["uvicorn","backend.assistant.speech_service:app","--host","0.0.0.0","--port","8000","--no-access-log","--limit-concurrency","4"]

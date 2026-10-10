@@ -1,0 +1,17 @@
+# Security controls and reviewed limits
+
+Identity uses RS256/JWKS, required issuer/audience/expiry/subject claims and server-side tenant membership. JWT roles, matching email addresses and client tenant IDs do not create cross-tenant grants. Development demo auth is loopback-only and prohibited in staging/production. UI bearer tokens remain in memory; tenant switching preserves identity but every request rechecks membership. Cookie authentication is not used, so ambient-cookie CSRF is not an authorization path. CORS remains an explicit origin allowlist.
+
+Tenant state/subscription checks protect APIs, communication gateways and business execution. Resource/usage/storage limits are enforced on the backend; create, re-enable, invoke and send paths are covered. Payment and delivery events are signature/account/tenant-bound, deduplicated and replay-limited. Uncertain irreversible actions are not retried. AI/email/document/transcript content cannot grant tools, change billing or bypass confirmation.
+
+Credentials are encrypted with Fernet/MultiFernet, versioned, revocable and audited on retrieval/write. Display APIs expose references/status/version only, never encrypted/plain values. Explicit principal retrieval checks ownership and configure permission. Internal provider retrieval is a service operation, not a public secret-read endpoint. Keyring rotation places the new managed key first, keeps old keys while rotating, and requires preserving keys needed by retained backups. No key material is logged.
+
+Platform access uses a separate verified-subject allowlist. Organization admins cannot claim it. Platform metadata has no conversation content; support requires a tenant-approved expiring read grant, revocation and audit. Denied cross-tenant authentication writes a content-free hashed security event. API/job/tool/provider timing/error logs contain fixed codes, correlation IDs and measured latency, not customer bodies or tokens.
+
+Uploads remain typed, bounded, tenant/conversation-scoped and quarantined. HTML is extracted as text/escaped on output; remote media is not fetched automatically. A real malware scanning/release pipeline remains a production gate. Exports exclude provider secrets and media bytes; explicit deletion is separate from legal/provider/backup erasure policy.
+
+HTTP body limits, risk-class API rate limits, no-store/nosniff/frame/referrer headers, disabled production Swagger and a generated origin-specific frontend CSP are enforced. Container users are non-root. TLS edge recipes use modern TLS and restricted backend exposure. Proxy trust is opt-in; query/body access logs remain disabled, including Meta verification tokens. Restrict production origins and managed certificate permissions before publishing.
+
+Dependency audit found and corrected Vue server-renderer XSS, source-map-js denial of service and a lint parser vulnerability. Vue and the lint/parser graph were upgraded without peer-check bypass; npm audit then reported zero vulnerabilities. Pinned Python application dependencies also reported no known vulnerabilities. Scans are point-in-time evidence, not a guarantee. Development ESLint 9 emits a support deprecation notice; it is not shipped in the static runtime image and should be tracked for toolchain maintenance.
+
+Live provider/account tests, managed identity/email verification, payment fraud/tax/refund policy, external security review, production logging/alert retention and privacy/legal review remain required. No security certification or GDPR-compliance claim is made.

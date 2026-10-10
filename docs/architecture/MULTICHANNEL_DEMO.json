@@ -1,0 +1,828 @@
+{
+  "mode": "MOCK",
+  "timezone": "Europe/Sofia",
+  "live_delivery_verified": false,
+  "scenarios": {
+    "A_bulgarian_whatsapp_booking": {
+      "verified": true,
+      "appointments": [
+        {
+          "starts_at": "2030-01-11T15:00:00+02:00",
+          "locale": "bg-BG",
+          "status": "confirmed"
+        }
+      ],
+      "messages": [
+        {
+          "channel": "whatsapp",
+          "direction": "inbound",
+          "content": "Здравейте, искам да запиша час за утре в 15:00.",
+          "active_locale": "bg-BG",
+          "delivery_status": "received"
+        },
+        {
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "content": "Часът 11.01.2030 15:00 Europe/Sofia е свободен за 30 минути. Как се казвате?",
+          "active_locale": "bg-BG",
+          "delivery_status": "simulated"
+        },
+        {
+          "channel": "whatsapp",
+          "direction": "inbound",
+          "content": "Казвам се Мария Тест",
+          "active_locale": "bg-BG",
+          "delivery_status": "received"
+        },
+        {
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "content": "Моля, потвърдете: Мария Тест, 11.01.2030 15:00 Europe/Sofia, 30 минути. Отговорете „да, потвърждавам“ или използвайте бутона за потвърждение. Все още няма записан час.",
+          "active_locale": "bg-BG",
+          "delivery_status": "simulated"
+        },
+        {
+          "channel": "whatsapp",
+          "direction": "inbound",
+          "content": "да, потвърждавам",
+          "active_locale": "bg-BG",
+          "delivery_status": "received"
+        },
+        {
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "content": "Часът е потвърден за 11.01.2030 15:00 Europe/Sofia.",
+          "active_locale": "bg-BG",
+          "delivery_status": "simulated"
+        },
+        {
+          "channel": "whatsapp",
+          "direction": "inbound",
+          "content": "да, потвърждавам",
+          "active_locale": "bg-BG",
+          "delivery_status": "received"
+        },
+        {
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "content": "Часът е потвърден за 11.01.2030 15:00 Europe/Sofia.",
+          "active_locale": "bg-BG",
+          "delivery_status": "simulated"
+        }
+      ],
+      "handoffs": [
+        {
+          "tenant_id": "demo",
+          "conversation_id": "6c1c124e-6ad0-44c5-9bb3-9157db119371",
+          "source_agent": "receptionist",
+          "target_agent": "executor",
+          "intent": "CheckAvailability",
+          "arguments": {
+            "starts_at": "2030-01-11T15:00:00+02:00",
+            "day": null,
+            "duration_minutes": 30
+          },
+          "locale": "bg-BG",
+          "correlation_id": "eb0072a6-0110-43d8-aa26-5aaa32f321e8",
+          "max_steps": 4,
+          "max_depth": 1,
+          "tool_budget": 1,
+          "assistant_id": "default",
+          "contact_id": "9d0da8ee-b05a-47fd-9f3b-120977b3fbd5",
+          "tool_permissions": [
+            "CheckAvailability",
+            "CreateAppointment",
+            "RescheduleAppointment",
+            "CancelAppointment",
+            "SendMessage",
+            "CreateFollowUpTask",
+            "EscalateToHuman"
+          ]
+        },
+        {
+          "tenant_id": "demo",
+          "conversation_id": "6c1c124e-6ad0-44c5-9bb3-9157db119371",
+          "source_agent": "receptionist",
+          "target_agent": "executor",
+          "intent": "CheckAvailability",
+          "arguments": {
+            "starts_at": "2030-01-11T15:00:00+02:00",
+            "day": null,
+            "duration_minutes": 30
+          },
+          "locale": "bg-BG",
+          "correlation_id": "e00bf1df-23f9-4de4-8121-169ddf0ae1a4",
+          "max_steps": 4,
+          "max_depth": 1,
+          "tool_budget": 1,
+          "assistant_id": "default",
+          "contact_id": "9d0da8ee-b05a-47fd-9f3b-120977b3fbd5",
+          "tool_permissions": [
+            "CheckAvailability",
+            "CreateAppointment",
+            "RescheduleAppointment",
+            "CancelAppointment",
+            "SendMessage",
+            "CreateFollowUpTask",
+            "EscalateToHuman"
+          ]
+        },
+        {
+          "tenant_id": "demo",
+          "conversation_id": "6c1c124e-6ad0-44c5-9bb3-9157db119371",
+          "source_agent": "receptionist",
+          "target_agent": "executor",
+          "intent": "CreateAppointment",
+          "arguments": {
+            "starts_at": "2030-01-11T15:00:00+02:00",
+            "duration_minutes": 30,
+            "contact_name": "Мария Тест"
+          },
+          "locale": "bg-BG",
+          "correlation_id": "e00bf1df-23f9-4de4-8121-169ddf0ae1a4",
+          "max_steps": 4,
+          "max_depth": 1,
+          "tool_budget": 1,
+          "assistant_id": "default",
+          "contact_id": "9d0da8ee-b05a-47fd-9f3b-120977b3fbd5",
+          "tool_permissions": [
+            "CheckAvailability",
+            "CreateAppointment",
+            "RescheduleAppointment",
+            "CancelAppointment",
+            "SendMessage",
+            "CreateFollowUpTask",
+            "EscalateToHuman"
+          ]
+        },
+        {
+          "tenant_id": "demo",
+          "conversation_id": "6c1c124e-6ad0-44c5-9bb3-9157db119371",
+          "source_agent": "receptionist",
+          "target_agent": "executor",
+          "intent": "CreateAppointment",
+          "arguments": {
+            "starts_at": "2030-01-11T15:00:00+02:00",
+            "duration_minutes": 30,
+            "contact_name": "Мария Тест"
+          },
+          "locale": "bg-BG",
+          "correlation_id": "e00bf1df-23f9-4de4-8121-169ddf0ae1a4",
+          "max_steps": 4,
+          "max_depth": 1,
+          "tool_budget": 1,
+          "assistant_id": "default",
+          "contact_id": "9d0da8ee-b05a-47fd-9f3b-120977b3fbd5",
+          "tool_permissions": [
+            "CheckAvailability",
+            "CreateAppointment",
+            "RescheduleAppointment",
+            "CancelAppointment",
+            "SendMessage",
+            "CreateFollowUpTask",
+            "EscalateToHuman"
+          ]
+        }
+      ],
+      "jobs": [
+        {
+          "kind": "inbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "outbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "inbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "outbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "inbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "appointment_reminder",
+          "status": "pending"
+        },
+        {
+          "kind": "outbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "inbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "outbound_message",
+          "status": "completed"
+        }
+      ]
+    },
+    "B_english_email_next_monday": {
+      "verified": true,
+      "appointments": [
+        {
+          "starts_at": "2030-01-14T15:00:00+02:00",
+          "locale": "en-US",
+          "status": "confirmed"
+        }
+      ],
+      "messages": [
+        {
+          "channel": "email",
+          "direction": "inbound",
+          "content": "Hello, I would like to schedule an appointment next Monday.",
+          "active_locale": "en-US",
+          "delivery_status": "received"
+        },
+        {
+          "channel": "email",
+          "direction": "outbound",
+          "content": "There are available times on the day of 01/14/2030 Europe/Sofia. What exact time would you prefer? I will check that time before booking.\n\nYour assistant",
+          "active_locale": "en-US",
+          "delivery_status": "draft"
+        },
+        {
+          "channel": "email",
+          "direction": "inbound",
+          "content": "15:00",
+          "active_locale": "en-US",
+          "delivery_status": "received"
+        },
+        {
+          "channel": "email",
+          "direction": "outbound",
+          "content": "The time 01/14/2030 03:00 PM Europe/Sofia is available for 30 minutes. What is your name?\n\nYour assistant",
+          "active_locale": "en-US",
+          "delivery_status": "draft"
+        },
+        {
+          "channel": "email",
+          "direction": "inbound",
+          "content": "My name is Alex Test",
+          "active_locale": "en-US",
+          "delivery_status": "received"
+        },
+        {
+          "channel": "email",
+          "direction": "outbound",
+          "content": "Please confirm: Alex Test, 01/14/2030 03:00 PM Europe/Sofia, 30 minutes. Reply \"yes, confirm\" or use Confirm action. No appointment has been booked yet.\n\nYour assistant",
+          "active_locale": "en-US",
+          "delivery_status": "draft"
+        },
+        {
+          "channel": "email",
+          "direction": "inbound",
+          "content": "yes, confirm",
+          "active_locale": "en-US",
+          "delivery_status": "received"
+        },
+        {
+          "channel": "email",
+          "direction": "outbound",
+          "content": "Appointment confirmed for 01/14/2030 03:00 PM Europe/Sofia.\n\nYour assistant",
+          "active_locale": "en-US",
+          "delivery_status": "simulated"
+        }
+      ],
+      "handoffs": [
+        {
+          "tenant_id": "demo",
+          "conversation_id": "757cf316-950c-4e82-8eb0-048e084cc6ae",
+          "source_agent": "receptionist",
+          "target_agent": "executor",
+          "intent": "CheckAvailability",
+          "arguments": {
+            "starts_at": null,
+            "day": "2030-01-14",
+            "duration_minutes": 30
+          },
+          "locale": "en-US",
+          "correlation_id": "ee0c8b19-6aab-410f-a625-2a3b670d5a53",
+          "max_steps": 4,
+          "max_depth": 1,
+          "tool_budget": 1,
+          "assistant_id": "default",
+          "contact_id": "338ea7ad-fdc6-46b0-9836-f44b016908c4",
+          "tool_permissions": [
+            "CheckAvailability",
+            "CreateAppointment",
+            "RescheduleAppointment",
+            "CancelAppointment",
+            "SendMessage",
+            "CreateFollowUpTask",
+            "EscalateToHuman"
+          ]
+        },
+        {
+          "tenant_id": "demo",
+          "conversation_id": "757cf316-950c-4e82-8eb0-048e084cc6ae",
+          "source_agent": "receptionist",
+          "target_agent": "executor",
+          "intent": "CheckAvailability",
+          "arguments": {
+            "starts_at": "2030-01-14T15:00:00+02:00",
+            "day": null,
+            "duration_minutes": 30
+          },
+          "locale": "en-US",
+          "correlation_id": "d4ad3931-0231-41bc-a228-83f30a8a0ea4",
+          "max_steps": 4,
+          "max_depth": 1,
+          "tool_budget": 1,
+          "assistant_id": "default",
+          "contact_id": "338ea7ad-fdc6-46b0-9836-f44b016908c4",
+          "tool_permissions": [
+            "CheckAvailability",
+            "CreateAppointment",
+            "RescheduleAppointment",
+            "CancelAppointment",
+            "SendMessage",
+            "CreateFollowUpTask",
+            "EscalateToHuman"
+          ]
+        },
+        {
+          "tenant_id": "demo",
+          "conversation_id": "757cf316-950c-4e82-8eb0-048e084cc6ae",
+          "source_agent": "receptionist",
+          "target_agent": "executor",
+          "intent": "CheckAvailability",
+          "arguments": {
+            "starts_at": "2030-01-14T15:00:00+02:00",
+            "day": null,
+            "duration_minutes": 30
+          },
+          "locale": "en-US",
+          "correlation_id": "3b4b1e1d-0bb0-4675-ac2c-55e20a7dcbd6",
+          "max_steps": 4,
+          "max_depth": 1,
+          "tool_budget": 1,
+          "assistant_id": "default",
+          "contact_id": "338ea7ad-fdc6-46b0-9836-f44b016908c4",
+          "tool_permissions": [
+            "CheckAvailability",
+            "CreateAppointment",
+            "RescheduleAppointment",
+            "CancelAppointment",
+            "SendMessage",
+            "CreateFollowUpTask",
+            "EscalateToHuman"
+          ]
+        },
+        {
+          "tenant_id": "demo",
+          "conversation_id": "757cf316-950c-4e82-8eb0-048e084cc6ae",
+          "source_agent": "receptionist",
+          "target_agent": "executor",
+          "intent": "CreateAppointment",
+          "arguments": {
+            "starts_at": "2030-01-14T15:00:00+02:00",
+            "duration_minutes": 30,
+            "contact_name": "Alex Test"
+          },
+          "locale": "en-US",
+          "correlation_id": "3b4b1e1d-0bb0-4675-ac2c-55e20a7dcbd6",
+          "max_steps": 4,
+          "max_depth": 1,
+          "tool_budget": 1,
+          "assistant_id": "default",
+          "contact_id": "338ea7ad-fdc6-46b0-9836-f44b016908c4",
+          "tool_permissions": [
+            "CheckAvailability",
+            "CreateAppointment",
+            "RescheduleAppointment",
+            "CancelAppointment",
+            "SendMessage",
+            "CreateFollowUpTask",
+            "EscalateToHuman"
+          ]
+        },
+        {
+          "tenant_id": "demo",
+          "conversation_id": "757cf316-950c-4e82-8eb0-048e084cc6ae",
+          "source_agent": "receptionist",
+          "target_agent": "executor",
+          "intent": "CreateAppointment",
+          "arguments": {
+            "starts_at": "2030-01-14T15:00:00+02:00",
+            "duration_minutes": 30,
+            "contact_name": "Alex Test"
+          },
+          "locale": "en-US",
+          "correlation_id": "3b4b1e1d-0bb0-4675-ac2c-55e20a7dcbd6",
+          "max_steps": 4,
+          "max_depth": 1,
+          "tool_budget": 1,
+          "assistant_id": "default",
+          "contact_id": "338ea7ad-fdc6-46b0-9836-f44b016908c4",
+          "tool_permissions": [
+            "CheckAvailability",
+            "CreateAppointment",
+            "RescheduleAppointment",
+            "CancelAppointment",
+            "SendMessage",
+            "CreateFollowUpTask",
+            "EscalateToHuman"
+          ]
+        }
+      ],
+      "jobs": [
+        {
+          "kind": "inbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "outbound_message",
+          "status": "draft"
+        },
+        {
+          "kind": "inbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "outbound_message",
+          "status": "draft"
+        },
+        {
+          "kind": "inbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "outbound_message",
+          "status": "draft"
+        },
+        {
+          "kind": "inbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "appointment_reminder",
+          "status": "pending"
+        },
+        {
+          "kind": "outbound_message",
+          "status": "completed"
+        }
+      ]
+    },
+    "C_bulgarian_sms_reminder": {
+      "verified": true,
+      "appointments": [
+        {
+          "starts_at": "2030-01-11T15:00:00+02:00",
+          "locale": "bg-BG",
+          "status": "confirmed"
+        }
+      ],
+      "messages": [
+        {
+          "channel": "sms",
+          "direction": "inbound",
+          "content": "Здравейте, искам час утре в 15:00",
+          "active_locale": "bg-BG",
+          "delivery_status": "received"
+        },
+        {
+          "channel": "sms",
+          "direction": "outbound",
+          "content": "Часът 11.01.2030 15:00 Europe/Sofia е свободен за 30 минути. Как се казвате?",
+          "active_locale": "bg-BG",
+          "delivery_status": "simulated"
+        },
+        {
+          "channel": "sms",
+          "direction": "inbound",
+          "content": "Казвам се Мария Тест",
+          "active_locale": "bg-BG",
+          "delivery_status": "received"
+        },
+        {
+          "channel": "sms",
+          "direction": "outbound",
+          "content": "Моля, потвърдете: Мария Тест, 11.01.2030 15:00 Europe/Sofia, 30 минути. Отговорете „да, потвърждавам“ или използвайте бутона за потвърждение. Все още няма записан час.",
+          "active_locale": "bg-BG",
+          "delivery_status": "simulated"
+        },
+        {
+          "channel": "sms",
+          "direction": "inbound",
+          "content": "да, потвърждавам",
+          "active_locale": "bg-BG",
+          "delivery_status": "received"
+        },
+        {
+          "channel": "sms",
+          "direction": "outbound",
+          "content": "Часът е потвърден за 11.01.2030 15:00 Europe/Sofia.",
+          "active_locale": "bg-BG",
+          "delivery_status": "simulated"
+        },
+        {
+          "channel": "sms",
+          "direction": "outbound",
+          "content": "Напомняне: Вашият час е на 11.01.2030 15:00 Europe/Sofia.",
+          "active_locale": "bg-BG",
+          "delivery_status": "delivered"
+        }
+      ],
+      "handoffs": [
+        {
+          "tenant_id": "demo",
+          "conversation_id": "baed6bca-3882-42e8-a3a0-b23e369f8c00",
+          "source_agent": "receptionist",
+          "target_agent": "executor",
+          "intent": "CheckAvailability",
+          "arguments": {
+            "starts_at": "2030-01-11T15:00:00+02:00",
+            "day": null,
+            "duration_minutes": 30
+          },
+          "locale": "bg-BG",
+          "correlation_id": "ab1ee753-57de-41a3-99b6-b11deb0be746",
+          "max_steps": 4,
+          "max_depth": 1,
+          "tool_budget": 1,
+          "assistant_id": "default",
+          "contact_id": "0c78cc50-554f-469e-8989-67a71462bbb3",
+          "tool_permissions": [
+            "CheckAvailability",
+            "CreateAppointment",
+            "RescheduleAppointment",
+            "CancelAppointment",
+            "SendMessage",
+            "CreateFollowUpTask",
+            "EscalateToHuman"
+          ]
+        },
+        {
+          "tenant_id": "demo",
+          "conversation_id": "baed6bca-3882-42e8-a3a0-b23e369f8c00",
+          "source_agent": "receptionist",
+          "target_agent": "executor",
+          "intent": "CheckAvailability",
+          "arguments": {
+            "starts_at": "2030-01-11T15:00:00+02:00",
+            "day": null,
+            "duration_minutes": 30
+          },
+          "locale": "bg-BG",
+          "correlation_id": "59583fae-3588-44d1-914b-322e4bdbed2d",
+          "max_steps": 4,
+          "max_depth": 1,
+          "tool_budget": 1,
+          "assistant_id": "default",
+          "contact_id": "0c78cc50-554f-469e-8989-67a71462bbb3",
+          "tool_permissions": [
+            "CheckAvailability",
+            "CreateAppointment",
+            "RescheduleAppointment",
+            "CancelAppointment",
+            "SendMessage",
+            "CreateFollowUpTask",
+            "EscalateToHuman"
+          ]
+        },
+        {
+          "tenant_id": "demo",
+          "conversation_id": "baed6bca-3882-42e8-a3a0-b23e369f8c00",
+          "source_agent": "receptionist",
+          "target_agent": "executor",
+          "intent": "CreateAppointment",
+          "arguments": {
+            "starts_at": "2030-01-11T15:00:00+02:00",
+            "duration_minutes": 30,
+            "contact_name": "Мария Тест"
+          },
+          "locale": "bg-BG",
+          "correlation_id": "59583fae-3588-44d1-914b-322e4bdbed2d",
+          "max_steps": 4,
+          "max_depth": 1,
+          "tool_budget": 1,
+          "assistant_id": "default",
+          "contact_id": "0c78cc50-554f-469e-8989-67a71462bbb3",
+          "tool_permissions": [
+            "CheckAvailability",
+            "CreateAppointment",
+            "RescheduleAppointment",
+            "CancelAppointment",
+            "SendMessage",
+            "CreateFollowUpTask",
+            "EscalateToHuman"
+          ]
+        },
+        {
+          "tenant_id": "demo",
+          "conversation_id": "baed6bca-3882-42e8-a3a0-b23e369f8c00",
+          "source_agent": "receptionist",
+          "target_agent": "executor",
+          "intent": "CreateAppointment",
+          "arguments": {
+            "starts_at": "2030-01-11T15:00:00+02:00",
+            "duration_minutes": 30,
+            "contact_name": "Мария Тест"
+          },
+          "locale": "bg-BG",
+          "correlation_id": "59583fae-3588-44d1-914b-322e4bdbed2d",
+          "max_steps": 4,
+          "max_depth": 1,
+          "tool_budget": 1,
+          "assistant_id": "default",
+          "contact_id": "0c78cc50-554f-469e-8989-67a71462bbb3",
+          "tool_permissions": [
+            "CheckAvailability",
+            "CreateAppointment",
+            "RescheduleAppointment",
+            "CancelAppointment",
+            "SendMessage",
+            "CreateFollowUpTask",
+            "EscalateToHuman"
+          ]
+        }
+      ],
+      "jobs": [
+        {
+          "kind": "inbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "outbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "inbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "outbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "inbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "appointment_reminder",
+          "status": "completed"
+        },
+        {
+          "kind": "outbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "outbound_message",
+          "status": "completed"
+        }
+      ]
+    },
+    "D_human_handoff": {
+      "verified": true,
+      "appointments": [],
+      "messages": [
+        {
+          "channel": "whatsapp",
+          "direction": "inbound",
+          "content": "Hello, I want to speak to a human operator.",
+          "active_locale": "en-US",
+          "delivery_status": "received"
+        },
+        {
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "content": "A human will review your request.",
+          "active_locale": "en-US",
+          "delivery_status": "simulated"
+        },
+        {
+          "channel": "whatsapp",
+          "direction": "inbound",
+          "content": "I would like an appointment tomorrow at 15:00",
+          "active_locale": "en-US",
+          "delivery_status": "received"
+        }
+      ],
+      "handoffs": [
+        {
+          "tenant_id": "demo",
+          "conversation_id": "29a0cb7f-a55a-4538-9b5d-e5c966acf753",
+          "source_agent": "receptionist",
+          "target_agent": "executor",
+          "intent": "EscalateToHuman",
+          "arguments": {
+            "reason": "Hello, I want to speak to a human operator."
+          },
+          "locale": "en-US",
+          "correlation_id": "8a87785b-359e-4aad-8892-24234c0f397c",
+          "max_steps": 4,
+          "max_depth": 1,
+          "tool_budget": 1,
+          "assistant_id": "default",
+          "contact_id": "9055f219-5c93-40cd-8419-d67ff80f53cc",
+          "tool_permissions": [
+            "CheckAvailability",
+            "CreateAppointment",
+            "RescheduleAppointment",
+            "CancelAppointment",
+            "SendMessage",
+            "CreateFollowUpTask",
+            "EscalateToHuman"
+          ]
+        }
+      ],
+      "jobs": [
+        {
+          "kind": "inbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "outbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "inbound_message",
+          "status": "completed"
+        }
+      ]
+    },
+    "D_operator_reply_resume_close": {
+      "verified": true,
+      "appointments": [],
+      "messages": [
+        {
+          "channel": "whatsapp",
+          "direction": "inbound",
+          "content": "Hello",
+          "active_locale": "en-US",
+          "delivery_status": "received"
+        },
+        {
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "content": "Hello! I can help with information, appointments and follow-up tasks.",
+          "active_locale": "en-US",
+          "delivery_status": "simulated"
+        },
+        {
+          "channel": "whatsapp",
+          "direction": "inbound",
+          "content": "Здравейте, искам час утре в 15:00",
+          "active_locale": "en-US",
+          "delivery_status": "received"
+        },
+        {
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "content": "Ще Ви помогна.",
+          "active_locale": "en-US",
+          "delivery_status": "simulated"
+        },
+        {
+          "channel": "whatsapp",
+          "direction": "inbound",
+          "content": "Hello",
+          "active_locale": "en-US",
+          "delivery_status": "received"
+        },
+        {
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "content": "Hello! I can help with information, appointments and follow-up tasks.",
+          "active_locale": "en-US",
+          "delivery_status": "cancelled"
+        }
+      ],
+      "handoffs": [],
+      "jobs": [
+        {
+          "kind": "inbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "outbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "inbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "outbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "inbound_message",
+          "status": "completed"
+        },
+        {
+          "kind": "outbound_message",
+          "status": "cancelled"
+        }
+      ]
+    }
+  }
+}

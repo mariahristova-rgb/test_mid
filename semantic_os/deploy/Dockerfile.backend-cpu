@@ -1,0 +1,13 @@
+FROM zricethezav/gitleaks:v8.24.3 AS scan
+COPY backend /scan/backend
+RUN gitleaks dir /scan/backend --redact=100 --no-banner && touch /scan-passed
+FROM python:3.12-slim-bookworm
+COPY --from=scan /scan-passed /usr/local/share/assistant-secret-scan-passed
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+WORKDIR /app
+COPY backend/requirements.txt backend/requirements-messaging.txt backend/requirements.lock /tmp/
+RUN pip install --no-cache-dir -c /tmp/requirements.lock -r /tmp/requirements.txt -r /tmp/requirements-messaging.txt
+COPY backend /app/backend
+RUN groupadd --gid 10001 assistant && useradd --uid 10001 --gid 10001 --create-home assistant && mkdir /data && chown 10001:10001 /data
+USER 10001:10001
+CMD ["uvicorn","backend.api.app:app","--host","0.0.0.0","--port","8000","--no-access-log"]

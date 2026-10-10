@@ -1,0 +1,37 @@
+{
+  "https_certificate_validation": true,
+  "readiness": true,
+  "frontend_headers": true,
+  "channels": {
+    "bg-BG": "shared_conversation_verified",
+    "en-US": "shared_conversation_verified"
+  },
+  "tenant_isolation": true,
+  "recovery": {
+    "status": "restored",
+    "schema_version": 5,
+    "backup_id": "f475955d-7d21-4432-a05c-d7eead5197d1",
+    "integrity": "ok",
+    "foreign_keys": "ok"
+  },
+  "observed_backup_restore_seconds": 2.659476099994208,
+  "rpo_target_seconds": 86400,
+  "rto_target_seconds": 3600,
+  "worker": {
+    "status": "running",
+    "last_tick_at": "2026-10-08T18:43:30.150509+00:00",
+    "last_error": null,
+    "inflight": 0,
+    "messaging_enabled": true,
+    "backup_enabled": true,
+    "voice_cleanup_enabled": true,
+    "last_backup_at": "2026-10-08T18:42:30.153353+00:00"
+  },
+  "limitations": [
+    "Local Docker only",
+    "Self-signed fixture certificate",
+    "Synthetic JWT issuer/JWKS",
+    "Mock payment/channel providers",
+    "Not a production readiness or capacity claim"
+  ]
+}

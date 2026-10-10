@@ -1,0 +1,33 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      ASSISTANT_ENV: production
+      ASSISTANT_DEMO: "false"
+      ASSISTANT_DATABASE: /data/assistant.sqlite3
+      ASSISTANT_ENCRYPTION_KEY: ${ASSISTANT_ENCRYPTION_KEY:?Set a managed encryption key}
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN:?Set verified identity domain}
+      AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:?Set verified identity audience}
+      ASSISTANT_UI_ORIGIN: ${ASSISTANT_UI_ORIGIN:-http://127.0.0.1:3000}
+    volumes:
+      - assistant-data:/data
+    restart: unless-stopped
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://127.0.0.1:8000}
+        VITE_AUTH0_DOMAIN: ${AUTH0_DOMAIN}
+        VITE_AUTH0_CLIENT_ID: ${VITE_AUTH0_CLIENT_ID:?Set public SPA client ID}
+        VITE_AUTH0_AUDIENCE: ${AUTH0_AUDIENCE}
+    ports:
+      - "127.0.0.1:3000:8080"
+    depends_on:
+      - backend
+volumes:
+  assistant-data:

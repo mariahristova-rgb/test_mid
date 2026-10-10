@@ -1,0 +1,86 @@
+[
+  {
+    "locale": "bg-BG",
+    "timezone": "Europe/Sofia",
+    "reference_at": "2030-10-08T09:00:00+00:00",
+    "state": "MOCK",
+    "speech_validated": false,
+    "greeting": "Здравейте! Как мога да Ви помогна? Този разговор използва автоматизиран асистент.",
+    "turns": [
+      {
+        "caller": "Искам да запиша час за утре в 15:00.",
+        "reply": "Часът 09.10.2030 15:00 Europe/Sofia е свободен за 30 минути. Как се казвате?",
+        "locale": "bg-BG",
+        "synthetic_tts_roundtrip": true
+      },
+      {
+        "caller": "Казвам се Иван Иванов.",
+        "reply": "Моля, потвърдете: Иван Иванов, 09.10.2030 15:00 Europe/Sofia, 30 минути. Отговорете „да, потвърждавам“ или използвайте бутона за потвърждение. Все още няма записан час.",
+        "locale": "bg-BG",
+        "synthetic_tts_roundtrip": true
+      },
+      {
+        "caller": "Да, потвърждавам.",
+        "reply": "Часът е потвърден за 09.10.2030 15:00 Europe/Sofia.",
+        "locale": "bg-BG",
+        "synthetic_tts_roundtrip": true
+      }
+    ],
+    "appointment_count": 1,
+    "starts_at": "2030-10-09T15:00:00+03:00",
+    "tools": [
+      "CheckAvailability",
+      "CheckAvailability",
+      "CreateAppointment"
+    ],
+    "handoff_locales": [
+      "bg-BG",
+      "bg-BG",
+      "bg-BG",
+      "bg-BG"
+    ],
+    "transcripts_stored": 0
+  },
+  {
+    "locale": "en-US",
+    "timezone": "Europe/Sofia",
+    "reference_at": "2030-10-08T09:00:00+00:00",
+    "state": "MOCK",
+    "speech_validated": false,
+    "greeting": "Hello! How can I help you? This call uses an automated assistant.",
+    "turns": [
+      {
+        "caller": "I would like to book an appointment for tomorrow at 15:00.",
+        "reply": "The time 10/09/2030 03:00 PM Europe/Sofia is available for 30 minutes. What is your name?",
+        "locale": "en-US",
+        "synthetic_tts_roundtrip": true
+      },
+      {
+        "caller": "My name is John Smith.",
+        "reply": "Please confirm: John Smith, 10/09/2030 03:00 PM Europe/Sofia, 30 minutes. Reply \"yes, confirm\" or use Confirm action. No appointment has been booked yet.",
+        "locale": "en-US",
+        "synthetic_tts_roundtrip": true
+      },
+      {
+        "caller": "Yes, confirm.",
+        "reply": "Appointment confirmed for 10/09/2030 03:00 PM Europe/Sofia.",
+        "locale": "en-US",
+        "synthetic_tts_roundtrip": true
+      }
+    ],
+    "appointment_count": 1,
+    "starts_at": "2030-10-09T15:00:00+03:00",
+    "tools": [
+      "CheckAvailability",
+      "CheckAvailability",
+      "CreateAppointment"
+    ],
+    "handoff_locales": [
+      "en-US",
+      "en-US",
+      "en-US",
+      "en-US"
+    ],
+    "transcripts_stored": 0
+  }
+]

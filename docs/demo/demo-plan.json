@@ -1,0 +1,16 @@
+{
+  "status": "PREPARATION_ONLY_DEMO_BLOCKED",
+  "tenant_id": "smilecare-demo",
+  "timezone": "Europe/Sofia",
+  "fixed_date": "2026-10-13",
+  "duration_minutes": 30,
+  "planned_slots": [
+    {"locale": "bg-BG", "starts_at": "2026-10-13T15:00:00+03:00", "contact": "Мария Демо"},
+    {"locale": "en-US", "starts_at": "2026-10-13T16:00:00+03:00", "contact": "Jane Example"},
+    {"locale": "bg-BG", "starts_at": "2026-10-13T17:00:00+03:00", "contact": "Иван Пример"}
+  ],
+  "calendar": "MOCK_ONLY; slots computed from existing seeded policy, not a real clinic system",
+  "rehearsal": "NOT_PERFORMED; Phase 8B gate failed",
+  "notifications": "SIMULATION_ONLY; no live provider configured",
+  "operator_confirmation_required_for_reset": true
+}
