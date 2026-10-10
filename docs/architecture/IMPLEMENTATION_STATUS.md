@@ -1,4 +1,8 @@
-# Implementation status — Phase 5, 2026-10-08
+# Implementation status
+
+## Phase 10 Stage A — 2026-10-10
+
+Baseline source audit, official public competitive evidence, persona journeys, original bilingual wireframes and focused P0 proposal are documented in docs/ux. Stage A approval was requested before redesign, as required by the Phase 10 instructions. No Phase 10 product functionality is implemented yet; no deployment or voice/provider change occurred. Phase 9 remains DEMO_BLOCKED. Latest Phase 10 regression results and outstanding acceptance are in docs/ux/PHASE10_TEST_RESULTS.md. Historical entries below describe their own verification dates and are not current release approval.
 
 ## Phase 7 / 7B / 7D local increment
 

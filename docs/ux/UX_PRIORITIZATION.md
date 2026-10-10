@@ -1,0 +1,14 @@
+# Phase 10 implementation plan
+
+Stage A proposal, 10 October 2026. Approval required before broad UX changes, as specified in the Phase 10 request.
+
+1. P0 setup: add tenant-scoped resumable draft records with revision conflict checks; preserve existing active configuration until explicit promotion. Business hours/services must feed real mock-calendar policy, not decorative fields. Reuse both agents and existing validated tool contracts. Preserve both mandatory locales; distinguish UI, conversation and voice settings. Back/edit/cancel never activates providers.
+2. P0 isolated studio: instantiate existing orchestration against a disposable store and deterministic provider/calendar mocks. No live store/calendar/messaging/telephony handles. Persist only bounded sanitized receipts/config hashes under the authenticated tenant. Presets cover booking/unavailable/short confirmation/rejection/switch/handoff; interruption and STT ambiguity are simulated semantics, never acoustic acceptance. Unsupported audio reports BLOCKED. Test draft changes without updating active assistants.
+3. P0 debugger/readiness: normalize actual persisted call/agent/tool events and permitted content-free traces. Keep evidence origin and timestamps; monotonic process timestamps cannot be treated as wall-clock dates. Missing trace after restart is Not recorded. Show no booking while proposal is pending. Provider status derives from configuration and scoped test evidence, never static success banners.
+4. Verify P0 before P1: tenant isolation/RBAC, draft separation, zero side effects, locale parity, stage ordering/missing states, permission intersection, resume/conflicts, publish gating, keyboard/focus and builds. P1 follows only after these pass: assistant sections, bidirectional booking links, measured operations and safe existing takeover controls.
+
+No new dependencies planned. No SIP/STT/TTS/LLM rebuilding, voice consent-mode activation or live messages. Preserve routes and existing configuration screens during incremental rollout. Knowledge section stays absent unless supported by an independently verified implementation.
+
+Readiness states: NOT_CONFIGURED (missing settings), CONFIGURED (settings only), MOCK_ONLY (simulated provider), TESTED (dated/scoped receipt), LIVE_VERIFIED (authorized attended evidence), ERROR (recorded failure). Status is provider/scope-specific; a local SIP test does not prove PSTN or voice comprehension. Failures and missing acceptance override release gating even when service health is good.
+
+Publish must compare draft revision and test configuration hash, validate current permissions/provider configuration and scope, then explicitly confirm target activation. SIP remains gated by unresolved Phase 8/9 acceptance. External outbound capability requires separate explicit activation. Never silently enable it from template defaults.
