@@ -208,7 +208,11 @@ class UXService:
     def readiness(self, principal, draft):
         current_agents = [{k: row[k] for k in ('id', 'enabled', 'instructions', 'allowed_tools', 'supported_locales')} for row in self.store.list('agents', principal.tenant_id)]
         receipts = [row for row in self.rows(principal.tenant_id, 'ux_test') if row['draft_id'] == draft['id'] and row['config_hash'] == draft['config_hash']]
-        latest = {(row['scenario'],row['locale']): row for row in receipts}
+        cutoff = datetime.now(timezone.utc)-timedelta(days=7)
+        def fresh(row):
+            try:return cutoff<=datetime.fromisoformat(row['timestamp'])<=datetime.now(timezone.utc)+timedelta(seconds=30)
+            except (KeyError,ValueError,TypeError):return False
+        latest = {(row['scenario'],row['locale']): row for row in receipts if fresh(row)}
         scenarios=['booking','rejection','ambiguous'] if {'CheckAvailability','CreateAppointment'}<=set(draft['config']['allowed_tools']) else ['greeting']
         if draft['config']['faq_entries']:scenarios.append('faq')
         required = [(scenario, locale) for scenario in scenarios for locale in ('bg-BG','en-US')]
@@ -221,6 +225,8 @@ class UXService:
         tenant = self.store.tenant(principal.tenant_id)
         if digest({key:tenant.get(key) for key in ('name','timezone','calendar_policy')}) != draft['tenant_base_hash']: reasons.append('business_config_changed')
         if not tests: reasons.append('required_tests_missing')
+        if not {'bg-BG','en-US'}<=set(draft['config']['supported_locales']):reasons.append('language_coverage_missing')
+        if receipts and not any(fresh(row) for row in receipts):reasons.append('test_evidence_expired')
         if targets != ['web_chat']: reasons.append('external_activation_blocked')
         if 'voice' in targets: reasons.append('voice_acceptance_blocked')
         if draft['config']['llm_provider'] != 'mock': reasons.append('mock_test_not_live_proof')
@@ -238,7 +244,7 @@ class UXService:
             if any(row.get('last_error') for row in rows): return 'ERROR'
             if not rows: return 'NOT_CONFIGURED'
             return 'MOCK_ONLY' if all(row.get('provider') == 'mock' for row in rows) else 'CONFIGURED'
-        return {'can_publish': not reasons, 'reasons': reasons, 'scope': 'web_chat_mock_calendar', 'voice_live_verified': False,
+        return {'can_publish': not reasons, 'reasons': reasons, 'scope': 'web_chat_mock_calendar', 'voice_live_verified': False,'evidence_max_age_days':7,
             'required_tests': [{'scenario': key[0], 'locale': key[1], 'verdict': latest.get(key, {}).get('verdict', 'NOT_RUN')} for key in required],
             'channels': [{'channel': channel, 'status': channel_status(channel)} for channel in targets]}
 

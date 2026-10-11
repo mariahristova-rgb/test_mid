@@ -11,6 +11,10 @@ class QueueChange(Contract):
     revision:int=Field(ge=0)
     state:Literal['needs_review','assigned','awaiting_customer','resolved']
     assigned_user_id:str|None=None
+    priority:Literal['low','normal','high','urgent']|None=None
+    sla_minutes:int|None=Field(default=None,ge=5,le=10080)
+    resolution:Literal['answered','booked','cancelled','escalated','not_required']|None=None
+    mark_read:bool=False
 
 class InternalNote(Contract):
     content:str=Field(min_length=1,max_length=2000)
@@ -32,9 +36,18 @@ class InboxQueue:
             if payload.assigned_user_id:
                 member=self.store.get('users',actor.tenant_id,payload.assigned_user_id)
                 if not member.get('enabled') or member['role'] not in ('admin','operator'):raise DomainError('forbidden',403)
-            result=self.store.update('conversations',actor.tenant_id,identity,{'operator_state':payload.state,'queue_assigned_user_id':payload.assigned_user_id,'queue_revision':payload.revision+1,'queue_updated_at':now()})
+            if payload.resolution and payload.state!='resolved':raise DomainError('invalid_input',422)
+            changes={'operator_state':payload.state,'queue_assigned_user_id':payload.assigned_user_id,'queue_revision':payload.revision+1,'queue_updated_at':now()}
+            if payload.priority is not None:changes['queue_priority']=payload.priority
+            if payload.sla_minutes is not None:
+                changes['queue_sla_minutes']=payload.sla_minutes
+                changes['queue_due_at']=(datetime.now(timezone.utc)+timedelta(minutes=payload.sla_minutes)).isoformat()
+            if payload.mark_read:changes['queue_read_at']=now()
+            if payload.state=='resolved':changes.update(queue_resolved_at=now(),queue_resolution=payload.resolution or 'not_required')
+            else:changes.update(queue_resolved_at=None,queue_resolution=None)
+            result=self.store.update('conversations',actor.tenant_id,identity,changes)
             self.store.audit(actor,'inbox:queue_updated',resource_id=identity)
-            return {k:result.get(k) for k in ('id','operator_state','queue_assigned_user_id','queue_revision','queue_updated_at')}
+            return {k:result.get(k) for k in ('id','operator_state','queue_assigned_user_id','queue_revision','queue_updated_at','queue_priority','queue_due_at','queue_read_at','queue_resolution','queue_resolved_at')}
     def add_note(self,actor,identity,payload):
         actor.require('approve');self.store.get('conversations',actor.tenant_id,identity)
         content=payload.content.strip()

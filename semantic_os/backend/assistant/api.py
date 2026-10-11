@@ -163,7 +163,7 @@ def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None
         if demo_enabled or os.getenv('AUTH0_DOMAIN'):raise RuntimeError('Choose one verified identity provider; Google owner login cannot use demo authentication')
         if os.getenv('ASSISTANT_GOOGLE_LOGIN_GCP_PROJECT'):
             from .google_secret_manager import owner_oauth_credentials
-            owner_credentials=owner_oauth_credentials(os.environ['ASSISTANT_GOOGLE_LOGIN_GCP_PROJECT'])
+            owner_credentials=owner_oauth_credentials(os.environ['ASSISTANT_GOOGLE_LOGIN_GCP_PROJECT'],os.getenv('ASSISTANT_GOOGLE_LOGIN_BUNDLE','primary'))
         else:owner_credentials=(deployment_secret('ASSISTANT_GOOGLE_LOGIN_CLIENT_ID'),deployment_secret('ASSISTANT_GOOGLE_LOGIN_CLIENT_SECRET'))
         if not owner_credentials[1]:raise RuntimeError('Owner OAuth client secret is required')
         if verifier is None:
@@ -212,6 +212,7 @@ def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None
                     await voice_runtime.threaded(app.state.widget.purge)
                     await asyncio.to_thread(app.state.concierge.worker)
                     await asyncio.to_thread(app.state.inbox_queue.purge)
+                    await asyncio.to_thread(app.state.customer_workspace.purge)
                     if app.state.owner_login:await asyncio.to_thread(app.state.owner_login.purge)
                     if os.getenv('ASSISTANT_MESSAGING_WORKER_ENABLED') == 'true':
                         await voice_runtime.threaded(messaging.worker_tick)
@@ -350,7 +351,7 @@ def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None
                                           request.client.host if request.client else '')
         principal.require('read')
         request.state.principal = principal
-        recovery = request.url.path.startswith(('/api/billing', '/api/saas/onboarding', '/api/saas/access', '/api/usage', '/api/operations', '/api/privacy', '/api/profile'))
+        recovery = request.url.path.startswith(('/api/billing', '/api/saas/onboarding', '/api/saas/access', '/api/usage', '/api/workspace/progress', '/api/workspace/usage', '/api/workspace/operations-targets', '/api/operations', '/api/privacy', '/api/profile'))
         billing.entitlements.access(principal.tenant_id, recovery=recovery)
         return principal
 
@@ -829,4 +830,6 @@ def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None
 
     register_messaging(app, messaging, actor)
     register_saas(app, billing, identity, actor, platform_subjects, privacy, backups)
+    from .customer_workspace import register_customer_workspace
+    register_customer_workspace(app,store,actor,billing,clock)
     return app

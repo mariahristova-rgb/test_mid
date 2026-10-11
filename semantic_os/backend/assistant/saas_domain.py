@@ -7,7 +7,7 @@ from .domain import Contract, Locale, validate_timezone
 UNITS = {'ai_messages': 'message', 'agent_executions': 'execution', 'tool_executions': 'execution',
     'voice_seconds': 'second', 'stt_seconds': 'second', 'tts_characters': 'character', 'sms_segments': 'segment',
     'whatsapp_messages': 'message', 'email_messages': 'message', 'llm_input_tokens': 'token', 'llm_output_tokens': 'token',
-    'storage_bytes': 'byte'}
+    'storage_bytes': 'byte','llm_milliseconds':'millisecond','tts_audio_milliseconds':'millisecond'}
 RESOURCES = {'assistants': 'assistants', 'agents': 'agents', 'users': 'users', 'channel_connections': 'connections'}
 
 
@@ -15,11 +15,13 @@ class Limit(Contract):
     maximum: StrictInt = Field(ge=0)
     mode: Literal['hard', 'soft'] = 'hard'
     warning_percent: StrictInt = Field(default=80, ge=1, le=100)
+    warning_thresholds: list[StrictInt] = Field(default_factory=lambda:[80,95,100],min_length=1,max_length=5)
     overage_policy: Literal['block', 'warn', 'meter'] = 'block'
     overage_minor_per_unit: StrictInt = Field(default=0, ge=0)
 
     @model_validator(mode='after')
     def coherent_policy(self):
+        if any(n<1 or n>100 for n in self.warning_thresholds) or len(set(self.warning_thresholds))!=len(self.warning_thresholds):raise ValueError('Invalid warning thresholds')
         if self.mode == 'hard' and self.overage_policy != 'block': raise ValueError('A hard limit must block overage')
         return self
 
@@ -80,6 +82,8 @@ class UsageEvent(Contract):
     correlation_id: str = Field(default='', max_length=100)
     idempotency_key: str = Field(min_length=1, max_length=200)
     billable: bool = False
+    assistant_id: str|None = Field(default=None,max_length=200)
+    channel: Literal['web_chat','voice','email','whatsapp','sms']|None = None
 
     @field_validator('timestamp')
     @classmethod

@@ -3,14 +3,16 @@ import base64
 import re
 import httpx
 
-def owner_oauth_credentials(project):
+def owner_oauth_credentials(project,bundle='primary'):
     if not re.fullmatch(r'[a-z][a-z0-9-]{4,61}[a-z0-9]',project):raise RuntimeError('A Google project ID is required')
+    names={'primary':('G_CLIENT_ID','G_CLIENT_SECRET'),'secondary':('G_CLIENT_ID2','G_CLIENT_SECRET')}.get(bundle)
+    if not names:raise RuntimeError('Unknown owner OAuth credential bundle')
     try:
         with httpx.Client(timeout=10,trust_env=False,follow_redirects=False) as client:
             response=client.get('http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',headers={'Metadata-Flavor':'Google'})
             response.raise_for_status();token=response.json()['access_token']
             result=[]
-            for name in ('G_CLIENT_ID','G_CLIENT_SECRET'):
+            for name in names:
                 response=client.get('https://secretmanager.googleapis.com/v1/projects/'+project+'/secrets/'+name+'/versions/latest:access',headers={'Authorization':'Bearer '+token})
                 response.raise_for_status()
                 if len(response.content)>20000:raise RuntimeError('Credential response too large')

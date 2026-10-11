@@ -12,6 +12,12 @@ from .store import uid, now
 class Confirmation(Contract):
     confirmed: Literal[True]
 
+class InvoiceAdjustment(Confirmation):
+    amount_minor_text:str=Field(pattern=r'^[1-9]\d{0,17}$')
+    kind:Literal['credit','refund']
+    reason:Literal['service_issue','duplicate_charge','goodwill']
+    event_id:str=Field(min_length=1,max_length=100)
+
 
 class VerifyEmail(Contract):
     token: SecretStr | None = None
@@ -125,6 +131,10 @@ def register_saas(app, billing, identity, actor, platform_subjects, privacy, bac
     @app.post('/api/billing/invoices/{id}/mock-pay')
     def pay(id: str, config: PayInvoice, principal: Principal = Depends(actor)):
         return billing.mock_pay(principal, id, config.event_id, success=config.success)
+
+    @app.post('/api/billing/invoices/{id}/adjustments')
+    def adjust(id:str,config:InvoiceAdjustment,principal:Principal=Depends(actor)):
+        return billing.adjust_invoice(principal,id,config)
 
     @app.post('/webhooks/payments/{tenant_id}')
     async def payment_webhook(tenant_id: str, request: Request):

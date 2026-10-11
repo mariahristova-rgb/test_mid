@@ -47,6 +47,48 @@ class WidgetTests(unittest.TestCase):
     def send(self,token,text,event,locale='bg-BG'):
         return self.widget.message(self.public_id,token,WidgetMessage(content=text,event_id=event,locale=locale))
 
+    def enable_analytics(self):
+        settings=WidgetSettings.model_validate(self.integration['settings']).model_copy(update={'analytics_enabled':True})
+        self.widget.configure(self.actor,settings,self.integration['id'])
+        self.widget.publish(self.actor,self.integration['id'],WidgetPublish(draft_id=self.draft['id'],confirmed=True))
+
+    def test_optional_analytics_require_owner_enablement_and_explicit_visitor_consent(self):
+        token=self.visitor()
+        headers={'Authorization':'Bearer '+token,'Origin':'http://127.0.0.1:3020'}
+        url='/widget/analytics-consent/'+self.public_id
+        self.assertEqual(self.client.post(url,headers=headers,json={'allowed':True}).status_code,403)
+        self.assertEqual(self.widget.rows('demo','journey_event'),[])
+        self.enable_analytics();token=self.visitor();headers['Authorization']='Bearer '+token
+        self.assertEqual(self.client.post(url,headers=headers,json={'allowed':'true'}).status_code,422)
+        self.assertEqual(self.client.post(url,headers=headers,json={'allowed':True}).status_code,200)
+        self.assertEqual(self.client.post(url,headers=headers,json={'allowed':True}).status_code,200)
+        self.send(token,'Здравейте','consent-event');self.send(token,'Здравейте','consent-event')
+        rows=self.widget.rows('demo','journey_event')
+        self.assertEqual(sorted(r['stage'] for r in rows),['conversation_started','opted_in_opened'])
+        self.assertNotIn('Здравейте',json.dumps(rows,ensure_ascii=False));self.assertNotIn(token,json.dumps(rows))
+        self.assertEqual(self.client.post(url,headers=headers,json={'allowed':False}).status_code,200)
+        self.assertTrue(all(r.get('redacted') for r in self.widget.rows('demo','journey_event')))
+
+    def test_analytics_withdrawal_survives_session_expiry_and_erasure_purges_evidence(self):
+        self.enable_analytics();token=self.visitor()
+        headers={'Authorization':'Bearer '+token,'Origin':'http://127.0.0.1:3020'}
+        url='/widget/analytics-consent/'+self.public_id
+        self.client.post(url,headers=headers,json={'allowed':True})
+        self.now+=timedelta(minutes=11)
+        self.assertEqual(self.client.post(url,headers=headers,json={'allowed':False}).status_code,200)
+        self.assertEqual(self.client.post(url,headers=headers,json={'allowed':True}).status_code,401)
+        self.assertEqual(self.app.state.customer_workspace.analytics(self.actor,30)['funnel'],[])
+
+    def test_analytics_observer_cannot_restore_withdrawn_consent_from_stale_session(self):
+        self.enable_analytics();token=self.visitor()
+        headers={'Authorization':'Bearer '+token,'Origin':'http://127.0.0.1:3020'}
+        url='/widget/analytics-consent/'+self.public_id
+        self.client.post(url,headers=headers,json={'allowed':True})
+        row,snapshot,_=self.widget.session(self.public_id,token)
+        self.client.post(url,headers=headers,json={'allowed':False})
+        self.widget.journey.observe(row,snapshot,{'human_requested':True})
+        self.assertTrue(all(r.get('redacted') for r in self.widget.rows('demo','journey_event')))
+
     def test_bilingual_runtime_booking_and_duplicate_confirmation(self):
         for index,locale in enumerate(('bg-BG','en-US')):
             token=self.visitor(locale)
