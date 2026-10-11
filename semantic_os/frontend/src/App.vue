@@ -7,10 +7,12 @@ import { connect, connectDemo, localDemoLogin, signedIn, signOut, signIn, signIn
 const token = ref(''), username = ref('demo'), error = ref(''), busy = ref(false);
 const route = useRoute();
 const access = ref<any>({});
+const navigationOpen=ref(false);
 let accessEpoch = 0;
 const visibleGroups = computed(() => permittedGroups(access.value.user?.role, access.value.platform_admin));
 watch([signedIn,tenantId], async () => { const epoch = ++accessEpoch; access.value = {}; if(signedIn.value) {try { const result = await request('/api/bootstrap'); if(epoch === accessEpoch) access.value = result; } catch { if(epoch === accessEpoch) error.value = t('error'); }} }, {immediate:true});
-watch(() => route.path, async () => { await nextTick(); document.getElementById('main-content')?.focus(); });
+watch(() => route.path, async () => { navigationOpen.value=false;await nextTick(); document.getElementById('main-content')?.focus(); });
+function closeNavigation(){navigationOpen.value=false;void nextTick(()=>document.getElementById('navigation-toggle')?.focus());}
 onMounted(async () => {
   if(import.meta.env.VITE_LOCAL_DEMO_LOGIN==='true' && new URLSearchParams(location.search).get('measure')==='local') {
     void import('./services/localPerformance.mjs').then(module=>module.startLocalVitals());
@@ -28,8 +30,13 @@ watch(uiLocale, async value => { if (signedIn.value) { try { await request('/api
 {{ t('signOut') }}
 </button>
 </header>
+  <div v-if="signedIn" class="mobile-navigation-control">
+<button id="navigation-toggle" :aria-expanded="navigationOpen" aria-controls="workspace-navigation" @click="navigationOpen=!navigationOpen">
+{{ t(navigationOpen?'p16CloseMenu':'p16OpenMenu') }}
+</button>
+</div>
   <div v-if="signedIn" class="app-layout">
-<nav :aria-label="t('brand')">
+<nav id="workspace-navigation" :class="{'is-open':navigationOpen}" :aria-label="t('brand')" @keydown.esc="closeNavigation">
 <section v-for="group in visibleGroups" :key="group.key" class="navigation-group">
   <h2 v-if="group.key === 'businessWorkspace'">
 {{ t(group.key) }}

@@ -17,7 +17,7 @@ test('date formatting uses explicit Sofia timezone for both locales', () => {
   }
 });
 test('template contains no raw text nodes without localization', () => {
-  for (const name of ['App.vue', 'views/WorkspaceView.vue', 'views/SaaSView.vue', 'components/MessagingConnections.vue', 'views/SetupView.vue', 'components/ConversationDebugger.vue','components/AssistantStudio.vue','views/WidgetView.vue','views/GoogleWorkspaceView.vue','components/InboxQueue.vue']) {
+  for (const name of ['App.vue', 'views/WorkspaceView.vue', 'views/SaaSView.vue', 'components/MessagingConnections.vue', 'views/SetupView.vue', 'components/ConversationDebugger.vue','components/AssistantStudio.vue','views/WidgetView.vue','views/GoogleWorkspaceView.vue','components/InboxQueue.vue','views/CustomerWorkspaceView.vue','components/UsageHistory.vue']) {
     const source = readFileSync(new URL('../src/' + name, import.meta.url), 'utf8');
     const ast = parseTemplate(parseSFC(source).descriptor.template.content);
     function visit(node) {

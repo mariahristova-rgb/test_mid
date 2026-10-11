@@ -22,17 +22,25 @@ const tool = ref(''), contactName = ref(''), startsAt = ref(''), duration = ref(
 const newContact = ref({ name: '', address: '', preferred_locale: 'bg-BG', sms_opt_out: false });
 const inboxChannel = ref(''), inboxStatus = ref(''), inboxLocale = ref(''), inboxAssistant = ref(''), inboxDate = ref('');
 const nextInboxCursor = ref<number|null>(null);
+const inboxPriority=ref(''),inboxQueueState=ref(''),inboxUnread=ref(false),inboxMine=ref(false);
 function inboxPath(cursor?: number) {
   const parameters = new URLSearchParams({limit:'50'});
   for(const [key,value] of [['channel',inboxChannel.value],['status',inboxStatus.value],['locale',inboxLocale.value],['assistant_id',inboxAssistant.value],['local_day',inboxDate.value]]) if(value) parameters.set(key,value);
   if(cursor != null) parameters.set('cursor',String(cursor));
+  if(inboxPriority.value)parameters.set('priority',inboxPriority.value);
+  if(inboxQueueState.value)parameters.set('queue_state',inboxQueueState.value);
+  if(inboxUnread.value)parameters.set('unread','true');
+  if(inboxMine.value)parameters.set('assigned_to_me','true');
   return '/api/inbox?' + parameters;
 }
 async function reloadInbox(append = false) {
+  const generation=++inboxPageEpoch;
   const result = await request(inboxPath(append ? nextInboxCursor.value ?? undefined : undefined));
+  if(generation!==inboxPageEpoch)return;
   conversations.value = append ? [...conversations.value,...result.items] : result.items;
   nextInboxCursor.value = result.next_cursor;
 }
+let inboxPageEpoch=0;
 const attachmentIds = ref<string[]>([]);
 const visibleConversations = computed(() => conversations.value.filter(c => (!inboxChannel.value || c.channel === inboxChannel.value)
   && (!inboxStatus.value || c.status === inboxStatus.value) && (!inboxLocale.value || c.active_locale === inboxLocale.value)
@@ -78,6 +86,7 @@ async function load() {
   if (canConfigure.value && page.value === 'settings') {
     [audit.value, templates.value, jobs.value, users.value] = await Promise.all([request('/api/audit'), request('/api/templates'), request('/api/jobs'), request('/api/users')]);
   }
+  if(canConfigure.value && page.value==='team')users.value=await request('/api/users');
 }
 onMounted(() => {
   void run(async () => { await load(); if(page.value === 'inbox' && route.query.conversation) await openConversation(String(route.query.conversation)); });
@@ -137,7 +146,7 @@ async function openConversation(id: string) {
   selectedConversation.value = conversation;
   messages.value = await request(`/api/conversations/${id}/messages`);
 }
-watch([inboxChannel,inboxStatus,inboxLocale,inboxAssistant,inboxDate], () => { if(page.value === 'inbox' && data.value.user) void run(() => reloadInbox()); });
+watch([inboxChannel,inboxStatus,inboxLocale,inboxAssistant,inboxDate,inboxPriority,inboxQueueState,inboxUnread,inboxMine], () => { if(page.value === 'inbox' && data.value.user) void run(() => reloadInbox()); });
 watch(() => route.query.conversation, value => { if(page.value === 'inbox' && value && data.value.user) void run(() => openConversation(String(value))); });
 async function createConversation() { const conversation = await request('/api/conversations', 'POST', { assistant_id: assistantId.value, channel: channel.value, contact_id: contactId.value || null }); await refreshConversationData(); await openConversation(conversation.id); }
 async function parsed(value: string) { return (await request('/api/dates/parse', 'POST', { value, locale: uiLocale.value })).iso; }
@@ -288,9 +297,12 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
       <label>{{ t('status') }}<select v-model="inboxStatus"><option value="">{{ t('all') }}</option><option v-for="s in ['open', 'active', 'awaiting_customer', 'awaiting_agent', 'awaiting_approval', 'escalated', 'resolved', 'closed']" :key="s" :value="s">{{ t(s==='open'?'status_open':s) }}</option></select></label>
       <label>{{ t('conversationLanguage') }}<select v-model="inboxLocale"><option value="">{{ t('all') }}</option><option v-for="l in ['bg-BG', 'en-US']" :key="l" :value="l">{{ t(l) }}</option></select></label>
       <label>{{ t('conversationDate') }}<input v-model="inboxDate" type="date"></label>
+      <label>{{ t('p16Priority') }}<select v-model="inboxPriority"><option value="">{{ t('all') }}</option><option v-for="value in ['low','normal','high','urgent']" :key="value" :value="value">{{ t('p16Priority_'+value) }}</option></select></label>
+      <label>{{ t('operatorQueue') }}<select v-model="inboxQueueState"><option value="">{{ t('all') }}</option><option v-for="value in ['needs_review','assigned','awaiting_customer','resolved']" :key="value" :value="value">{{ t('queue_'+value) }}</option></select></label>
+      <label class="check"><input v-model="inboxUnread" type="checkbox">{{ t('p16TeamUnread') }}</label><label class="check"><input v-model="inboxMine" type="checkbox">{{ t('p16AssignedMine') }}</label>
     </article>
 </details>
-    <InboxQueue v-if="selectedConversation && canExecute" :conversation="selectedConversation" :user-id="data.user.id" @changed="run(refreshQueue)" />
+    <InboxQueue v-if="selectedConversation && canExecute" :conversation="selectedConversation" :user-id="data.user.id" :timezone="tz" @changed="run(refreshQueue)" />
     <article v-if="current && canExecute" class="controls">
       <button :disabled="busy || closed" @click="run(() => control('takeover'))">
 {{ t('takeover') }}
@@ -450,7 +462,10 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
 </article>
 </div><MessagingConnections :assistants="assistants" :connections="connections" :allowed="canConfigure" @refresh="run(load)" />
 </template>
-  <template v-if="page === 'settings'">
+  <template v-if="page === 'settings' || page === 'team'">
+    <p v-if="page==='team' && !canConfigure">
+{{ t('adminOnly') }}
+</p>
     <article v-if="canConfigure">
       <h2>{{ t('memberships') }}</h2>
       <form @submit.prevent="run(addUser)">
@@ -462,6 +477,8 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
 {{ u.subject }} · {{ t(u.role) }}
 </p>
     </article>
+  </template>
+  <template v-if="page==='settings'">
     <article v-if="canConfigure">
 <h2>{{ t('templates') }}</h2><form v-for="template in templates" :key="template.id" @submit.prevent="run(() => saveTemplate(template))">
 <label>{{ t(template.locale) }} · {{ t(template.key === 'appointment_created' ? 'CreateAppointment' : template.key === 'subject' ? 'subjectTemplate' : template.key) }}<textarea v-model="template.body" required /></label><button :disabled="busy">

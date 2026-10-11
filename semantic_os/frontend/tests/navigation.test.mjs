@@ -7,7 +7,7 @@ test('existing routes appear once and remain reachable in three experiences',()=
   for(const page of ['inbox','appointments','google','testing','calls','administration']) assert.ok(pages.includes(page));
 });
 test('viewer navigation does not expose operator or configuration tasks',()=>{
-  assert.deepEqual(permittedGroups('viewer').flatMap(g=>g.pages),['dashboard','inbox','appointments','assistants']);
+  assert.deepEqual(permittedGroups('viewer').flatMap(g=>g.pages),['dashboard','assistants','inbox','appointments','leads','analytics','health']);
   assert.deepEqual(permittedGroups(undefined),[]);
 });
 test('operator and admin navigation preserve role distinctions',()=>{

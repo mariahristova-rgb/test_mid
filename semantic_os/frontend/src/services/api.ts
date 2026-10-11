@@ -35,8 +35,10 @@ export async function request<T = any>(path: string, method = 'GET', data?: unkn
   try {
   const requestTenant = tenantId.value, requestLocale = uiLocale.value;
   const token = bearer || (client && signedIn.value ? await client.getTokenSilently() : '');
+  if(requestTenant!==tenantId.value)throw new DOMException(t('p16TenantChanged'),'AbortError');
   const response = await fetch(base + path, { method, signal, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Tenant-ID': requestTenant, 'X-UI-Locale': requestLocale }, body: data === undefined ? undefined : JSON.stringify(data) });
   const result = await response.json();
+  if(requestTenant!==tenantId.value)throw new DOMException(t('p16TenantChanged'),'AbortError');
   if (!response.ok) throw new ApiError(result.code || 'error',response.status);
   return result as T;
   } catch(error) {
