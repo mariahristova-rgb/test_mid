@@ -1,8 +1,9 @@
-name: testmid-phase15-staging
+version: "3.8"
 services:
   backend:
     image: testmid-phase15-backend:reviewed
     environment:
+      PYTHONPATH: /app
       ASSISTANT_ENV: staging
       ASSISTANT_DEMO: "false"
       ASSISTANT_DATABASE: /data/assistant.sqlite3
@@ -13,6 +14,7 @@ services:
       ASSISTANT_UI_ORIGIN: https://assistant-admin-staging.ontelyx.tech
       ASSISTANT_GOOGLE_LOGIN_ENABLED: "true"
       ASSISTANT_GOOGLE_LOGIN_GCP_PROJECT: strong-keel-468007-r7
+      ASSISTANT_GOOGLE_LOGIN_BUNDLE: secondary
       ASSISTANT_GOOGLE_LOGIN_TENANT: phase15-public-staging
       ASSISTANT_GOOGLE_LOGIN_REDIRECT_URI: https://assistant-admin-staging.ontelyx.tech/backend/api/auth/google/callback
       SELF_HOSTED_VOICE_ENABLED: "false"

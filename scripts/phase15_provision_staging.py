@@ -13,7 +13,7 @@ CLI=r'C:\Program Files (x86)\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd'
 
 def command(*args):
     result=subprocess.run([CLI,*args,'--project='+PROJECT,'--quiet'],capture_output=True,text=True,timeout=180)
-    if result.returncode:raise RuntimeError('gcloud action failed: '+args[0]+' '+args[1])
+    if result.returncode:raise RuntimeError('gcloud action failed: '+' '.join(args[:3])+': '+result.stderr.strip()[:2000])
     return result.stdout.strip()
 
 def main():
@@ -34,7 +34,7 @@ def main():
     account=NAME+'@'+PROJECT+'.iam.gserviceaccount.com'
     accounts=json.loads(command('iam','service-accounts','list','--filter=email='+account,'--format=json'))
     if not accounts:command('iam','service-accounts','create',NAME,'--display-name=Isolated Phase15 OAuth credential reader')
-    for secret in ('G_CLIENT_ID','G_CLIENT_SECRET'):
+    for secret in ('G_CLIENT_ID2','G_CLIENT_SECRET'):
         command('secrets','add-iam-policy-binding',secret,'--member=serviceAccount:'+account,'--role=roles/secretmanager.secretAccessor','--condition=None','--format=none')
     networks=json.loads(command('compute','networks','list','--filter=name='+NAME,'--format=json'))
     if not networks:command('compute','networks','create',NAME,'--subnet-mode=custom','--bgp-routing-mode=regional')
@@ -47,7 +47,7 @@ def main():
     deadline=(datetime.now(timezone.utc)+timedelta(hours=72)).strftime('%Y-%m-%dT%H:%M:%SZ')
     command('compute','instances','create',NAME,'--zone='+ZONE,'--machine-type=e2-micro','--subnet='+NAME,'--tags='+NAME,
         '--image-family=debian-12','--image-project=debian-cloud','--boot-disk-type=pd-standard','--boot-disk-size=10GB','--no-boot-disk-auto-delete',
-        '--service-account='+account,'--scopes=https://www.googleapis.com/auth/cloud-platform','--no-restart-on-failure','--maintenance-policy=TERMINATE','--instance-termination-action=STOP','--termination-time='+deadline,
+        '--service-account='+account,'--scopes=https://www.googleapis.com/auth/cloud-platform','--no-restart-on-failure','--maintenance-policy=MIGRATE','--instance-termination-action=STOP','--termination-time='+deadline,
         '--metadata=enable-oslogin=TRUE,block-project-ssh-keys=TRUE,serial-port-enable=FALSE','--labels=application=test-mid,phase=phase15,environment=staging',
         '--metadata-from-file=startup-script='+str(ROOT/'semantic_os/deploy/phase15-staging/startup.sh'))
     address=command('compute','instances','describe',NAME,'--zone='+ZONE,'--format=value(networkInterfaces[0].accessConfigs[0].natIP)')
