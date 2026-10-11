@@ -264,7 +264,7 @@ class Orchestrator:
                           provider=self.providers.channels[channel].capability.provider,
                           channel=channel, external_id=uid(), sender='assistant', recipient=recipient, content=text, locale=locale,
                           timestamp=at, status='pending', direction='outbound', correlation_id=correlation,
-                          metadata={'window_open': window_open, 'correlation_id': correlation, 'agent': 'receptionist'})
+                          metadata={'window_open': window_open, 'correlation_id': correlation, 'agent': 'human' if kind=='human' else 'receptionist', 'kind':kind})
         delivery = self.providers.channels[channel].send(message)
         if self.store.entitlements and category:
             self.store.entitlements.record(principal.tenant_id, UsageEvent(resource_id=message.id, category=category, quantity=quantity,

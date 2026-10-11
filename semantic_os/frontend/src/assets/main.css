@@ -1,5 +1,12 @@
 @import "tailwindcss";
 :root { --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-6:24px; --radius:12px; --content-width:1400px; --focus:#1d4ed8; }
+.navigation-group h2 { font-size:.875rem; margin:var(--space-4) 0 var(--space-2); padding:0 var(--space-3); }
+.navigation-group { min-width:0; }
+@media(max-width:800px) {
+  .app-layout > nav { display:block; overflow:visible; }
+  .navigation-group a { display:inline-flex; }
+  .navigation-group h2 { margin-top:var(--space-2); }
+}
 .skip-link { position:fixed; top:8px; left:8px; transform:translateY(-200%); z-index:100; background:#fff; color:#1d4ed8; padding:12px; border:2px solid #1d4ed8; }
 .skip-link:focus { transform:none; }
 .context-bar { font-size:.875rem; color:#475569; margin-top:0; overflow-wrap:anywhere; }

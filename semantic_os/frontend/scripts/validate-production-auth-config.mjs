@@ -1,6 +1,14 @@
 const required = ["VITE_AUTH0_DOMAIN", "VITE_AUTH0_CLIENT_ID", "VITE_AUTH0_AUDIENCE"];
 const missing = required.filter((key) => !String(process.env[key] || "").trim());
 
+if(process.env.VITE_GOOGLE_LOGIN==='true'){
+  if(process.env.VITE_LOCAL_DEMO_LOGIN==='true' || required.some(key=>Boolean(process.env[key]))){
+    console.error('Frontend image build refused: Google owner login requires one verified identity provider and no demo login.');
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 if (missing.length) {
   console.error(`Frontend image build refused: missing required identity build args: ${missing.join(", ")}`);
   process.exit(1);

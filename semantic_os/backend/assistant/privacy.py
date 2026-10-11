@@ -45,6 +45,9 @@ class PrivacyService:
 
     def redact_conversation(self, principal, id):
         self.messaging.delete_content(principal, id)
+        for row in self.store.list('operations_events', principal.tenant_id, id):
+            if row.get('kind') == 'operator_note':
+                self.store.update('operations_events', principal.tenant_id, row['id'], {'content': '', 'redacted': True})
         for message in self.store.list('messages', principal.tenant_id, id):
             self.store.update('messages', principal.tenant_id, message['id'], {key: 'redacted' for key in ('sender', 'sender_id', 'recipient', 'recipient_id', 'external_id', 'external_message_id')})
         for table in ('agent_executions', 'tool_executions', 'approvals'):

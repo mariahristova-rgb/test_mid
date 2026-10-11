@@ -315,14 +315,14 @@ def register_ux(app, store, providers, actor, valid_config):
         state = conversation.get('booking_state') or {}
         stages = []
         for key, recorded in [('agent_handoff',any(row['kind']=='agent_handoff' for row in timeline)),
-            ('availability',any(row.get('tool')=='CheckAvailability' for row in timeline)),
+            ('availability',any(row.get('tool') in ('CheckAvailability','ConciergeAvailability') for row in timeline)),
             ('confirmation_pending',bool(state.get('approval_id'))), ('booking_persisted',bool(bookings))]:
             stages.append({'stage':key,'coverage':'recorded' if recorded else 'not_recorded'})
         for key in ('audio_received','vad_final','stt_final','locale_selected','tts_completed','output_packet_sent','session_closed'):
             stages.append({'stage':key,'coverage':'not_applicable' if conversation['channel'] != 'voice' else 'recorded' if any(row['stage']==key for row in traces) else 'not_recorded'})
         return {'conversation_id': identity, 'channel': conversation['channel'], 'locale': conversation.get('active_locale'),
             'human_escalation': bool(conversation.get('human_escalation')), 'status': conversation['status'],
-            'booking_status': state.get('status'), 'appointments': bookings,
+            'booking_status': state.get('status') or (bookings[-1]['status'] if bookings else None), 'appointments': bookings,
             'calls': [{key: row.get(key) for key in ('id','status','started_at','ended_at','error_code')} for row in calls],
             'timeline': timeline, 'voice_trace': traces, 'message_metadata': messages, 'stage_coverage':stages,
             'transcripts': 'not_exposed', 'trace_scope': 'bounded_process_memory',

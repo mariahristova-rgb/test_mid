@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import InboxQueue from "../components/InboxQueue.vue";
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { request } from '../services/api';
@@ -6,7 +7,7 @@ import { t, date, number, uiLocale, type Locale } from '../services/i18n';
 import EmptyState from '../components/EmptyState.vue';
 import MessagingConnections from '../components/MessagingConnections.vue';
 import { connectVoice, sendSyntheticAudio } from '../services/voiceStream';
-import { workspaceReads } from '../services/workspace.mjs';
+import { workspaceReads, inboxToolNames, messageSpeaker } from '../services/workspace.mjs';
 import ConversationDebugger from '../components/ConversationDebugger.vue';
 import AssistantStudio from '../components/AssistantStudio.vue';
 const route = useRoute();
@@ -41,6 +42,7 @@ const canExecute = computed(() => ['admin', 'operator'].includes(data.value.user
 const tz = computed(() => data.value.tenant?.timezone || 'Europe/Sofia');
 const pending = computed(() => approvals.value.filter(a => a.status === 'pending' && (!current.value || a.conversation_id === current.value)));
 const toolNames = computed(() => (data.value.tools || []).map((x: any) => x.name));
+const inboxTools = computed(() => inboxToolNames(data.value.tools||[],assistants.value.find(a=>a.id===(selectedConversation.value?.assistant_id||assistantId.value))?.allowed_tools||[]));
 const paused = computed(() => selectedConversation.value?.human_escalation);
 const closed = computed(() => selectedConversation.value?.status === 'closed');
 const settings = ref<any>({});
@@ -123,6 +125,10 @@ async function refreshConversationData() {
   await reloadInbox();
   [approvals.value, appointments.value, followUps.value] = await Promise.all([
     request('/api/approvals'), request('/api/appointments'), request('/api/follow-up-tasks')]);
+}
+async function refreshQueue() {
+  const identity=current.value; const rows=await request("/api/inbox?conversation_id="+encodeURIComponent(identity));
+  if(current.value===identity) selectedConversation.value=rows[0]||null;
 }
 async function openConversation(id: string) {
   let conversation = conversations.value.find(c => c.id === id);
@@ -271,14 +277,20 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
 </article>
   </template>
   <template v-if="page === 'inbox' || page === 'appointments'">
-    <p>{{ t('bookingHint') }}</p>
-    <article v-if="page === 'inbox'" class="controls">
+    <p v-if="page === 'inbox' && inboxTools.includes('CreateAppointment')">
+{{ t('bookingHint') }}
+</p>
+    <details v-if="page === 'inbox'" class="inbox-filters">
+<summary>{{ t('conversationFilters') }}</summary>
+    <article class="controls">
       <label>{{ t('channel') }}<select v-model="inboxChannel"><option value="">{{ t('all') }}</option><option v-for="c in channels" :key="c" :value="c">{{ t(c) }}</option></select></label>
       <label>{{ t('assistant') }}<select v-model="inboxAssistant"><option value="">{{ t('all') }}</option><option v-for="a in assistants" :key="a.id" :value="a.id">{{ a.name }}</option></select></label>
-      <label>{{ t('status') }}<select v-model="inboxStatus"><option value="">{{ t('all') }}</option><option v-for="s in ['open', 'active', 'awaiting_customer', 'awaiting_agent', 'awaiting_approval', 'escalated', 'resolved', 'closed']" :key="s" :value="s">{{ t(s) }}</option></select></label>
+      <label>{{ t('status') }}<select v-model="inboxStatus"><option value="">{{ t('all') }}</option><option v-for="s in ['open', 'active', 'awaiting_customer', 'awaiting_agent', 'awaiting_approval', 'escalated', 'resolved', 'closed']" :key="s" :value="s">{{ t(s==='open'?'status_open':s) }}</option></select></label>
       <label>{{ t('conversationLanguage') }}<select v-model="inboxLocale"><option value="">{{ t('all') }}</option><option v-for="l in ['bg-BG', 'en-US']" :key="l" :value="l">{{ t(l) }}</option></select></label>
       <label>{{ t('conversationDate') }}<input v-model="inboxDate" type="date"></label>
     </article>
+</details>
+    <InboxQueue v-if="selectedConversation && canExecute" :conversation="selectedConversation" :user-id="data.user.id" @changed="run(refreshQueue)" />
     <article v-if="current && canExecute" class="controls">
       <button :disabled="busy || closed" @click="run(() => control('takeover'))">
 {{ t('takeover') }}
@@ -309,7 +321,7 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
 <aside>
 <button v-for="c in visibleConversations" :key="c.id" :class="{ selected: current === c.id }" :aria-pressed="current === c.id" @click="run(() => openConversation(c.id))">
 {{ c.contact?.name || c.id.slice(0, 8) }} · {{ t(c.channel) }} · {{ t(c.active_locale || 'bg-BG') }}
-<small>{{ assistants.find(a => a.id === c.assistant_id)?.name }} · {{ t(c.assigned_agent || 'receptionist') }} · {{ t(c.status) }}</small>
+<small>{{ assistants.find(a => a.id === c.assistant_id)?.name }} · {{ t(c.assigned_agent || 'receptionist') }} · {{ t(c.status==='open'?'status_open':c.status) }}</small>
 <small v-if="c.last_message_at">{{ date(c.last_message_at, tz) }}</small><small>{{ c.last_message }}</small>
 </button>
 <button v-if="nextInboxCursor != null" :disabled="busy" @click="run(() => reloadInbox(true))">
@@ -321,7 +333,7 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
 </aside><article>
 <h2>{{ t('history') }}</h2><div class="messages" aria-live="polite">
 <div v-for="m in messages" :key="m.id" class="bubble" :class="m.direction">
-<small>{{ t(m.direction === 'inbound' ? 'user' : 'assistant') }} · {{ date(m.timestamp, tz) }} · {{ t(m.locale) }}</small><p>{{ m.content }}</p><span class="badge">{{ t(m.delivery_status || m.status) }}</span>
+<small>{{ t(messageSpeaker(m)) }} · {{ date(m.timestamp, tz) }} · {{ t(m.locale) }}</small><p>{{ m.content }}</p><span class="badge">{{ t(m.delivery_status || m.status) }}</span>
 <p v-for="a in m.attachments" :key="a.storage_key">
 {{ a.name }} · {{ number(a.size) }} · {{ t('quarantined') }}
 </p>
@@ -332,7 +344,7 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
 </div>
     <form v-if="canExecute && !paused && !closed" @submit.prevent="run(send)">
 <fieldset :disabled="busy">
-<label>{{ t('action') }}<select v-model="tool"><option value="">{{ t('none') }}</option><option v-for="name in toolNames" :key="name" :value="name">{{ t(name) }}</option></select></label>
+<label>{{ t('action') }}<select v-model="tool"><option value="">{{ t('none') }}</option><option v-for="name in inboxTools" :key="name" :value="name">{{ t(name) }}</option></select></label>
       <template v-if="['CheckAvailability', 'CreateAppointment', 'RescheduleAppointment'].includes(tool)">
 <label>{{ t('date') }}<input v-model="startsAt" type="text" :placeholder="t('dateExample')" required></label><p>{{ t('localDateHelp') }} {{ tz }}</p><label>{{ t('duration') }}<input v-model.number="duration" type="number" min="5" max="480" required></label>
 </template>
@@ -391,7 +403,7 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
 {{ t('startCall') }}
 </button><label>{{ t('transcript') }}<textarea v-model="text" /></label>
 </article><article v-for="c in calls" :key="c.id">
-<h2>{{ t(c.status) }} · {{ t(c.voice_locale) }}</h2><span class="badge">{{ t(c.state) }}</span><p>{{ c.last_response }}</p><div class="controls">
+<h2>{{ t(c.status==='open'?'status_open':c.status) }} · {{ t(c.voice_locale) }}</h2><span class="badge">{{ t(c.state) }}</span><p>{{ c.last_response }}</p><div class="controls">
 <p>{{ t('assistant') }}: {{ assistants.find(a => a.id === c.assistant_id)?.name }} · {{ t('id') }}: {{ c.id }}</p>
 <p v-if="c.error_code">
 {{ t('error') }}: {{ t(c.error_code) }}
