@@ -1,5 +1,7 @@
 # Multi-channel AI Assistant foundation
 
+Phase 16 discovery: [baseline and gaps](docs/phase16/BASELINE_AND_GAP_MATRIX.md), [incremental execution plan](docs/phase16/EXECUTION_PLAN.md). Existing foundations pass fresh regression checks; full Phase 16 implementation and launch remain blocked by uncompleted acceptance gates and pending plan approval.
+
 Independent Vue 3/FastAPI modular monolith with tenant membership, two agents, bilingual UI and conversations, validated business tools, appointments, reminders and five communication contracts. The application directory remains `semantic_os/` for checkout compatibility; no proprietary runtime is loaded.
 
 ## Dedicated local voice demo — release blocked
