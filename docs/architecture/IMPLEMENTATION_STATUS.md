@@ -1,5 +1,12 @@
 # Implementation status
 
+## Phase15 — local P0 increment, 11 October2026
+
+Separate feature branches preserve main. Approved three-experience navigation and existing Inbox queue/assignment/revision/audited retained notes are implemented; API/unit verification passes. Concierge diagnostics recognize live calendar tool coverage and persisted appointment states. Full backend309 tests/86.112s; frontend29 tests; source boundary227 files/zero failures. Approved BG reschedule/cancel and English create/cancel have real provider readbacks and replay protection; reminder jobs cancelled correctly and live operations restored off. Owner confirmed BG inbox receipt. Initial browser inspection was rejected; owner subsequently approved scoped synthetic checks, which verified Inbox controls, human provenance and all eight widths without horizontal overflow.
+
+**BLOCKED; Phase15 not complete.** Public HTTPS staging requested within revised €2/week ceiling; package and owner-only Google identity adapter are tested, but cloud-platform scope approval/DNS/client callback gates remain. No paid host exists. Human English inbox and actual reminder acceptance, browser/a11y/performance and acoustic voice gates remain open. P1 health/outcome/quality and P2 presets are planned, not implemented. No Phase15 push/merge/public deployment. See docs/product reports.
+
+
 ## Phase 14 Ontelyx AI Concierge — 2026-10-11
 
 Action-first BG/EN shared widget, mobile safe-area/full-height/scroll-back foundations, environment-specific HTTPS/private-endpoint guards, admin Google OAuth configuration and encrypted account-bound Calendar/Gmail adapters are implemented on separate codex/phase14-concierge branches. Existing receptionist/executor/tool registry performs typed consent-controlled actions; no independent bot or proprietary runtime is introduced. Live FreeBusy/event API adapters, verified email/management capabilities, localized jobs/reminders, request intake, audit/quota/retention and privacy links have offline contracts.
