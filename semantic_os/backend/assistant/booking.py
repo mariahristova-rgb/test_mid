@@ -57,6 +57,11 @@ class ReceptionistAgent:
     def outcome_reply(self, outcome, locale, timezone, tools, tenant_id):
         return tools.localized(outcome, locale, timezone, tenant_id)
 
+    def prepare_action(self,tool,arguments,locale,tools):
+        """Typed action-first intake; does not let model guesses authorize writes."""
+        if locale not in ('bg-BG','en-US') or tool not in ('ConciergeAvailability','ConciergeBooking','ConciergeManage','ConciergeRequest'):raise DomainError('tool_denied',403)
+        return tools.validate(tool,arguments)
+
 
 class TaskExecutionAgent:
     def __init__(self, orchestrator):
@@ -84,9 +89,12 @@ class TaskExecutionAgent:
             self.store.operations.trace_voice(principal.tenant_id, 'agent_authorized', correlation_id.get() or correlation,
                 call_id=conversation.get('call_session_id'), conversation_id=conversation['id'],
                 parent_correlation_id=correlation)
+        safe_handoff=handoff.model_dump()
+        if tool.startswith('Concierge'):
+            safe_handoff['arguments']={key:value for key,value in arguments.items() if key not in ('management_token','verification_id')}
         self.store.add('agent_executions', principal.tenant_id, {
-            'conversation_id': conversation['id'], 'handoff': handoff.model_dump(),
-            'status': 'delegated', 'phase': phase, 'workflow': 'booking', 'timestamp': self.orchestrator.clock().isoformat()})
+            'conversation_id': conversation['id'], 'handoff': safe_handoff,
+            'status': 'delegated', 'phase': phase, 'workflow': 'concierge' if tool.startswith('Concierge') else 'booking', 'timestamp': self.orchestrator.clock().isoformat()})
         return arguments
 
     def check(self, principal, assistant, conversation, state, event_id, correlation, provider=None):

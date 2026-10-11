@@ -241,6 +241,45 @@ class Store:
         with self.lock:
             return self.db.execute(f'SELECT COUNT(*) FROM {table} WHERE tenant_id=?', (tenant_id,)).fetchone()[0]
 
+    def inbox(self, tenant_id, *, filters=None, from_date=None, to_date=None, limit=None, cursor=None, identity=None, to_date_exclusive=False):
+        """One indexed SQL statement instead of per-conversation Python reads.
+
+        Legacy callers retain ascending reception order. Bounded pages use stable
+        descending rowid cursors; filters are applied before pagination.
+        """
+        where, args = ['c.tenant_id=?'], [tenant_id]
+        for key, value in (filters or {}).items():
+            if key not in ('channel','assistant_id','status','active_locale'): raise ValueError('Unknown filter')
+            if value is not None:
+                where.append(f"json_extract(c.data,'$.{key}')=?"); args.append(value)
+        if identity:
+            where.append('c.id=?'); args.append(identity)
+        if cursor is not None:
+            where.append('c.rowid<?'); args.append(cursor)
+        sql = '''WITH enriched AS (
+            SELECT c.rowid AS seq,c.data AS conversation,contact.data AS contact,
+                (SELECT m.data FROM messages m WHERE m.tenant_id=c.tenant_id AND m.conversation_id=c.id
+                    ORDER BY julianday(json_extract(m.data,'$.timestamp')) DESC,m.rowid DESC LIMIT 1) AS last
+            FROM conversations c LEFT JOIN contacts contact ON contact.tenant_id=c.tenant_id
+                AND contact.id=json_extract(c.data,'$.contact_id') WHERE ''' + ' AND '.join(where) + ') SELECT * FROM enriched'
+        dates = []
+        for operator, value in (('>=',from_date),('<' if to_date_exclusive else '<=',to_date)):
+            if value is not None:
+                dates.append(f"julianday(json_extract(last,'$.timestamp')){operator}julianday(?)"); args.append(value.isoformat())
+        if dates: sql += ' WHERE ' + ' AND '.join(dates)
+        sql += ' ORDER BY seq ' + ('DESC' if limit is not None else 'ASC')
+        if limit is not None:
+            sql += ' LIMIT ?'; args.append(limit+1)
+        with self.lock: rows = self.db.execute(sql,args).fetchall()
+        more = limit is not None and len(rows)>limit
+        rows = rows[:limit] if limit is not None else rows
+        result=[]
+        for row in rows:
+            last=json.loads(row['last']) if row['last'] else None
+            result.append({**json.loads(row['conversation']), 'contact':json.loads(row['contact']) if row['contact'] else None,
+                'last_message':last['content'][:240] if last else '', 'last_message_at':last['timestamp'] if last else None})
+        return {'items':result,'next_cursor':rows[-1]['seq'] if more else None} if limit is not None else result
+
     def update(self, table, tenant_id, id, changes):
         table = self._table(table)
         if table == 'billing_usage': raise DomainError('forbidden', 403)

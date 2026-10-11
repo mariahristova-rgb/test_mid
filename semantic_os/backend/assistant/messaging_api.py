@@ -1,8 +1,8 @@
 """Authenticated control plane and signed provider event ingress."""
 import hmac
-from datetime import datetime
+from datetime import datetime, date, time, timedelta
 from typing import Literal
-from fastapi import Depends, Request
+from fastapi import Depends, Request, Query
 from fastapi.responses import PlainTextResponse
 from pydantic import Field, SecretStr
 from .domain import Contract, Principal, Locale, DomainError
@@ -215,16 +215,17 @@ def register_messaging(app, gateway, actor):
 
     @app.get('/api/inbox')
     def inbox(channel: str | None = None, assistant_id: str | None = None, status: str | None = None, locale: str | None = None,
-              from_date: datetime | None = None, to_date: datetime | None = None, principal: Principal = Depends(actor)):
-        rows = store.list('conversations', principal.tenant_id)
+              from_date: datetime | None = None, to_date: datetime | None = None,
+              limit: int | None = Query(None,ge=1,le=100), cursor: int | None = Query(None,ge=0), conversation_id: str | None = None,
+              local_day: date | None = None,
+              principal: Principal = Depends(actor)):
         if any(d and d.tzinfo is None for d in (from_date, to_date)): raise DomainError('timezone_required', 422)
-        result = []
-        for row in rows:
-            if any(value is not None and row.get(key) != value for key, value in [('channel', channel), ('assistant_id', assistant_id), ('status', status), ('active_locale', locale)]): continue
-            messages = store.list('messages', principal.tenant_id, row['id'])
-            last = max(messages, key=lambda x: x['timestamp']) if messages else None
-            at = datetime.fromisoformat(last['timestamp']) if last else None
-            if from_date and (not at or at < from_date) or to_date and (not at or at > to_date): continue
-            contact = store.get('contacts', principal.tenant_id, row['contact_id']) if row.get('contact_id') else None
-            result.append({**row, 'contact': contact, 'last_message': last['content'][:240] if last else '', 'last_message_at': at.isoformat() if at else None})
-        return result
+        if cursor is not None and limit is None: raise DomainError('invalid_input',422)
+        if local_day:
+            from zoneinfo import ZoneInfo
+            if from_date or to_date: raise DomainError('invalid_input',422)
+            zone=ZoneInfo(store.tenant(principal.tenant_id)['timezone'])
+            from_date=datetime.combine(local_day,time.min,tzinfo=zone)
+            to_date=datetime.combine(local_day+timedelta(days=1),time.min,tzinfo=zone)
+        return store.inbox(principal.tenant_id, filters={'channel':channel,'assistant_id':assistant_id,'status':status,'active_locale':locale},
+            from_date=from_date,to_date=to_date,limit=limit,cursor=cursor,identity=conversation_id,to_date_exclusive=bool(local_day))

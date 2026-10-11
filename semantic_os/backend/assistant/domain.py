@@ -125,6 +125,7 @@ class AssistantConfig(Contract):
     escalation_rules: EscalationPolicy = Field(default_factory=EscalationPolicy)
     status: Literal['active', 'disabled'] = 'active'
     booking_duration_minutes: int = Field(default=30, ge=5, le=480)
+    public_knowledge_only: bool = False
 
     @field_validator('supported_locales')
     @classmethod

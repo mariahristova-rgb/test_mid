@@ -1,0 +1,49 @@
+{
+  "name": "Ontelyx Website Demo",
+  "default_locale": "en-US",
+  "timezone": "Europe/Sofia",
+  "appearance": "ontelyx-dark",
+  "color": "#54dde2",
+  "instructions": "Answer using approved public FAQs only. This is a fictional product demonstration. Use the receptionist and task execution agents for booking. Require availability, a fictional name and explicit confirmation. Never claim a real business booking, delivered message, online human or verified browser voice. Do not access confidential knowledge or proprietary semantic services.",
+  "faq_entries": [
+    {
+      "question_bg": "Какво може този асистент?",
+      "answer_bg": "Асистентът отговаря на одобрени въпроси и помага със записване на демонстрационен час. Агентът за комуникация уточнява заявката, а агентът за задачи проверява календара и създава час само след Вашето потвърждение.",
+      "question_en": "What can this assistant do?",
+      "answer_en": "The assistant answers approved questions and helps book a fictional appointment. The communication agent clarifies your request; the task agent checks availability and books only after your confirmation."
+    },
+    {
+      "question_bg": "Тези часове реални ли са?",
+      "answer_bg": "Не. Това е продуктов тест със синтетичен календар и измислени часове. Използвайте само измислено име и данни.",
+      "question_en": "Are these real appointments?",
+      "answer_en": "No. This is a product demonstration with a synthetic calendar and fictional appointments. Please use fictional details only."
+    },
+    {
+      "question_bg": "Мога ли да използвам глас?",
+      "answer_bg": "Гласът в браузъра още не е наличен. Текстовата демонстрация работи на български и английски. За нея не е необходим SIP клиент.",
+      "question_en": "Can I use voice?",
+      "answer_en": "Browser voice is not available yet. You can try text chat in Bulgarian and English without installing a SIP client."
+    },
+    {
+      "question_bg": "Как да заявя продуктова демонстрация?",
+      "answer_bg": "Използвайте връзката за продуктова демонстрация на страницата или посетете https://www.ontelyx.tech/contact. Тя отваря формуляра за контакт; съобщение не се изпраща автоматично.",
+      "question_en": "How do I request a product demonstration?",
+      "answer_en": "Use the product demonstration link on this page or visit https://www.ontelyx.tech/contact. It opens the existing contact form; no message is sent automatically."
+    }
+  ],
+  "greetings": {
+    "bg-BG": "Здравейте! Попитайте за AI асистента или изпробвайте измислено записване на час.",
+    "en-US": "Hello! Ask about the AI Assistant or try a fictional appointment booking."
+  },
+  "privacy_notices": {
+    "bg-BG": "Само измислени данни. Текстът на демо чата се пази 7 дни. Демонстрационните часове са отделни записи. Може да изчистите чата с изрично потвърждение.",
+    "en-US": "Use fictional data only. Demo chat text is retained for 7 days; fictional appointments are separate records. You can explicitly clear this chat."
+  },
+  "retention_days": 7,
+  "daily_sessions": 100,
+  "daily_messages": 1000,
+  "allowed_tools": ["CheckAvailability", "CreateAppointment", "EscalateToHuman"],
+  "calendar": "MOCK",
+  "llm": "MOCK",
+  "browser_voice": "UNAVAILABLE"
+}

@@ -117,6 +117,8 @@ async function rotateCredential() {
 {{ t('assistants') }}
 </RouterLink><RouterLink to="/channels">
 {{ t('channels') }}
+</RouterLink><RouterLink to="/setup">
+{{ t('guidedSetup') }}
 </RouterLink>
       </template>
     </article>
@@ -185,13 +187,16 @@ async function rotateCredential() {
     </article>
   </template>
   <template v-if="page === 'operations'">
+    <p class="banner">
+{{ t('operationMetricsScope') }}
+</p>
     <article>
 <h2>{{ t('workerHealth') }}</h2><p>{{ t(state.worker?.status || 'notConfigured') }}</p><p v-if="state.worker?.last_tick_at">
 {{ date(state.worker.last_tick_at, timezone) }}
 </p>
       <div class="table-wrap">
 <table>
-<thead><tr><th>{{ t('operation') }}</th><th>{{ t('quantity') }}</th><th>{{ t('errors') }}</th><th>{{ t('latencyMs') }}</th></tr></thead><tbody>
+<thead><tr><th>{{ t('operation') }}</th><th>{{ t('sampleCount') }}</th><th>{{ t('errors') }}</th><th>{{ t('meanLatencyMs') }}</th></tr></thead><tbody>
 <tr v-for="(metric, name) in state.metrics || {}" :key="name">
 <td>{{ t(String(name)) }}</td><td>{{ number((metric as any).count) }}</td><td>{{ number((metric as any).errors) }}</td><td>{{ number((metric as any).mean_ms) }}</td>
 </tr>

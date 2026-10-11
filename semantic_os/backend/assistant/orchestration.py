@@ -5,7 +5,7 @@ Natural-language suggestions and structured requests both use validated, authori
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import json
-from .domain import DomainError, Handoff, Message, Incoming
+from .domain import DomainError, Handoff, Message, Incoming, AssistantConfig
 from .language import LanguageResolver, tr
 from .store import uid, now, event_key
 from .tools import ToolRegistry
@@ -24,6 +24,19 @@ class Orchestrator:
         self.booking = BookingWorkflow(self)
         self.messaging = None
 
+    def configuration(self, principal, conversation):
+        assistant = self.store.get('assistants', principal.tenant_id, conversation['assistant_id'])
+        snapshot = conversation.get('widget_snapshot_id')
+        if snapshot:
+            version = self.store.get('operations_events', principal.tenant_id, snapshot)
+            if (version.get('kind') != 'widget_version' or version.get('assistant_id') != assistant['id']
+                    or version.get('integration_id') != conversation.get('widget_integration_id')):
+                raise DomainError('forbidden', 403)
+            if assistant['status'] != 'active': raise DomainError('disabled', 409)
+            return {**AssistantConfig.model_validate(version['config']).model_dump(mode='json'),
+                'id': assistant['id'], 'tenant_id': principal.tenant_id}
+        return assistant
+
     def conversation(self, principal, assistant_id, channel='web_chat', contact_id=None):
         principal.require('execute')
         if self.store.entitlements: self.store.entitlements.access(principal.tenant_id)
@@ -40,7 +53,7 @@ class Orchestrator:
         principal.require('execute')
         with self.store.transaction():
             conversation = self.store.get('conversations', principal.tenant_id, conversation_id)
-            assistant = self.store.get('assistants', principal.tenant_id, conversation['assistant_id'])
+            assistant = self.configuration(principal, conversation)
             context = {**conversation, 'active_locale': conversation.get('active_locale') or assistant['default_locale']}
             correlation = request_correlation.get() or uid()
             with self.providers.llm_session(assistant, context, principal, self.store, correlation) as provider:
@@ -55,7 +68,7 @@ class Orchestrator:
             conversation = self.store.get('conversations', principal.tenant_id, conversation_id)
             if conversation['status'] == 'closed':
                 raise DomainError('disabled', 409)
-            assistant = self.store.get('assistants', principal.tenant_id, conversation['assistant_id'])
+            assistant = self.configuration(principal, conversation)
             stop = conversation['channel'] == 'sms' and incoming.content.strip().casefold() in ('stop', 'stop all', 'unsubscribe', 'end', 'quit', 'cancel', 'отказ', 'спри', 'стоп')
             if not stop and (assistant['status'] != 'active' or conversation['channel'] not in assistant['enabled_channels']):
                 raise DomainError('disabled', 409)
@@ -192,13 +205,19 @@ class Orchestrator:
                 result['approval'] = approval
                 response = tr(locale, 'approval_required')
             elif not faq_answered:
-                natural = self.booking.handle(principal, assistant, conversation, incoming, locale, correlation, received_at, provider=provider,
-                    reference_at=context.get('relative_date_reference_at'))
-                if natural is not None:
-                    result.update(natural)
-                    response = natural['response']
+                if assistant.get('public_knowledge_only') and 'ConciergeBooking' in assistant['allowed_tools']:
+                    intent=self.booking.receptionist.interpret(incoming.content,locale,provider=provider)
+                    if intent.intent in ('book','details','confirm','cancel'):
+                        response=('Изберете действие за демонстрация. За записване потвърдете имейла си; за промяна или отказ използвайте личната връзка от имейла. Нищо не е променено.' if locale=='bg-BG' else 'Choose a demo action. Verify your email to book; use your private email link to reschedule or cancel. Nothing has been changed.')
+                else:
+                    natural = self.booking.handle(principal, assistant, conversation, incoming, locale, correlation, received_at, provider=provider,
+                        reference_at=context.get('relative_date_reference_at'))
+                    if natural is not None:
+                        result.update(natural)
+                        response = natural['response']
             if response is None:
-                response = provider.reply(incoming.content, locale, assistant['instructions'])
+                response = (('Мога да помогна с одобрена информация за Ontelyx. Изберете демонстрация или бизнес запитване.' if locale=='bg-BG' else 'I can help with approved Ontelyx information. Choose a demo or a business inquiry.')
+                    if assistant.get('public_knowledge_only') else provider.reply(incoming.content, locale, assistant['instructions']))
             result['llm_provider'] = provider.capability.provider
             result['state'] = provider.capability.state
             result['response'] = response
@@ -268,7 +287,7 @@ class Orchestrator:
             if approval['fingerprint'] != sha256(json.dumps(approval['arguments'], sort_keys=True).encode()).hexdigest():
                 raise DomainError('invalid_input', 422)
             conversation = self.store.get('conversations', principal.tenant_id, approval['conversation_id'])
-            assistant = self.store.get('assistants', principal.tenant_id, approval['assistant_id'])
+            assistant = self.configuration(principal, conversation)
             if assistant['status'] != 'active' or conversation['channel'] not in assistant['enabled_channels']:
                 raise DomainError('disabled', 409)
             if conversation.get('human_escalation') and assistant.get('escalation_rules', {}).get('pause_automation', True) and approval['tool'] != 'EscalateToHuman':

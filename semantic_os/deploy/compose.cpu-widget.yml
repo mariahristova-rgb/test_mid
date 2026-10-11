@@ -1,0 +1,39 @@
+# Separate local widget and sample-site origins. Does not expose staff/model/SIP routes.
+services:
+  backend:
+    environment:
+      WIDGET_PUBLIC_ORIGIN: http://127.0.0.1:3020
+      WIDGET_DEMO_SITE_ORIGINS: http://127.0.0.1:3021,http://127.0.0.1:5173
+      WIDGET_DEMO_SITE_TARGETS: '{"http://127.0.0.1:3021":["172.30.9.2",8080],"http://127.0.0.1:5173":["host.docker.internal",5173]}'
+    networks:
+      example_public: {}
+  widget:
+    image: nginxinc/nginx-unprivileged:stable-alpine
+    environment: {NGINX_ENTRYPOINT_WORKER_PROCESSES_AUTOTUNE: "1"}
+    volumes:
+      - ./nginx.widget-demo.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      voice_private: {ipv4_address: 172.30.7.9}
+      widget_publish: {}
+    ports: ["127.0.0.1:3020:8080"]
+    mem_limit: 96m
+    cpus: 0.5
+    depends_on: {backend: {condition: service_healthy}}
+    restart: "no"
+  widget-example:
+    image: nginxinc/nginx-unprivileged:stable-alpine
+    environment: {NGINX_ENTRYPOINT_WORKER_PROCESSES_AUTOTUNE: "1"}
+    volumes:
+      - ${WIDGET_EXAMPLE_DIRECTORY:?Generated fictional example directory required}:/usr/share/nginx/html:ro
+    networks:
+      example_public: {ipv4_address: 172.30.9.2}
+    ports: ["127.0.0.1:3021:8080"]
+    mem_limit: 96m
+    cpus: 0.5
+    restart: "no"
+networks:
+  widget_publish: {driver: bridge}
+  example_public:
+    driver: bridge
+    ipam:
+      config: [{subnet: 172.30.9.0/24}]

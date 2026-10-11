@@ -1,7 +1,8 @@
 # Optional dependency image; weights are supplied through a read-only owner volume.
 FROM zricethezav/gitleaks:v8.24.3 AS credential-scan
 COPY backend /scan/backend
-RUN gitleaks dir /scan/backend --redact=100 --no-banner && touch /scan-passed
+COPY widget /scan/widget
+RUN gitleaks dir /scan --redact=100 --no-banner && touch /scan-passed
 FROM python:3.12-slim
 COPY --from=credential-scan /scan-passed /usr/local/share/assistant-secret-scan-passed
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
@@ -10,6 +11,7 @@ COPY backend/requirements.txt backend/requirements-messaging.txt backend/require
 RUN pip install --no-cache-dir -c /tmp/requirements.lock -r /tmp/requirements.txt -r /tmp/requirements-messaging.txt
 RUN pip install --no-cache-dir -r /tmp/requirements-self-hosted.txt
 COPY backend /app/backend
+COPY widget /app/widget
 RUN groupadd --gid 10001 assistant && useradd --uid 10001 --gid 10001 --create-home assistant && mkdir /data && chown 10001:10001 /data
 USER 10001:10001
 EXPOSE 8000

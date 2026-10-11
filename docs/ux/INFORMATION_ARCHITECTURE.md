@@ -47,3 +47,23 @@ Booking: Not recorded   Audio receipt: Not human-verified
 Actual ordering uses recorded timestamps and stable tie-breaking, not diagram position. Expected-stage coverage sits separately with Succeeded/Failed/Not recorded/Not applicable labels. No synthesized events or private reasoning. Audio sent is distinct from caller hearing.
 
 Accessibility specification: native buttons/labels/fieldset legends; step heading focus on navigation; skip link; error summary focus and field links; status live region; text plus icons for state; readable wrap for Cyrillic; mobile single column; keyboard navigation with no trapping. Visual contrast and real keyboard execution require testing after implementation.
+
+## Phase 11 implemented navigation
+
+Owner-approved incremental redesign, 10 October 2026. Primary: dashboard, assistants, inbox, testing, calls, appointments, operations, integrations, settings. Advanced: setup, agents, channels, onboarding, billing, usage, administration. URLs are preserved; setup/testing are new. Testing/operations require execution-role navigation; administration depends on platform membership. Backend permissions remain authoritative.
+
+Assistants → read-only Overview/Instructions/FAQ when present/Tools/Channels/Voice/Testing/Versions/Activity → explicit draft editing. Setup saves and resumes seven steps. Test Studio reviews synthetic BG/EN outcomes. Calls/Inbox → recorded debugger → linked appointments/conversation. Legacy direct active editing remains visibly Advanced with a warning; it is not presented as draft promotion.
+
+```mermaid
+flowchart LR
+  A[Assistants] --> D[Saved draft]
+  D --> T[Isolated BG / EN tests]
+  T --> R[Readiness evidence]
+  R --> W[Explicit mock Web Chat activation]
+  R --> B[Voice / external activation blocked]
+  I[Inbox / Calls] --> X[Recorded diagnostics]
+  X --> P[Persisted appointment]
+  X --> T
+```
+
+Structured breadcrumbs, advanced layout customization and measured navigation usability remain future work. Contextual return links and tenant/environment labels are implemented; a new duplicate signup or tenant identity system is not introduced.

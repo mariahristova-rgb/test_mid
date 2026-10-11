@@ -6,16 +6,32 @@ import { t, date, number, uiLocale, type Locale } from '../services/i18n';
 import EmptyState from '../components/EmptyState.vue';
 import MessagingConnections from '../components/MessagingConnections.vue';
 import { connectVoice, sendSyntheticAudio } from '../services/voiceStream';
+import { workspaceReads } from '../services/workspace.mjs';
+import ConversationDebugger from '../components/ConversationDebugger.vue';
+import AssistantStudio from '../components/AssistantStudio.vue';
 const route = useRoute();
 const page = computed(() => String(route.meta.page || 'dashboard'));
 const channels = ['voice', 'email', 'whatsapp', 'sms', 'web_chat'];
 const data = ref<any>({}), assistants = ref<any[]>([]), agents = ref<any[]>([]), conversations = ref<any[]>([]), contacts = ref<any[]>([]), appointments = ref<any[]>([]), calls = ref<any[]>([]), approvals = ref<any[]>([]), connections = ref<any[]>([]), followUps = ref<any[]>([]), audit = ref<any[]>([]);
 const messages = ref<any[]>([]), current = ref(''), assistantId = ref('default'), contactId = ref('');
+const selectedConversation = ref<any>(null);
 const locale = ref<Locale>('bg-BG'), channel = ref('web_chat'), text = ref(''), error = ref(''), notice = ref(''), busy = ref(false);
 const conversationLanguage = ref<'auto' | Locale>('auto');
 const tool = ref(''), contactName = ref(''), startsAt = ref(''), duration = ref(30), appointmentId = ref(''), recipient = ref(''), sendChannel = ref('email'), title = ref(''), dueAt = ref(''), reason = ref('');
 const newContact = ref({ name: '', address: '', preferred_locale: 'bg-BG', sms_opt_out: false });
 const inboxChannel = ref(''), inboxStatus = ref(''), inboxLocale = ref(''), inboxAssistant = ref(''), inboxDate = ref('');
+const nextInboxCursor = ref<number|null>(null);
+function inboxPath(cursor?: number) {
+  const parameters = new URLSearchParams({limit:'50'});
+  for(const [key,value] of [['channel',inboxChannel.value],['status',inboxStatus.value],['locale',inboxLocale.value],['assistant_id',inboxAssistant.value],['local_day',inboxDate.value]]) if(value) parameters.set(key,value);
+  if(cursor != null) parameters.set('cursor',String(cursor));
+  return '/api/inbox?' + parameters;
+}
+async function reloadInbox(append = false) {
+  const result = await request(inboxPath(append ? nextInboxCursor.value ?? undefined : undefined));
+  conversations.value = append ? [...conversations.value,...result.items] : result.items;
+  nextInboxCursor.value = result.next_cursor;
+}
 const attachmentIds = ref<string[]>([]);
 const visibleConversations = computed(() => conversations.value.filter(c => (!inboxChannel.value || c.channel === inboxChannel.value)
   && (!inboxStatus.value || c.status === inboxStatus.value) && (!inboxLocale.value || c.active_locale === inboxLocale.value)
@@ -25,25 +41,35 @@ const canExecute = computed(() => ['admin', 'operator'].includes(data.value.user
 const tz = computed(() => data.value.tenant?.timezone || 'Europe/Sofia');
 const pending = computed(() => approvals.value.filter(a => a.status === 'pending' && (!current.value || a.conversation_id === current.value)));
 const toolNames = computed(() => (data.value.tools || []).map((x: any) => x.name));
-const paused = computed(() => conversations.value.find(c => c.id === current.value)?.human_escalation);
-const closed = computed(() => conversations.value.find(c => c.id === current.value)?.status === 'closed');
+const paused = computed(() => selectedConversation.value?.human_escalation);
+const closed = computed(() => selectedConversation.value?.status === 'closed');
 const settings = ref<any>({});
 const templates = ref<any[]>([]), jobs = ref<any[]>([]), users = ref<any[]>([]);
 const newUser = ref({ subject: '', role: 'viewer', enabled: true, preferred_locale: 'en-US' });
 const streamCall = ref(''), streamReady = ref(false), streamResponse = ref('');
 const callActivity = ref<any>(null);
+const diagnosticConversation = ref('');
 async function showCallActivity(id: string) { callActivity.value = await request(`/api/calls/${id}/activity`); }
 let stream: WebSocket | undefined, streamSequence = 0;
 let inboxTimer: ReturnType<typeof setInterval> | undefined;
 let polling = false;
-onUnmounted(() => { stream?.close(); if (inboxTimer) clearInterval(inboxTimer); });
+let loadController: AbortController | undefined, loadEpoch = 0;
+onUnmounted(() => { loadEpoch++; loadController?.abort(); stream?.close(); if (inboxTimer) clearInterval(inboxTimer); });
 watch(page, () => { if (page.value !== 'calls') { stream?.close(); streamReady.value = false; streamCall.value = ''; } });
 
 let inboxRevision = 0;
-async function run(action: () => Promise<unknown>) { inboxRevision++; busy.value = true; error.value = ''; notice.value = ''; try { await action(); } catch (e) { error.value = e instanceof Error && e.message ? e.message : t('error'); } finally { busy.value = false; } }
+async function run(action: () => Promise<unknown>) { const revision = ++inboxRevision; busy.value = true; error.value = ''; notice.value = ''; try { await action(); } catch (e) { if(revision === inboxRevision && !(e instanceof Error && e.name === 'AbortError')) error.value = e instanceof Error && e.message ? e.message : t('error'); } finally { if(revision === inboxRevision) busy.value = false; } }
 async function load() {
-  const results = await Promise.all([request('/api/bootstrap'), request('/api/assistants'), request('/api/agents'), request('/api/inbox'), request('/api/contacts'), request('/api/appointments'), request('/api/calls'), request('/api/approvals'), request('/api/connections'), request('/api/follow-up-tasks')]);
-  [data.value, assistants.value, agents.value, conversations.value, contacts.value, appointments.value, calls.value, approvals.value, connections.value, followUps.value] = results;
+  loadController?.abort(); loadController = new AbortController(); const epoch = ++loadEpoch;
+  const keys = workspaceReads(page.value);
+  const results = await Promise.all(keys.map(key => request(key === 'inbox' ? inboxPath() : '/api/' + key,'GET',undefined,loadController?.signal)));
+  if(epoch !== loadEpoch) return;
+  const values = Object.fromEntries(keys.map((key,index) => [key,results[index]]));
+  data.value = values.bootstrap;
+  assistants.value = values.assistants || []; agents.value = values.agents || []; conversations.value = values.inbox?.items || [];
+  nextInboxCursor.value = values.inbox?.next_cursor ?? null;
+  contacts.value = values.contacts || []; appointments.value = values.appointments || []; calls.value = values.calls || [];
+  approvals.value = values.approvals || []; connections.value = values.connections || []; followUps.value = values['follow-up-tasks'] || [];
   const tenant = data.value.tenant;
   settings.value = { default_locale: tenant.default_locale, timezone: tenant.timezone, usage_limit: tenant.usage_limit, retention_days: tenant.retention_days, recording_enabled: tenant.recording_enabled, transcripts_enabled: tenant.transcripts_enabled, notice_acknowledged: false };
   if (!assistants.value.some(a => a.id === assistantId.value)) assistantId.value = assistants.value[0]?.id || '';
@@ -52,19 +78,23 @@ async function load() {
   }
 }
 onMounted(() => {
-  void run(load);
+  void run(async () => { await load(); if(page.value === 'inbox' && route.query.conversation) await openConversation(String(route.query.conversation)); });
   inboxTimer = setInterval(async () => {
     if (busy.value || polling) return;
     if (['calls', 'appointments', 'dashboard'].includes(page.value)) {
       const revision = inboxRevision;
       polling = true;
       try {
+        const pollingPage = page.value;
         const selected = callActivity.value?.call.id;
-        const [recentCalls, bookings, activity, snapshot] = await Promise.all([request('/api/calls'), request('/api/appointments'),
-          selected ? request(`/api/calls/${selected}/activity`) : Promise.resolve(null),
-          page.value === 'dashboard' ? request('/api/bootstrap') : Promise.resolve(null)]);
-        if (revision === inboxRevision && !busy.value) {
-          calls.value = recentCalls; appointments.value = bookings;
+        const [recentCalls, bookings, activity, snapshot] = await Promise.all([
+          pollingPage === 'calls' ? request('/api/calls') : Promise.resolve(null),
+          pollingPage === 'appointments' ? request('/api/appointments') : Promise.resolve(null),
+          pollingPage === 'calls' && selected ? request(`/api/calls/${selected}/activity`) : Promise.resolve(null),
+          pollingPage === 'dashboard' ? request('/api/bootstrap') : Promise.resolve(null)]);
+        if (revision === inboxRevision && !busy.value && pollingPage === page.value) {
+          if (recentCalls) calls.value = recentCalls;
+          if (bookings) appointments.value = bookings;
           if (activity && selected === callActivity.value?.call.id) callActivity.value = activity;
           if (snapshot && page.value === 'dashboard') data.value = snapshot;
         }
@@ -77,18 +107,32 @@ onMounted(() => {
     const revision = inboxRevision;
     polling = true;
     try {
-      const [history, inbox, actions] = await Promise.all([request(`/api/conversations/${id}/messages`), request('/api/inbox'), request('/api/approvals')]);
-      if (current.value === id && revision === inboxRevision && !busy.value) { messages.value = history; conversations.value = inbox; approvals.value = actions; }
+      const [history, inbox, actions, selectedRows] = await Promise.all([request(`/api/conversations/${id}/messages`), request(inboxPath()), request('/api/approvals'),request('/api/inbox?conversation_id=' + encodeURIComponent(id))]);
+      if (current.value === id && revision === inboxRevision && !busy.value) {
+        messages.value = history; approvals.value = actions;
+        selectedConversation.value = selectedRows[0] || null;
+        const latestRows = new Map(inbox.items.map((row: any) => [row.id,row]));
+        conversations.value = conversations.value.map(row => latestRows.get(row.id) || row);
+      }
     } catch (e) { error.value = e instanceof Error ? e.message : t('error'); }
     finally { polling = false; }
   }, 2000);
 });
-watch(page, () => run(load));
+watch(page, () => { callActivity.value = null; diagnosticConversation.value = ''; void run(async () => { await load(); if(page.value === 'inbox' && route.query.conversation) await openConversation(String(route.query.conversation)); }); });
 async function refreshConversationData() {
-  [conversations.value, approvals.value, appointments.value, followUps.value] = await Promise.all([
-    request('/api/inbox'), request('/api/approvals'), request('/api/appointments'), request('/api/follow-up-tasks')]);
+  await reloadInbox();
+  [approvals.value, appointments.value, followUps.value] = await Promise.all([
+    request('/api/approvals'), request('/api/appointments'), request('/api/follow-up-tasks')]);
 }
-async function openConversation(id: string) { current.value = id; const conversation = conversations.value.find(c => c.id === id); if (conversation?.active_locale) locale.value = conversation.active_locale; messages.value = await request(`/api/conversations/${id}/messages`); }
+async function openConversation(id: string) {
+  let conversation = conversations.value.find(c => c.id === id);
+  if(!conversation) { const found = await request('/api/inbox?conversation_id=' + encodeURIComponent(id)); conversation = found[0]; if(!conversation) throw new Error(t('not_found')); conversations.value.push(conversation); }
+  current.value = id; if (conversation?.active_locale) locale.value = conversation.active_locale;
+  selectedConversation.value = conversation;
+  messages.value = await request(`/api/conversations/${id}/messages`);
+}
+watch([inboxChannel,inboxStatus,inboxLocale,inboxAssistant,inboxDate], () => { if(page.value === 'inbox' && data.value.user) void run(() => reloadInbox()); });
+watch(() => route.query.conversation, value => { if(page.value === 'inbox' && value && data.value.user) void run(() => openConversation(String(value))); });
 async function createConversation() { const conversation = await request('/api/conversations', 'POST', { assistant_id: assistantId.value, channel: channel.value, contact_id: contactId.value || null }); await refreshConversationData(); await openConversation(conversation.id); }
 async function parsed(value: string) { return (await request('/api/dates/parse', 'POST', { value, locale: uiLocale.value })).iso; }
 async function send() {
@@ -124,7 +168,7 @@ async function openVoice(call: any) {
 }
 function sendVoice() { if (stream?.readyState === WebSocket.OPEN) { sendSyntheticAudio(stream, text.value, streamSequence++); text.value = ''; } }
 async function callAction(call: any, action: string) { await request(`/api/calls/${call.id}/events`, 'POST', { action, locale: locale.value, text: text.value || t('message'), event_id: crypto.randomUUID() }); await load(); }
-async function control(action: string) { await request(`/api/conversations/${current.value}/control`, 'POST', { action, confirmed: true }); await refreshConversationData(); }
+async function control(action: string) { await request(`/api/conversations/${current.value}/control`, 'POST', { action, confirmed: true }); await refreshConversationData(); await openConversation(current.value); }
 async function humanReply() { await request(`/api/conversations/${current.value}/human-reply`, 'POST', { content: text.value, event_id: crypto.randomUUID(), confirmed: true }); text.value = ''; await refreshConversationData(); await openConversation(current.value); }
 async function approveDraft(id: string) { await request(`/api/messages/${id}/approve-draft`, 'POST', { confirmed: true }); await openConversation(current.value); }
 async function attach(event: Event) {
@@ -139,6 +183,7 @@ async function attach(event: Event) {
 async function saveTemplate(template: any) { await request('/api/templates/' + template.id, 'PUT', { body: template.body }); notice.value = t('saved'); }
 async function addUser() { await request('/api/users', 'POST', newUser.value); newUser.value.subject = ''; await load(); }
 function formatArgument(key: string, value: any) { if (key === 'starts_at' || key === 'due_at') return date(String(value), tz.value); return typeof value === 'object' ? JSON.stringify(value) : String(value); }
+function providerStatus(provider: any) { return provider.state === 'MOCK' ? 'MOCK_ONLY' : provider.state === 'UNCONFIGURED' || provider.state === 'NOT_CONFIGURED' ? 'NOT_CONFIGURED' : provider.state === 'ERROR' ? 'ERROR' : 'CONFIGURED'; }
 const argumentLabels: Record<string, string> = { starts_at: 'date', duration_minutes: 'duration', contact_name: 'contactName', appointment_id: 'id', channel: 'channel', recipient: 'recipient', content: 'message', title: 'task', due_at: 'dueAt', reason: 'reason' };
 </script>
 <template>
@@ -148,7 +193,7 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
 </button>
 </div>
   <p class="banner">
-{{ t('mockNotice') }}
+{{ t('runtimeEvidenceNotice') }}
 </p>
   <p v-if="error" class="error" role="alert">
 {{ error }}
@@ -160,25 +205,43 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
   <template v-if="page === 'dashboard'">
     <div class="cards">
 <article v-for="(value, key) in data.counts" :key="key">
-<h2>{{ t(key === 'call_sessions' ? 'calls' : key === 'usage_records' ? 'usage' : key === 'conversations' ? 'inbox' : String(key)) }}</h2><strong class="metric">{{ number(Number(value)) }}</strong><span class="badge">{{ t('WORKING') }}</span>
+<h2>{{ t(key === 'call_sessions' ? 'calls' : key === 'usage_records' ? 'usage' : key === 'conversations' ? 'inbox' : String(key)) }}</h2><strong class="metric">{{ number(Number(value)) }}</strong><span class="badge">{{ t('persistedCount') }}</span>
 </article>
 </div>
+    <article>
+<h2>{{ t('readinessReview') }}</h2><p>{{ t('voice_acceptance_blocked') }}</p><p>{{ t('countsNotSuccessRates') }}</p><RouterLink to="/testing">
+{{ t('testAssistant') }}
+</RouterLink>
+</article>
     <article><h2>{{ t('languageSupport') }}</h2><p>{{ t('speechNotice') }}</p><p>{{ t('timezone') }}: {{ tz }}</p></article>
   </template>
   <template v-if="page === 'assistants'">
+    <RouterLink v-if="canConfigure" class="action-link" to="/setup">
+{{ t('guidedSetup') }}
+</RouterLink>
     <button v-if="canConfigure" :disabled="busy" @click="run(addAssistant)">
 {{ t('new') }}
 </button>
     <article v-for="a in assistants" :key="a.id">
+<h2>{{ a.name }}</h2><p>{{ t(a.status) }} · {{ t(a.llm_provider === 'mock' ? 'MOCK_ONLY' : 'CONFIGURED') }}</p><RouterLink :to="{path:'/setup',query:{assistant:a.id}}">
+{{ t('editDraft') }}
+</RouterLink> · <RouterLink to="/testing">
+{{ t('testAssistant') }}
+</RouterLink>
+<AssistantStudio :assistant="a" :can-configure="canConfigure" :timezone="tz" />
+<details>
+<summary>{{ t('advancedDirectEditing') }}</summary><p class="banner">
+{{ t('directEditingWarning') }}
+</p>
 <form @submit.prevent="run(() => saveAssistant(a))">
 <fieldset :disabled="!canConfigure || busy">
 <label>{{ t('name') }}<input v-model="a.name" required maxlength="120"></label><label>{{ t('description') }}<textarea v-model="a.description" maxlength="1000" /></label><label>{{ t('instructions') }}<textarea v-model="a.instructions" maxlength="8000" /></label><label>{{ t('defaultLocale') }}<select v-model="a.default_locale"><option value="bg-BG">{{ t('bg-BG') }}</option><option value="en-US">{{ t('en-US') }}</option></select></label><div class="checks">
 <label v-for="c in channels" :key="c"><input v-model="a.enabled_channels" type="checkbox" :value="c">{{ t(c) }}</label>
 </div><label>{{ t('bookingDuration') }}<input v-model.number="a.booking_duration_minutes" type="number" min="5" max="480" required></label>
 <h3>{{ t('voiceConfiguration') }}</h3>
-<label>{{ t('telephonyProvider') }}<select v-model="a.voice_settings.telephony_provider"><option value="mock">{{ t('MOCK') }}</option><option value="twilio">{{ t('twilio') }}</option></select></label>
-<label>{{ t('sttProvider') }}<select v-model="a.voice_settings.stt_provider"><option value="mock">{{ t('MOCK') }}</option><option value="azure">{{ t('azure') }}</option></select></label>
-<label>{{ t('ttsProvider') }}<select v-model="a.voice_settings.tts_provider"><option value="mock">{{ t('MOCK') }}</option><option value="azure">{{ t('azure') }}</option></select></label>
+<label>{{ t('telephonyProvider') }}<select v-model="a.voice_settings.telephony_provider"><option v-for="provider in ['mock','twilio','asterisk']" :key="provider" :value="provider">{{ t(provider === 'mock' ? 'MOCK' : provider) }}</option></select></label>
+<label>{{ t('sttProvider') }}<select v-model="a.voice_settings.stt_provider"><option v-for="provider in ['mock','azure','faster_whisper']" :key="provider" :value="provider">{{ t(provider === 'mock' ? 'MOCK' : provider) }}</option></select></label>
+<label>{{ t('ttsProvider') }}<select v-model="a.voice_settings.tts_provider"><option v-for="provider in ['mock','azure','piper','espeak_ng','bgtts38']" :key="provider" :value="provider">{{ t(provider === 'mock' ? 'MOCK' : provider) }}</option></select></label>
 <label>{{ t('incomingNumber') }}<input v-model="a.voice_settings.incoming_phone_number" type="tel"></label>
 <label>{{ t('callLanguage') }}<select v-model="a.voice_settings.locale"><option value="bg-BG">{{ t('bg-BG') }}</option><option value="en-US">{{ t('en-US') }}</option></select></label>
 <div v-for="language in ['bg-BG', 'en-US']" :key="language">
@@ -186,7 +249,7 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
 </div>
 <label>{{ t('callTimeout') }}<input v-model.number="a.voice_settings.call_timeout_seconds" type="number" min="30" max="3600"></label>
 <label>{{ t('silenceTimeout') }}<input v-model.number="a.voice_settings.silence_timeout_seconds" type="number" min="5" max="120"></label>
-<label>{{ t('latencyLimit') }}<input v-model.number="a.voice_settings.max_latency_ms" type="number" min="500" max="30000"></label>
+<label>{{ t('latencyLimit') }}<input v-model.number="a.voice_settings.max_latency_ms" type="number" min="500" max="120000"></label>
 <label>{{ t('humanNumber') }}<input v-model="a.voice_settings.human_escalation_number" type="tel"></label>
 <label class="check"><input v-model="a.voice_settings.recording" type="checkbox">{{ t('recording') }}</label>
 <label class="check"><input v-model="a.voice_settings.transcript_storage" type="checkbox">{{ t('transcripts') }}</label>
@@ -195,6 +258,7 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
 <p>{{ t('speechNotice') }}</p><label>{{ t('status') }}<select v-model="a.status"><option value="active">{{ t('active') }}</option><option value="disabled">{{ t('disabled') }}</option></select></label><button>{{ t('save') }}</button>
 </fieldset>
 </form>
+</details>
 </article>
   </template>
   <template v-if="page === 'agents'">
@@ -243,11 +307,17 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
 </article>
     <div class="inbox-layout">
 <aside>
-<button v-for="c in visibleConversations" :key="c.id" :class="{ selected: current === c.id }" @click="run(() => openConversation(c.id))">
+<button v-for="c in visibleConversations" :key="c.id" :class="{ selected: current === c.id }" :aria-pressed="current === c.id" @click="run(() => openConversation(c.id))">
 {{ c.contact?.name || c.id.slice(0, 8) }} · {{ t(c.channel) }} · {{ t(c.active_locale || 'bg-BG') }}
 <small>{{ assistants.find(a => a.id === c.assistant_id)?.name }} · {{ t(c.assigned_agent || 'receptionist') }} · {{ t(c.status) }}</small>
 <small v-if="c.last_message_at">{{ date(c.last_message_at, tz) }}</small><small>{{ c.last_message }}</small>
 </button>
+<button v-if="nextInboxCursor != null" :disabled="busy" @click="run(() => reloadInbox(true))">
+{{ t('loadMoreConversations') }}
+</button>
+<p v-if="!visibleConversations.length && !busy">
+{{ t('empty') }}
+</p>
 </aside><article>
 <h2>{{ t('history') }}</h2><div class="messages" aria-live="polite">
 <div v-for="m in messages" :key="m.id" class="bubble" :class="m.direction">
@@ -290,13 +360,21 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
 </button>
 </article>
   </template>
+  <ConversationDebugger v-if="page === 'inbox' && current && canExecute" :conversation-id="current" :timezone="tz" />
   <template v-if="page === 'appointments'">
+<RouterLink v-if="route.query.conversation" to="/appointments">
+{{ t('showAllAppointments') }}
+</RouterLink>
 <article>
 <h2>{{ t('appointments') }}</h2><div class="table-wrap">
 <table>
 <thead><tr><th>{{ t('contactName') }}</th><th>{{ t('date') }}</th><th>{{ t('status') }}</th></tr></thead><tbody>
-<tr v-for="a in appointments" :key="a.id">
-<td>{{ a.contact_name }}</td><td>{{ date(a.starts_at, tz) }}</td><td>{{ t(a.status) }}</td>
+<tr v-for="a in appointments.filter(item => !route.query.conversation || item.conversation_id === route.query.conversation)" :key="a.id">
+<td>
+{{ a.contact_name }}<br><RouterLink v-if="a.conversation_id" :to="{path:'/inbox',query:{conversation:a.conversation_id}}">
+{{ t('openConversation') }}
+</RouterLink>
+</td><td>{{ date(a.starts_at, tz) }}</td><td>{{ t(a.status) }}</td>
 </tr>
 </tbody>
 </table>
@@ -318,7 +396,7 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
 <p v-if="c.error_code">
 {{ t('error') }}: {{ t(c.error_code) }}
 </p>
-<button v-if="canConfigure" :disabled="busy" @click="run(() => showCallActivity(c.id))">
+<button v-if="canExecute" :disabled="busy" @click="run(async () => { diagnosticConversation = c.conversation_id; if(canConfigure) await showCallActivity(c.id); })">
 {{ t('callActivity') }}
 </button>
 <button v-if="c.state === 'MOCK' && c.status === 'listening' && canExecute && streamCall !== c.id" :disabled="busy" @click="run(() => openVoice(c))">
@@ -351,11 +429,12 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
 {{ t('llmTokens') }}: {{ entry.usage_reported ? number(entry.llm_input_tokens + entry.llm_output_tokens) : t('tokenUsageUnavailable') }}
 </p>
 </article>
+<ConversationDebugger v-if="diagnosticConversation && canExecute" :conversation-id="diagnosticConversation" :timezone="tz" />
 </template>
   <template v-if="page === 'channels' || page === 'integrations'">
 <div class="cards">
 <article v-for="provider in data.providers" :key="provider.kind">
-<h2>{{ t(provider.kind) }}</h2><span class="badge">{{ t(provider.state) }}</span><p>{{ t('bg-BG') }} / {{ t('en-US') }}</p><p>{{ t('noLive') }}</p>
+<h2>{{ t(provider.kind) }}</h2><span class="badge">{{ t(providerStatus(provider)) }}</span><p>{{ t('bg-BG') }} / {{ t('en-US') }}</p><p>{{ t('providerStatusScope') }}</p>
 </article>
 </div><MessagingConnections :assistants="assistants" :connections="connections" :allowed="canConfigure" @refresh="run(load)" />
 </template>

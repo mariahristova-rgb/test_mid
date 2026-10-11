@@ -1,0 +1,50 @@
+{
+  "name": "Ontelyx AI Concierge",
+  "default_locale": "en-US",
+  "timezone": "Europe/Sofia",
+  "appearance": "ontelyx-dark",
+  "color": "#54dde2",
+  "instructions": "Answer only from the approved public Ontelyx product knowledge. When uncertain, offer a demo or business inquiry. Use the existing receptionist and task execution agents for typed public workflows. Calendar operations require a verified email or signed ownership link, explicit consent, Google connection and owner authorization. Never imply unavailable scheduling or email was completed.",
+  "faq_entries": [
+    {
+      "question_bg": "Какво е Ontelyx?",
+      "answer_bg": "Ontelyx свързва данни, семантика, управление и AI. Публично представените възможности включват семантично откриване, граф на знанията, Data Hub и въпроси с бизнес контекст. За конкретната Ви интеграция можем да обсъдим демонстрация или бизнес запитване.",
+      "question_en": "What is Ontelyx?",
+      "answer_en": "Ontelyx brings data, semantics, governance and AI together. Publicly presented capabilities include semantic discovery, knowledge graphs, Data Hub and questions with business context. We can discuss your specific integration in a demo or business inquiry."
+    },
+    {
+      "question_bg": "Какви възможности предлага Ontelyx?",
+      "answer_bg": "Публичният сайт представя семантично откриване на връзки в данните, изрично моделиране на понятия и отношения, бизнес въпроси към AI и управление на данните. Подходящите услуги и интеграции се уточняват според Вашите нужди.",
+      "question_en": "What capabilities does Ontelyx offer?",
+      "answer_en": "The public site presents discovery of relationships across data, explicit modeling of concepts and relationships, business-context AI questions and data governance. Suitable services and integrations are discussed around your needs."
+    }
+  ],
+  "greetings": {
+    "bg-BG": "Добре дошли в Ontelyx. Как можем да Ви помогнем?",
+    "en-US": "Welcome to Ontelyx. How can we help?"
+  },
+  "privacy_notices": {
+    "bg-BG": "Само измислени данни. Текстът на демо чата се пази 7 дни. Демонстрационните часове са отделни записи. Може да изчистите чата с изрично потвърждение.",
+    "en-US": "Use fictional data only. Demo chat text is retained for 7 days; fictional appointments are separate records. You can explicitly clear this chat."
+  },
+  "retention_days": 7,
+  "daily_sessions": 100,
+  "daily_messages": 1000,
+  "allowed_tools": [
+    "ConciergeAvailability",
+    "ConciergeBooking",
+    "ConciergeManage",
+    "ConciergeRequest",
+    "EscalateToHuman"
+  ],
+  "calendar": "MOCK",
+  "llm": "MOCK",
+  "browser_voice": "UNAVAILABLE",
+  "public_knowledge_only": true,
+  "booking_enabled": false,
+  "concierge_enabled": true,
+  "knowledge_sources": [
+    "https://www.ontelyx.tech/platform",
+    "https://github.com/mariahristova-rgb/ontelyx/blob/0d4cb4d2572bde85ef90d11ac089d93391a1d012/src/data.ts"
+  ]
+}

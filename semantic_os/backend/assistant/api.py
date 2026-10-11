@@ -197,6 +197,8 @@ def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None
                 try:
                     store.operations.worker['inflight'] = 1
                     await voice_runtime.threaded(voice.expire_idle_calls)
+                    await voice_runtime.threaded(app.state.widget.purge)
+                    await asyncio.to_thread(app.state.concierge.worker)
                     if os.getenv('ASSISTANT_MESSAGING_WORKER_ENABLED') == 'true':
                         await voice_runtime.threaded(messaging.worker_tick)
                     if os.getenv('ASSISTANT_BACKUP_ENABLED') == 'true' and monotonic() - last_backup >= int(os.getenv('ASSISTANT_BACKUP_INTERVAL_SECONDS', '86400')):
@@ -247,6 +249,10 @@ def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None
     app.state.voice, app.state.voice_gateway, app.state.voice_runtime = voice, gateway, voice_runtime
     app.state.messaging = messaging
     app.state.billing, app.state.operations, app.state.backups, app.state.privacy = billing, store.operations, backups, privacy
+    from .google_workspace import GoogleWorkspace
+    from .concierge import Concierge
+    app.state.google=GoogleWorkspace(store,secrets,orchestrator.clock,development=demo_enabled and not strict)
+    app.state.concierge=Concierge(store,orchestrator,app.state.google,secrets,public_origin=os.getenv('WIDGET_PUBLIC_ORIGIN',''))
     ui_origins=[os.getenv('ASSISTANT_UI_ORIGIN', 'http://127.0.0.1:3000')]
     if demo_login_password:
         ui_origins=list(dict.fromkeys([*ui_origins,'http://127.0.0.1:3011','http://127.0.0.1:3017']))
@@ -369,6 +375,8 @@ def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None
     def bootstrap(principal: Principal = Depends(actor)):
         tenant = store.tenant(principal.tenant_id)
         return {'tenant': tenant, 'user': {'id': principal.user_id, 'role': principal.role}, 'state': 'MOCK',
+                'environment': os.getenv('ASSISTANT_ENV', 'development'), 'demo_enabled': demo_enabled,
+                'platform_admin': principal.subject in platform_subjects,
                 'counts': {name: store.count(name, principal.tenant_id) for name in ('assistants', 'conversations', 'appointments', 'call_sessions', 'usage_records')},
                 'providers': providers.describe(), 'tools': orchestrator.tools.describe()}
 
@@ -406,6 +414,19 @@ def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None
             raise DomainError('invalid_input', 422)
 
     orchestrator.tools_name_list = [item['name'] for item in orchestrator.tools.describe()]
+
+    from .ux import register_ux
+    register_ux(app, store, providers, actor, valid_config)
+    from .widget import register_widget,origin as widget_canonical_origin
+    widget_origin=os.getenv('WIDGET_PUBLIC_ORIGIN','')
+    if widget_origin and os.getenv('ASSISTANT_UI_ORIGIN') and widget_canonical_origin(widget_origin,local=demo_enabled and not strict)==widget_canonical_origin(os.environ['ASSISTANT_UI_ORIGIN'],local=demo_enabled and not strict):
+        raise ValueError('Widget requires a dedicated origin separate from the application')
+    widget_local_sites=os.getenv('WIDGET_DEMO_SITE_ORIGINS','').split(',') if demo_enabled and not strict else ()
+    register_widget(app,store,orchestrator,app.state.ux,actor,public_origin=widget_origin,
+        local_sites=tuple(site for site in widget_local_sites if site),
+        demo_targets=json.loads(os.getenv('WIDGET_DEMO_SITE_TARGETS','{}')) if demo_enabled and not strict else None)
+    from .concierge_api import register_concierge
+    register_concierge(app,actor)
 
     @app.post('/api/assistants', status_code=201)
     def add_assistant(config: AssistantConfig, principal: Principal = Depends(actor)):

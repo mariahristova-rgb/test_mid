@@ -1,6 +1,7 @@
 FROM zricethezav/gitleaks:v8.24.3 AS credential-scan
 COPY backend /scan/backend
-RUN gitleaks dir /scan/backend --redact=100 --no-banner && touch /scan-passed
+COPY widget /scan/widget
+RUN gitleaks dir /scan --redact=100 --no-banner && touch /scan-passed
 
 FROM python:3.12-slim
 COPY --from=credential-scan /scan-passed /usr/local/share/assistant-secret-scan-passed
@@ -12,6 +13,7 @@ COPY backend/requirements.lock /tmp/requirements.lock
 RUN pip install --no-cache-dir -c /tmp/requirements.lock -r /tmp/requirements.txt
 RUN pip install --no-cache-dir -c /tmp/requirements.lock -r /tmp/requirements-messaging.txt
 COPY backend /app/backend
+COPY widget /app/widget
 RUN groupadd --gid 10001 assistant && useradd --uid 10001 --gid 10001 --create-home assistant && mkdir /data /backups && chown 10001:10001 /data /backups
 ENV ASSISTANT_DATABASE=/data/assistant.sqlite3
 USER 10001:10001

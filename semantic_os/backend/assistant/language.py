@@ -7,6 +7,7 @@ from .domain import Locale, LOCALES, DomainError
 
 TEXT = {
     'en-US': {
+        'test_worker_busy':'Another isolated test is running. Refresh results, or retry when it finishes. Your draft was not changed.',
         'voice_keypad_required':'To book the proposed appointment, press 1 after the details finish. Press 0 to cancel.',
         'voice_keypad_proposal':'Please check: {name}, {date}, {duration} minutes. Press 1 to book, or 0 to cancel.',
         'booking_confirmation_unclear':'I could not clearly understand your confirmation. Please confirm the proposed details or say cancel.',
@@ -70,6 +71,7 @@ TEXT = {
         'usage_warning': 'Your usage is approaching the plan limit.',
     },
     'bg-BG': {
+        'test_worker_busy':'Изпълнява се друг изолиран тест. Опреснете резултатите или опитайте след приключването му. Черновата не е променена.',
         'voice_keypad_required':'За да запишете предложения час, натиснете едно след края на предложението. За отказ натиснете нула.',
         'voice_keypad_proposal':'Моля, проверете: {name}, {date}, {duration} минути. За записване натиснете едно, за отказ натиснете нула.',
         'booking_confirmation_unclear':'Не разбрах ясно потвърждението. Моля, потвърдете предложените данни или кажете отказ.',
@@ -155,6 +157,8 @@ class LanguageResolver:
         if bg and not en:
             return 'bg-BG', 0.95
         if en and not bg:
+            return 'en-US', 0.95
+        if not re.search(r'[а-я]',content.lower()) and len(words & {'what','are','your','opening','hours','where','how','service','services'})>=2:
             return 'en-US', 0.95
         return None, 0.0
 

@@ -1,0 +1,17 @@
+# Actual website build on a separate loopback origin; not a public deployment.
+services:
+  backend:
+    environment:
+      WIDGET_DEMO_SITE_TARGETS: '{"http://127.0.0.1:3021":["172.30.9.2",8080],"http://127.0.0.1:5173":["172.30.9.4",8080]}'
+  ontelyx-review:
+    image: nginxinc/nginx-unprivileged:stable-alpine
+    environment: {NGINX_ENTRYPOINT_WORKER_PROCESSES_AUTOTUNE: "1"}
+    volumes:
+      - ${ONTELYX_WEBSITE_DIST:?Reviewed actual website dist required}:/usr/share/nginx/html:ro
+      - ./nginx.ontelyx-review.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      example_public: {ipv4_address: 172.30.9.4}
+    ports: ["127.0.0.1:5173:8080"]
+    mem_limit: 96m
+    cpus: 0.5
+    restart: "no"

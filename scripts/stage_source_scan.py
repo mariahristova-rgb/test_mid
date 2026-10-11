@@ -14,7 +14,7 @@ for name in files:
         continue
     if source.name.startswith('.env') and not source.name.endswith('.example'):
         continue
-    if source.suffix not in ('.py', '.ps1', '.sh', '.toml', '.ts', '.mts', '.vue', '.mjs', '.json', '.lock', '.css', '.md', '.yml', '.yaml', '.conf', '.txt', '.html', '.example') and not source.name.startswith('Dockerfile') and source.name not in ('.gitignore', '.dockerignore'):
+    if source.suffix not in ('.py', '.ps1', '.sh', '.toml', '.ts', '.mts', '.vue', '.mjs', '.js', '.json', '.lock', '.css', '.md', '.yml', '.yaml', '.conf', '.txt', '.html', '.example', '.patch') and not source.name.startswith('Dockerfile') and source.name not in ('.gitignore', '.dockerignore'):
         continue
     target = TARGET / name
     if not target.resolve().is_relative_to(TARGET):

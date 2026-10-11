@@ -17,7 +17,7 @@ test('date formatting uses explicit Sofia timezone for both locales', () => {
   }
 });
 test('template contains no raw text nodes without localization', () => {
-  for (const name of ['App.vue', 'views/WorkspaceView.vue', 'views/SaaSView.vue', 'components/MessagingConnections.vue']) {
+  for (const name of ['App.vue', 'views/WorkspaceView.vue', 'views/SaaSView.vue', 'components/MessagingConnections.vue', 'views/SetupView.vue', 'components/ConversationDebugger.vue','components/AssistantStudio.vue','views/WidgetView.vue','views/GoogleWorkspaceView.vue']) {
     const source = readFileSync(new URL('../src/' + name, import.meta.url), 'utf8');
     const ast = parseTemplate(parseSFC(source).descriptor.template.content);
     function visit(node) {
@@ -28,7 +28,7 @@ test('template contains no raw text nodes without localization', () => {
   }
 });
 test('every literal UI translation key exists in both locales', () => {
-  for (const name of ['App.vue', 'views/WorkspaceView.vue', 'views/SaaSView.vue', 'components/MessagingConnections.vue']) {
+  for (const name of ['App.vue', 'views/WorkspaceView.vue', 'views/SaaSView.vue', 'components/MessagingConnections.vue', 'views/SetupView.vue', 'components/ConversationDebugger.vue','components/AssistantStudio.vue','views/WidgetView.vue','views/GoogleWorkspaceView.vue']) {
     const source = readFileSync(new URL('../src/' + name, import.meta.url), 'utf8');
     for (const [, key] of source.matchAll(/\bt\(['"]([^'"]+)['"]\)/g)) {
       assert.ok(en[key] && bg[key], `${name}: ${key}`);

@@ -1,0 +1,246 @@
+"""Offline setup/simulation boundaries, including live-store side effects."""
+import unittest
+from semantic_os.backend.assistant.domain import AssistantConfig, DomainError, Channel
+from semantic_os.backend.assistant.providers import ProviderRegistry
+from semantic_os.backend.assistant.store import Store
+from semantic_os.backend.assistant.ux import UXService, DraftInput, RunInput, ConfirmInput
+
+
+class UXTests(unittest.TestCase):
+    def setUp(self):
+        self.store = Store(); self.store.seed(); self.store.seed('other', 'other')
+        self.actor = self.store.principal('demo-admin', 'demo')
+        self.ux = UXService(self.store, ProviderRegistry(), lambda config: None)
+        self.payload = DraftInput(config=AssistantConfig(name='Synthetic clinic', enabled_channels=['web_chat'],allowed_tools=['CheckAvailability','CreateAppointment','EscalateToHuman']), business={'name': 'Synthetic clinic'})
+
+    def tearDown(self): self.store.close()
+
+    def run_case(self, draft, scenario, locale='bg-BG'):
+        return self.ux.test(self.actor, draft['id'], RunInput(revision=draft['revision'], scenario=scenario, locale=locale))
+
+    def test_bilingual_scenarios_and_no_live_side_effects(self):
+        draft = self.ux.save(self.actor, self.payload)
+        before = {table:self.store.list(table,'demo') for table in ('assistants','appointments','conversations','messages','jobs','usage_records','agents')}
+        for language in ('bg-BG','en-US'):
+            for scenario in ('booking','short_confirmation','rejection','ambiguous','occupied','language_switch','handoff'):
+                result = self.run_case(draft, scenario, language)
+                self.assertEqual(result['verdict'], 'PASS', (language,scenario,result))
+        for table, rows in before.items(): self.assertEqual(self.store.list(table,'demo'), rows, table)
+
+    def test_audio_not_falsely_passed(self):
+        draft = self.ux.save(self.actor,self.payload)
+        self.assertTrue(all(row['verdict']=='NOT_RUN' for row in self.ux.readiness(self.actor,draft)['required_tests']))
+        self.assertEqual(self.run_case(draft,'interruption')['verdict'],'BLOCKED')
+
+    def test_occupied_preset_uses_the_tenant_relative_day(self):
+        for zone in ('Europe/Sofia','Pacific/Honolulu','Pacific/Kiritimati'):
+            self.payload.business.timezone=zone
+            draft=self.ux.save(self.actor,self.payload)
+            self.assertEqual(self.run_case(draft,'occupied')['verdict'],'PASS',zone)
+
+    def test_draft_resume_revision_and_receipt_invalidation(self):
+        draft=self.ux.save(self.actor,self.payload)
+        self.run_case(draft,'booking')
+        self.payload.revision=1; self.payload.step=4; self.payload.config.name='Changed'
+        saved=self.ux.save(self.actor,self.payload,draft['id'])
+        self.assertEqual(self.ux.draft(self.actor,draft['id'])['step'],4)
+        self.assertNotEqual(saved['config_hash'],draft['config_hash'])
+        self.assertFalse(self.ux.readiness(self.actor,saved)['can_publish'])
+        with self.assertRaises(DomainError): self.ux.save(self.actor,self.payload,draft['id'])
+
+    def test_cross_tenant_and_viewer_denied(self):
+        draft=self.ux.save(self.actor,self.payload)
+        other=self.store.principal('other','other')
+        with self.assertRaises(DomainError): self.ux.draft(other,draft['id'])
+        self.store.seed('demo','viewer','viewer')
+        viewer=self.store.principal('viewer','demo')
+        with self.assertRaises(DomainError): self.ux.save(viewer,self.payload)
+        with self.assertRaises(DomainError): self.ux.test(viewer,draft['id'],RunInput(revision=1,scenario='booking',locale='bg-BG'))
+
+    def test_permissions_enforced_in_sandbox(self):
+        self.payload.config.allowed_tools=['CheckAvailability']
+        draft=self.ux.save(self.actor,self.payload)
+        result=self.run_case(draft,'booking')
+        self.assertEqual(result['verdict'],'FAIL')
+        self.assertEqual(result['booking_count'],0)
+        self.assertEqual(self.store.count('appointments','demo'),0)
+
+    def test_publish_requires_evidence_confirmation_and_preserves_source_draft(self):
+        draft=self.ux.save(self.actor,self.payload)
+        with self.assertRaises(DomainError): self.ux.publish(self.actor,draft['id'],ConfirmInput(revision=1,confirmed=True))
+        for locale in ('bg-BG','en-US'):
+            for scenario in ('booking','rejection','ambiguous'): self.run_case(draft,scenario,locale)
+        self.assertTrue(self.ux.readiness(self.actor,draft)['can_publish'])
+        with self.assertRaises(DomainError): self.ux.publish(self.actor,draft['id'],ConfirmInput(revision=1))
+        created=self.ux.publish(self.actor,draft['id'],ConfirmInput(revision=1,confirmed=True))
+        self.assertEqual(created['enabled_channels'],['web_chat'])
+        self.assertEqual(self.ux.draft(self.actor,draft['id'])['status'],'published')
+        self.assertEqual(self.store.count('appointments','demo'),0)
+        self.assertEqual(self.ux.rows('demo','ux_version')[0]['target_assistant_id'],created['id'])
+
+    def test_external_channels_and_live_llm_never_implicitly_activated(self):
+        self.payload.config.enabled_channels=[Channel.WEB_CHAT,Channel.VOICE]
+        self.payload.config.llm_provider='qwen'
+        draft=self.ux.save(self.actor,self.payload)
+        gates=self.ux.readiness(self.actor,draft)
+        self.assertIn('voice_acceptance_blocked',gates['reasons'])
+        self.assertIn('mock_test_not_live_proof',gates['reasons'])
+        with self.assertRaises(DomainError): self.ux.publish(self.actor,draft['id'],ConfirmInput(revision=1,confirmed=True))
+
+    def test_active_change_and_agent_change_block_promotion(self):
+        self.payload.assistant_id='default'
+        draft=self.ux.save(self.actor,self.payload)
+        for locale in ('bg-BG','en-US'):
+            for scenario in ('booking','rejection','ambiguous'): self.run_case(draft,scenario,locale)
+        self.store.update('assistants','demo','default',{'name':'Concurrent change'})
+        with self.assertRaises(DomainError): self.ux.publish(self.actor,draft['id'],ConfirmInput(revision=1,confirmed=True))
+        self.store.update('agents','demo','executor',{'enabled':False})
+        self.assertIn('agent_config_changed',self.ux.readiness(self.actor,draft)['reasons'])
+
+    def test_business_and_pending_approval_block_promotion(self):
+        draft=self.ux.save(self.actor,self.payload)
+        for locale in ('bg-BG','en-US'):
+            for scenario in ('booking','rejection','ambiguous'): self.run_case(draft,scenario,locale)
+        self.store.update_tenant('demo',{**self.store.tenant('demo'),'timezone':'UTC'})
+        self.assertIn('business_config_changed',self.ux.readiness(self.actor,draft)['reasons'])
+        with self.assertRaises(DomainError): self.ux.publish(self.actor,draft['id'],ConfirmInput(revision=1,confirmed=True))
+
+    def test_active_call_blocks_but_ended_call_allows_activation(self):
+        draft=self.ux.save(self.actor,self.payload)
+        for locale in ('bg-BG','en-US'):
+            for scenario in ('booking','rejection','ambiguous'): self.run_case(draft,scenario,locale)
+        call=self.store.add('call_sessions','demo',{'status':'listening'})
+        with self.assertRaises(DomainError): self.ux.publish(self.actor,draft['id'],ConfirmInput(revision=1,confirmed=True))
+        self.store.update('call_sessions','demo',call['id'],{'status':'ended'})
+        self.assertEqual(self.ux.publish(self.actor,draft['id'],ConfirmInput(revision=1,confirmed=True))['name'],'Synthetic clinic')
+
+    def test_overlapping_tests_report_busy_without_mutating_draft(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Event
+        entered,finish=Event(),Event()
+        draft=self.ux.save(self.actor,self.payload)
+        original=self.ux.simulate
+        def slow(saved,payload):
+            entered.set();finish.wait(5);return original(saved,payload)
+        self.ux.simulate=slow
+        with ThreadPoolExecutor(max_workers=1) as worker:
+            future=worker.submit(self.run_case,draft,'booking')
+            try:
+                self.assertTrue(entered.wait(5))
+                with self.assertRaises(DomainError) as error:self.run_case(draft,'booking')
+                self.assertEqual(error.exception.code,'test_worker_busy')
+                self.assertEqual(error.exception.status,429)
+                self.assertEqual(self.ux.draft(self.actor,draft['id'])['revision'],1)
+            finally:finish.set()
+            self.assertEqual(future.result(timeout=5)['verdict'],'PASS')
+        self.assertEqual(self.store.count('appointments','demo'),0)
+
+
+class UXAPI(unittest.TestCase):
+    def setUp(self):
+        from datetime import datetime,timezone
+        from types import SimpleNamespace
+        from fastapi.testclient import TestClient
+        from semantic_os.backend.assistant.api import create_app
+        class Verifier:
+            def verify(self, authorization):
+                if authorization in ('Bearer other-fixture','Bearer viewer-fixture','Bearer operator-fixture'):
+                    return SimpleNamespace(subject=authorization.split()[1].split('-')[0])
+                raise DomainError('unauthorized',401)
+        self.store=Store();self.store.seed();self.store.seed('other','other');self.store.seed('demo','viewer','viewer');self.store.seed('demo','operator','operator')
+        self.app=create_app(store=self.store,providers=ProviderRegistry(),demo_enabled=True,demo_token='synthetic-ux-fixture',verifier=Verifier(),clock=lambda:datetime(2030,10,8,9,tzinfo=timezone.utc))
+        self.client=TestClient(self.app)
+        self.headers={'Authorization':'Bearer synthetic-ux-fixture','X-Tenant-ID':'demo'}
+        self.payload=DraftInput(config=AssistantConfig(name='Synthetic clinic',enabled_channels=['web_chat'],allowed_tools=['CheckAvailability','CreateAppointment','EscalateToHuman']),business={'name':'Synthetic clinic'}).model_dump(mode='json')
+
+    def tearDown(self):
+        self.client.close();self.app.state.voice_runtime.shutdown();self.store.close()
+
+    def test_setup_http_validation_revision_cancel_and_no_activation(self):
+        bad={**self.payload,'business':{**self.payload['business'],'timezone':'invalid/timezone'}}
+        self.assertEqual(self.client.post('/api/ux/drafts',headers=self.headers,json=bad).status_code,422)
+        draft=self.client.post('/api/ux/drafts',headers=self.headers,json=self.payload).json()
+        self.assertEqual(self.client.get('/api/ux/drafts',headers=self.headers).json()[0]['id'],draft['id'])
+        self.assertEqual(self.client.put('/api/ux/drafts/'+draft['id'],headers=self.headers,json=self.payload).status_code,409)
+        path='/api/ux/drafts/'+draft['id']+'/cancel'
+        self.assertEqual(self.client.post(path,headers=self.headers,json={'revision':1,'confirmed':False}).status_code,403)
+        self.assertEqual(self.client.post(path,headers=self.headers,json={'revision':1,'confirmed':True}).status_code,200)
+        self.assertEqual(self.store.count('assistants','demo'),1)
+        self.assertEqual(self.store.count('appointments','demo'),0)
+
+    def test_http_tenant_and_viewer_boundaries(self):
+        draft=self.client.post('/api/ux/drafts',headers=self.headers,json=self.payload).json()
+        path='/api/ux/drafts/'+draft['id']+'/tests'
+        payload={'revision':1,'scenario':'booking','locale':'bg-BG'}
+        other={'Authorization':'Bearer other-fixture','X-Tenant-ID':'other'}
+        viewer={'Authorization':'Bearer viewer-fixture','X-Tenant-ID':'demo'}
+        self.assertEqual(self.client.post(path,headers=other,json=payload).status_code,404)
+        self.assertEqual(self.client.post(path,headers=viewer,json=payload).status_code,403)
+        self.assertEqual(self.client.get('/api/ux/drafts',headers=viewer).status_code,403)
+
+    def test_diagnostic_privacy_order_and_actual_booking(self):
+        conversation=self.client.post('/api/conversations',headers=self.headers,json={}).json()['id']
+        for index,content in enumerate(['Book an appointment tomorrow at 15:00.','My name is John Smith.','Yes, confirm.']):
+            response=self.client.post(f'/api/conversations/{conversation}/messages',headers=self.headers,json={'content':content,'event_id':f'ux-{index}','locale':'en-US'})
+            self.assertEqual(response.status_code,200,response.text)
+        result=self.client.get(f'/api/ux/conversations/{conversation}/diagnostics',headers=self.headers)
+        self.assertEqual(result.status_code,200,result.text)
+        data=result.json();self.assertEqual(len(data['appointments']),1)
+        self.assertEqual(data['voice_coverage'],'not_applicable')
+        self.assertEqual(data['booking_status'],'completed')
+        self.assertNotIn('John Smith',result.text)
+        self.assertNotIn('arguments',result.text)
+        operator={'Authorization':'Bearer operator-fixture','X-Tenant-ID':'demo'}
+        self.assertEqual(self.client.get(f'/api/ux/conversations/{conversation}/diagnostics',headers=operator).status_code,200)
+        dates=[event['timestamp'] for event in data['timeline'] if event['timestamp']]
+        self.assertEqual(dates,sorted(dates))
+        other={'Authorization':'Bearer other-fixture','X-Tenant-ID':'other'}
+        self.assertEqual(self.client.get(f'/api/ux/conversations/{conversation}/diagnostics',headers=other).status_code,404)
+
+    def test_inbox_cursor_filters_timezone_and_no_cross_tenant_join(self):
+        for index in range(6):
+            row=self.app.state.orchestrator.conversation(self.store.principal('demo-admin','demo'),'default')
+            self.store.update('conversations','demo',row['id'],{'status':'closed' if index%2 else 'open'})
+            self.store.add('messages','demo',{'conversation_id':row['id'],'content':'Synthetic','timestamp':'2030-10-08T22:30:00+00:00'})
+        path='/api/inbox?limit=2&status=open&local_day=2030-10-09'
+        first=self.client.get(path,headers=self.headers).json()
+        self.assertEqual(len(first['items']),2)
+        second=self.client.get(path+'&cursor='+str(first['next_cursor']),headers=self.headers).json()
+        self.assertEqual(len(second['items']),1)
+        self.assertFalse({row['id'] for row in first['items']} & {row['id'] for row in second['items']})
+        self.assertIsNone(second['next_cursor'])
+        self.assertEqual(self.client.get('/api/inbox?limit=101',headers=self.headers).status_code,422)
+        self.assertEqual(self.client.get('/api/inbox?cursor=1',headers=self.headers).status_code,422)
+        self.assertEqual(self.client.get('/api/inbox?local_day=2030-10-08',headers=self.headers).json(),[])
+        other={'Authorization':'Bearer other-fixture','X-Tenant-ID':'other'}
+        self.assertEqual(self.client.get('/api/inbox?limit=2',headers=other).json()['items'],[])
+
+    def test_last_message_uses_reception_order_for_equal_timestamps(self):
+        conversation=self.app.state.orchestrator.conversation(self.store.principal('demo-admin','demo'),'default')
+        for text in ('Earlier','Latest'):
+            self.store.add('messages','demo',{'conversation_id':conversation['id'],'content':text,'timestamp':'2030-10-08T09:00:00+00:00'})
+        row=self.client.get('/api/inbox?conversation_id='+conversation['id'],headers=self.headers).json()[0]
+        self.assertEqual(row['last_message'],'Latest')
+
+    def test_last_message_compares_instants_across_timezones(self):
+        conversation=self.app.state.orchestrator.conversation(self.store.principal('demo-admin','demo'),'default')
+        for text,at in [('Earlier','2030-10-08T20:00:00+02:00'),('Latest','2030-10-08T19:00:00+00:00')]:
+            self.store.add('messages','demo',{'conversation_id':conversation['id'],'content':text,'timestamp':at})
+        row=self.client.get('/api/inbox?conversation_id='+conversation['id'],headers=self.headers).json()[0]
+        self.assertEqual(row['last_message'],'Latest')
+
+    def test_http_publish_and_version_metadata_do_not_expose_config(self):
+        self.payload['config']['instructions']='Synthetic private instructions'
+        draft=self.client.post('/api/ux/drafts',headers=self.headers,json=self.payload).json()
+        for locale in ('bg-BG','en-US'):
+            for scenario in ('booking','rejection','ambiguous'):
+                response=self.client.post('/api/ux/drafts/'+draft['id']+'/tests',headers=self.headers,json={'revision':1,'scenario':scenario,'locale':locale})
+                self.assertEqual(response.status_code,200,response.text)
+                self.assertEqual(response.json()['verdict'],'PASS')
+        response=self.client.post('/api/ux/drafts/'+draft['id']+'/publish',headers=self.headers,json={'revision':1,'confirmed':True})
+        self.assertEqual(response.status_code,200,response.text)
+        identity=response.json()['id']
+        summary=self.client.get('/api/ux/assistants/'+identity+'/summary',headers=self.headers)
+        self.assertEqual(len(summary.json()['versions']),1)
+        self.assertNotIn('Synthetic private instructions',summary.text)
+        self.assertFalse(summary.json()['rollback_supported'])
