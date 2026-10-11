@@ -150,3 +150,9 @@ Preserved frontend verification: typecheck, zero-warning lint, nine tests and bu
 # Phase 16 discovery — 11 October 2026
 
 Phase 16 is in discovery, not implemented or launch-ready. Separate local branches preserve Phase 15 work in both repositories. Fresh baseline: 309 backend, 29 frontend and 78 website tests pass; both builds and source boundary checks pass. See `docs/phase16/BASELINE_AND_GAP_MATRIX.md` and `EXECUTION_PLAN.md` for exact commands, measured API baseline, inherited acceptance limitations and proposed scope requiring review. No cloud host, public deployment, live send, merge or push performed. Phase 15 P1/P2 and real provider/device/voice acceptance remain open.
+
+## Latest Phase 16 implementation checkpoint
+
+The owner approved local workstreams and the isolated synthetic staging host/setup. Business navigation/Team reuse, progress/readiness freshness, Inbox metadata and filters, Leads & Requests, exact Usage Center/alerts/forecasts, mock audited financial corrections, Health Center, reviewed structured Quality Coach, consented first-party funnel and internal operations targets are implemented on the feature branch. Schema5 is reused.328 backend/31 frontend tests pass; source236 files/zero failures; redacted source2.61MB/no leaks; builds/lint/typecheck pass.
+
+Actual HTTPS domain proof, FAQ-only widget publication and Google owner sign-in succeed on the new isolated e2-micro host. BG/EN approved FAQ protocol/replay/clear and private staff boundaries pass. Original Calendar/Gmail tokens/customer database/models were not transferred. Current budget estimate€1.9577/week; compute stops14 October2026,20:57 Europe/Sofia. Full browser/device, public live Calendar/reminder, voice, real billing, observed SLO/recovery and cohort acceptance remain open; full Phase16 release remains BLOCKED. See `docs/phase16/RELEASE_DECISION.md`. No Phase16 main push/merge or production Ontelyx deployment.

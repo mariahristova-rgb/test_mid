@@ -73,3 +73,10 @@ Docker snapshot: Qwen **2.438 GiB**, TTS **1.26 GiB**, STT **301.7 MiB**, backen
 ## Blocking owner/external actions
 
 Large product changes require approval of the concrete execution plan. The previously rejected VM cloud-platform OAuth scope is still pending explicit approval; Phase 16 does not grant it. No paid VM/IP/disk exists. DNS, registered Google owner-login redirect, public-host acceptance, real-device/screen-reader access, EN inbox receipt and additional named live calendar/reminder test authorization remain open. Existing unrelated cloud services and private voice ports must remain untouched.
+
+
+## Approved implementation checkpoint — 11 October 2026
+
+The owner approved incremental local scope. The isolated hosting/public endpoint and required VM OAuth scope were subsequently authorized; three DNS records were added by the owner. HTTPS, real domain verification, FAQ publication and owner-only Google sign-in now work. `G_CLIENT_ID2` is a corrected alias of the existing client matching the unchanged shared secret; no original Calendar/Gmail refresh tokens or customer database were moved. No main push/merge/production website deploy.
+
+Local implementation and exact remaining gates are recorded in the Phase16 workstream reports and `RELEASE_DECISION.md`.328 backend and31 frontend tests pass; source236 files/zero failures; redacted2.61MB/no leaks. Final public BG/EN protocol tests pass; public browser acceptance remains pending explicit scope approval after automatic review rejected inspection. No pilot/production certification.

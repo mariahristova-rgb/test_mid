@@ -1,6 +1,6 @@
 # Phase 16 execution plan
 
-11 October 2026, Europe/Sofia. Status: **A discovery completed; implementation approval requested**. Separate `codex/phase16-saas-operations` branches preserve local Phase 15 work. No destructive migration, public deployment, live send, billing charge, merge or push is authorized by this plan alone.
+11 October 2026, Europe/Sofia. Status: **local implementation approved and delivered; full acceptance remains BLOCKED**. Separate `codex/phase16-saas-operations` branches preserve local Phase 15 work. No destructive migration, public deployment, live send, billing charge, merge or push is authorized by this plan alone.
 
 ## Proposed increments and review boundaries
 
@@ -20,4 +20,11 @@ Approve the incremental local product scope C–G after B's deterministic checks
 
 ## Current release decision
 
-**BLOCKED for Phase 16 completion and commercial launch.** Existing local foundation suites pass; discovery added no new runtime functionality. Exact evidence and constraints: `BASELINE_AND_GAP_MATRIX.md`. No real-device, screen-reader, same-day reminder, hosted owner login or public widget integration result is inferred from the test suites.
+**BLOCKED for Phase 16 completion and commercial launch.** The approved customer/operations foundation is implemented and tested; see RELEASE_DECISION.md for remaining acceptance and capability scope. Exact evidence and constraints: `BASELINE_AND_GAP_MATRIX.md`. No real-device, screen-reader, same-day reminder, hosted owner login or public widget integration result is inferred from the test suites.
+
+
+## Approved implementation checkpoint — 11 October 2026
+
+The owner approved incremental local scope. The isolated hosting/public endpoint and required VM OAuth scope were subsequently authorized; three DNS records were added by the owner. HTTPS, real domain verification, FAQ publication and owner-only Google sign-in now work. `G_CLIENT_ID2` is a corrected alias of the existing client matching the unchanged shared secret; no original Calendar/Gmail refresh tokens or customer database were moved. No main push/merge/production website deploy.
+
+Local implementation and exact remaining gates are recorded in the Phase16 workstream reports and `RELEASE_DECISION.md`.328 backend and31 frontend tests pass; source236 files/zero failures; redacted2.61MB/no leaks. Final public BG/EN protocol tests pass; public browser acceptance remains pending explicit scope approval after automatic review rejected inspection. No pilot/production certification.

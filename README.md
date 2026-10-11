@@ -1,6 +1,6 @@
 # Multi-channel AI Assistant foundation
 
-Phase 16 discovery: [baseline and gaps](docs/phase16/BASELINE_AND_GAP_MATRIX.md), [incremental execution plan](docs/phase16/EXECUTION_PLAN.md). Existing foundations pass fresh regression checks; full Phase 16 implementation and launch remain blocked by uncompleted acceptance gates and pending plan approval.
+Phase 16: [release scope and remaining gates](docs/phase16/RELEASE_DECISION.md), [baseline and gaps](docs/phase16/BASELINE_AND_GAP_MATRIX.md). The approved local SaaS foundation passes 328 backend and 31 frontend tests. Isolated synthetic HTTPS FAQ staging and Google owner sign-in are verified; full Phase 16/pilot/production acceptance remains blocked. No Phase 16 main push or production website deployment.
 
 Independent Vue 3/FastAPI modular monolith with tenant membership, two agents, bilingual UI and conversations, validated business tools, appointments, reminders and five communication contracts. The application directory remains `semantic_os/` for checkout compatibility; no proprietary runtime is loaded.
 
