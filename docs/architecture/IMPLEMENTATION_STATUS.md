@@ -1,5 +1,9 @@
 # Implementation status
 
+## Phase21 first approved increment / Phase22 entry audit —13October2026
+
+Optional no-code Business description/contact/price metadata and holiday/unavailable periods added to existing drafts/UI; mock calendar restrictions enforced,tenant-timezone DST-aware pickers,legacy defaults and concurrent profile invalidation tested. Fixture BG/EN speak/barge/replay/terminate preserves exactly one committed booking.351backend/37frontend/41corpusPASS,frontendtypecheck/lint/build, schema1–5preserved/source242/0failures. No real speech/model/container restart or external activation. FullPhase21 and Phase22 entry remainBLOCKED on reviewed verified-continuity contracts and actual model/browser/live evidence. Proposed contracts in docs/phase21/CROSS_CHANNEL_IDENTITY_AND_CONSENT.md; Phase22entryplan in docs/phase22. No production/real-time voice claim.
+
 ## Phase20 — local deployment readiness and advisory repair,13October2026
 
 Phase19clean branches/history and346test log/36corpus receipts verified; corpus hash matches. Fresh dependency audits: Python40dependencies/0findings, assistantfrontend0, website initially1high source-map-js advisory. Owner-approved3line lock update1.2.1→1.2.2, clean install, repeat audit0findings and78website/config/typecheck/buildPASS.67fresh security regressionsPASS/8.461s; source240/0failures, environment-secret324filesPASS, five-file local staging archive hashes match. Ten readiness/approval/DR/model/browser/Google documents prepared under docs/phase20. **Production/pilot NO-GO**: no real model,live Google,public browser,deployedDR,current billing or external activation evidence. No deployment,spending,deadline extension,token migration,protected merge or push in Phase20. API/schema/backend/frontend runtime unchanged; website transitive patch only.

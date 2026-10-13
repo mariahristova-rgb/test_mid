@@ -19,10 +19,22 @@ from .store import Store, now, uid
 from .voice import TERMINAL
 
 SCENARIOS = ('booking', 'short_confirmation', 'rejection', 'ambiguous', 'occupied', 'language_switch', 'handoff', 'interruption','faq','greeting')
+BUSINESS_TENANT_FIELDS=('name','timezone','calendar_policy','description','contact_email','contact_phone','service_price','price_currency')
 
 
 def digest(value):
     return sha256(json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(',', ':')).encode()).hexdigest()
+
+
+class UnavailablePeriod(Contract):
+    starts_at: datetime
+    ends_at: datetime
+
+    @model_validator(mode='after')
+    def interval(self):
+        if self.starts_at.tzinfo is None or self.ends_at.tzinfo is None or self.ends_at<=self.starts_at:
+            raise ValueError('aware increasing interval required')
+        return self
 
 
 class Business(Contract):
@@ -35,6 +47,35 @@ class Business(Contract):
     closes: str = '18:00'
     service: str = Field(default='Consultation', min_length=1, max_length=120)
     duration_minutes: int = Field(default=30, ge=5, le=480)
+    description: str = Field(default='',max_length=1000)
+    contact_email: str = Field(default='',max_length=250)
+    contact_phone: str = Field(default='',max_length=50)
+    service_price: str = Field(default='',pattern=r'^(?:|(?:0|[1-9]\d{0,8})(?:\.\d{1,2})?)$')
+    price_currency: Literal['EUR','BGN','USD'] = 'EUR'
+    holidays: list[str] = Field(default_factory=list,max_length=100)
+    unavailable_periods: list[UnavailablePeriod] = Field(default_factory=list,max_length=100)
+
+    @field_validator('service_price',mode='before')
+    @classmethod
+    def decimal_price(cls,value):
+        return value.strip().replace(',','.') if isinstance(value,str) else value
+
+    @field_validator('contact_email')
+    @classmethod
+    def email(cls,value):
+        if not value:return value
+        from .messaging_adapters import mailbox
+        try:return mailbox(value)
+        except DomainError:raise ValueError('invalid contact email') from None
+
+    @field_validator('holidays')
+    @classmethod
+    def holiday_dates(cls,value):
+        from datetime import date
+        if len(set(value))!=len(value):raise ValueError('duplicate holiday')
+        for day in value:
+            if date.fromisoformat(day).isoformat()!=day:raise ValueError('ISO date required')
+        return value
 
     @field_validator('timezone')
     @classmethod
@@ -105,14 +146,14 @@ class UXService:
             if previous and previous.get('target_assistant_id') != payload.assistant_id: raise DomainError('conflict', 409)
             data = {'kind': 'ux_draft', 'status': 'draft', 'revision': payload.revision + 1,
                 'target_assistant_id': payload.assistant_id, 'base_hash': previous['base_hash'] if previous else digest(assistant),
-                'config': config, 'business': payload.business.model_dump(), 'step': payload.step,
+                'config': config, 'business': payload.business.model_dump(mode='json'), 'step': payload.step,
                 'use_case': payload.use_case, 'timestamp': now()}
             # Agent permission changes invalidate receipts without overwriting shared agents.
             data['agents'] = [{k: row[k] for k in ('id', 'enabled', 'instructions', 'allowed_tools', 'supported_locales')}
                 for row in self.store.list('agents', principal.tenant_id)]
             tenant = self.store.tenant(principal.tenant_id)
             data['calendar_base'] = tenant.get('calendar_policy', {})
-            data['tenant_base_hash'] = digest({key:tenant.get(key) for key in ('name','timezone','calendar_policy')})
+            data['tenant_base_hash'] = digest({key:tenant.get(key) for key in BUSINESS_TENANT_FIELDS})
             data['config_hash'] = digest({key: data[key] for key in ('config', 'business', 'agents', 'use_case','calendar_base')})
             result = self.store.update('operations_events', principal.tenant_id, identity, data) if previous else self.store.add('operations_events', principal.tenant_id, data)
             self.store.audit(principal, 'setup:saved', resource_id=result['id'])
@@ -146,7 +187,9 @@ class UXService:
             tenant.update(name=business['name'], timezone=business['timezone'], calendar_policy={
                 'weekdays': business['weekdays'], 'opens': business['opens'], 'closes': business['closes'],
                 'slot_minutes': draft['calendar_base'].get('slot_minutes', 1), 'duration_minutes': business['duration_minutes'],
-                'resources': draft['calendar_base'].get('resources', [{'id': 'synthetic-resource'}]), 'service_id': business['service']})
+                'resources': draft['calendar_base'].get('resources', [{'id': 'synthetic-resource'}]), 'service_id': business['service'],
+                'holidays':business.get('holidays',draft['calendar_base'].get('holidays',[])),
+                'unavailable_periods':business.get('unavailable_periods',draft['calendar_base'].get('unavailable_periods',[]))})
             sandbox.update_tenant('demo', tenant)
             config = {**draft['config'], 'llm_provider': 'mock', 'voice_provider': 'mock', 'status': 'active', 'enabled_channels': ['web_chat']}
             sandbox.update('assistants', 'demo', 'default', config)
@@ -223,7 +266,7 @@ class UXService:
         if draft['config']['status'] != 'active': reasons.append('assistant_disabled')
         if current_agents != draft['agents']: reasons.append('agent_config_changed')
         tenant = self.store.tenant(principal.tenant_id)
-        if digest({key:tenant.get(key) for key in ('name','timezone','calendar_policy')}) != draft['tenant_base_hash']: reasons.append('business_config_changed')
+        if draft['tenant_base_hash'] not in {digest({key:tenant.get(key) for key in fields}) for fields in (('name','timezone','calendar_policy'),BUSINESS_TENANT_FIELDS)}: reasons.append('business_config_changed')
         if not tests: reasons.append('required_tests_missing')
         if not {'bg-BG','en-US'}<=set(draft['config']['supported_locales']):reasons.append('language_coverage_missing')
         if receipts and not any(fresh(row) for row in receipts):reasons.append('test_evidence_expired')
@@ -273,7 +316,11 @@ class UXService:
             tenant.update(name=business['name'],website=business.get('website',''),industry=business.get('industry',''),timezone=business['timezone'], calendar_policy={**old_policy,
                 'weekdays': business['weekdays'], 'opens': business['opens'], 'closes': business['closes'],
                 'duration_minutes': business['duration_minutes'], 'slot_minutes': old_policy.get('slot_minutes', 1),
-                'resources': old_policy.get('resources', [{'id': 'mock-resource'}]), 'service_id': business['service']})
+                'resources': old_policy.get('resources', [{'id': 'mock-resource'}]), 'service_id': business['service'],
+                'holidays':business.get('holidays',old_policy.get('holidays',[])),
+                'unavailable_periods':business.get('unavailable_periods',old_policy.get('unavailable_periods',[]))})
+            for key in ('description','contact_email','contact_phone','service_price','price_currency'):
+                if key in business:tenant[key]=business[key]
             self.store.update_tenant(principal.tenant_id, tenant)
             self.store.update('operations_events', principal.tenant_id, identity, {'status': 'published', 'published_assistant_id': result['id'],
                 'published_business_hash':digest({key:tenant.get(key) for key in ('timezone','calendar_policy')})})

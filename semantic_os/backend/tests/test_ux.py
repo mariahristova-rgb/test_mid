@@ -18,6 +18,57 @@ class UXTests(unittest.TestCase):
     def run_case(self, draft, scenario, locale='bg-BG'):
         return self.ux.test(self.actor, draft['id'], RunInput(revision=draft['revision'], scenario=scenario, locale=locale))
 
+    def test_optional_business_defaults_and_invalid_fields(self):
+        from pydantic import ValidationError
+        from semantic_os.backend.assistant.ux import Business
+        legacy=Business(name='Legacy business')
+        self.assertEqual(legacy.holidays,[]);self.assertEqual(legacy.service_price,'')
+        self.assertEqual(Business(name='Synthetic',service_price='12,50').service_price,'12.50')
+        for change in ({'service_price':'-1'},{'service_price':'1.234'},{'contact_email':'bad\nheader'},
+                       {'holidays':['2030-02-31']},{'holidays':['2030-10-10']*2},
+                       {'unavailable_periods':[{'starts_at':'2030-10-10T12:00:00','ends_at':'2030-10-10T13:00:00'}]},
+                       {'unavailable_periods':[{'starts_at':'2030-10-10T13:00:00Z','ends_at':'2030-10-10T12:00:00Z'}]}):
+            with self.subTest(change=change):
+                with self.assertRaises(ValidationError):Business(name='Synthetic',**change)
+
+    def test_business_setup_resume_publish_and_mock_schedule_isolation(self):
+        from semantic_os.backend.assistant.ux import Business
+        from semantic_os.backend.assistant.calendar import MockCalendarProvider
+        before=self.store.tenant('demo');other=self.store.tenant('other')
+        self.payload.business=Business(name='Synthetic clinic',description='Synthetic public service',contact_email='owner@example.invalid',
+            contact_phone='Synthetic phone',service_price='123.45',price_currency='EUR',holidays=['2030-10-10'],
+            unavailable_periods=[{'starts_at':'2030-10-11T12:00:00Z','ends_at':'2030-10-11T13:00:00Z'}])
+        draft=self.ux.save(self.actor,self.payload)
+        saved=self.ux.draft(self.actor,draft['id'])
+        self.assertEqual(saved['business']['service_price'],'123.45')
+        self.assertIsInstance(saved['business']['unavailable_periods'][0]['starts_at'],str)
+        self.assertEqual(self.store.tenant('demo'),before)
+        for locale in ('bg-BG','en-US'):
+            for scenario in ('booking','rejection','ambiguous'):self.assertEqual(self.run_case(draft,scenario,locale)['verdict'],'PASS')
+        configured=self.ux.publish(self.actor,draft['id'],ConfirmInput(revision=1,confirmed=True))
+        self.assertEqual(configured['enabled_channels'],['web_chat']);self.assertEqual(configured['llm_provider'],'mock')
+        tenant=self.store.tenant('demo');self.assertEqual(tenant['contact_email'],'owner@example.invalid')
+        self.assertEqual(tenant['description'],'Synthetic public service')
+        calendar=MockCalendarProvider(self.store)
+        self.assertFalse(calendar.available('demo','2030-10-10T12:00:00+03:00',30))
+        self.assertFalse(calendar.available('demo','2030-10-11T12:15:00Z',30))
+        self.assertTrue(calendar.available('demo','2030-10-11T13:00:00Z',30))
+        self.assertTrue(calendar.available('other','2030-10-10T12:00:00+03:00',30))
+        self.assertEqual(self.store.tenant('other'),other);self.assertEqual(self.store.count('appointments','demo'),0)
+
+    def test_closed_dates_are_enforced_inside_disposable_simulation(self):
+        self.payload.business.holidays=['2030-10-09']
+        draft=self.ux.save(self.actor,self.payload)
+        for locale in ('bg-BG','en-US'):
+            result=self.run_case(draft,'booking',locale)
+            self.assertEqual(result['verdict'],'FAIL');self.assertEqual(result['booking_count'],0)
+        self.assertEqual(self.store.count('appointments','demo'),0)
+
+    def test_concurrent_business_profile_change_invalidates_new_draft(self):
+        draft=self.ux.save(self.actor,self.payload)
+        tenant=self.store.tenant('demo');self.store.update_tenant('demo',{**tenant,'contact_email':'changed@example.invalid'})
+        self.assertIn('business_config_changed',self.ux.readiness(self.actor,draft)['reasons'])
+
     def test_bilingual_scenarios_and_no_live_side_effects(self):
         draft = self.ux.save(self.actor, self.payload)
         before = {table:self.store.list(table,'demo') for table in ('assistants','appointments','conversations','messages','jobs','usage_records','agents')}

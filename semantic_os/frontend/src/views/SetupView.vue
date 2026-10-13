@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { scheduleLocal, scheduleInstant } from '../services/businessSchedule.mjs';
 import { computed, onMounted, ref, watch, nextTick, onUnmounted } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import { request, ApiError } from '../services/api';
@@ -41,7 +42,9 @@ async function load() {
 async function open(id: string) {
   const found = drafts.value.find(d => d.id === id);
   if (!found) throw new Error(t('not_found'));
-  draft.value = JSON.parse(JSON.stringify(found)); baseline.value = JSON.stringify(draft.value); confirmed.value = false;
+  draft.value = JSON.parse(JSON.stringify(found));
+  draft.value.business = { description:'',contact_email:'',contact_phone:'',service_price:'',price_currency:'EUR',holidays:found.calendar_base?.holidays || [],unavailable_periods:found.calendar_base?.unavailable_periods || [],...draft.value.business };
+  baseline.value = JSON.stringify(draft.value); confirmed.value = false;
   selected.value = id;
   await evidence();
 }
@@ -64,7 +67,8 @@ function newDraft(id?: string) {
   }
   const tenant = access.value.tenant, policy = tenant.calendar_policy || {};
   draft.value = { revision:0, status:'draft', target_assistant_id:id || null, use_case:'receptionist', step:0, config:source,
-    business:{name:tenant.name,website:tenant.website || '',industry:tenant.industry || '',timezone:tenant.timezone, weekdays:policy.weekdays || [0,1,2,3,4],opens:policy.opens || '09:00',closes:policy.closes || '18:00',service:policy.service_id || t('consultationService'),duration_minutes:source.booking_duration_minutes} };
+    business:{name:tenant.name,website:tenant.website || '',industry:tenant.industry || '',timezone:tenant.timezone, weekdays:policy.weekdays || [0,1,2,3,4],opens:policy.opens || '09:00',closes:policy.closes || '18:00',service:policy.service_id || t('consultationService'),duration_minutes:source.booking_duration_minutes,
+      description:tenant.description || '',contact_email:tenant.contact_email || '',contact_phone:tenant.contact_phone || '',service_price:tenant.service_price || '',price_currency:tenant.price_currency || 'EUR',holidays:JSON.parse(JSON.stringify(policy.holidays || [])),unavailable_periods:JSON.parse(JSON.stringify(policy.unavailable_periods || []))} };
   baseline.value = ''; readiness.value = null; receipts.value = []; confirmed.value = false;
 }
 async function save() {
@@ -87,6 +91,10 @@ async function suite() {
   for (const language of ['bg-BG','en-US'] as const) for (const chosen of required) await testOne(chosen,language);
 }
 function addFaq() { draft.value.config.faq_entries.push({question_bg:'',question_en:'',answer_bg:'',answer_en:''}); }
+function setPeriod(period:any,key:string,value:string) {
+  try { period[key]=scheduleInstant(value,draft.value.business.timezone);error.value=''; }
+  catch { period[key]='';error.value=t('p21InvalidLocalTime'); }
+}
 async function publish() {
   await request(`/api/ux/drafts/${draft.value.id}/publish`,'POST',{revision:draft.value.revision,confirmed:confirmed.value});
   abandon.value = true; await router.push('/assistants');
@@ -179,6 +187,9 @@ watch(() => route.meta.page, () => { if(!draft.value) void run(load); });
         <template v-if="draft.step === 1">
           <label>{{ t('organizationName') }}<input v-model="draft.business.name" required maxlength="120"></label>
           <label>{{ t('businessWebsite') }}<input v-model="draft.business.website" type="url" maxlength="500"></label><label>{{ t('businessIndustry') }}<input v-model="draft.business.industry" maxlength="120"></label>
+          <label>{{ t('p21Description') }}<textarea v-model="draft.business.description" maxlength="1000" /></label>
+          <label>{{ t('p21ContactEmail') }}<input v-model="draft.business.contact_email" type="email" maxlength="250"></label>
+          <label>{{ t('p21ContactPhone') }}<input v-model="draft.business.contact_phone" type="tel" maxlength="50"></label>
           <label>{{ t('timezone') }}<input v-model="draft.business.timezone" required></label>
           <fieldset>
 <legend>{{ t('workingDays') }}</legend><div class="checks">
@@ -187,6 +198,18 @@ watch(() => route.meta.page, () => { if(!draft.value) void run(load); });
 </fieldset>
           <label>{{ t('opens') }}<input v-model="draft.business.opens" type="time" required></label><label>{{ t('closes') }}<input v-model="draft.business.closes" type="time" required></label>
           <label>{{ t('serviceName') }}<input v-model="draft.business.service" required maxlength="120"></label>
+          <label>{{ t('p21ServicePrice') }}<input v-model="draft.business.service_price" inputmode="decimal" maxlength="12"></label>
+          <label>{{ t('p21Currency') }}<select v-model="draft.business.price_currency"><option v-for="code in ['EUR','BGN','USD']" :key="code" :value="code">{{ code }}</option></select></label><p>{{ t('p21PriceHelp') }}</p>
+          <fieldset>
+<legend>{{ t('p21Holidays') }}</legend><label v-for="(_,index) in draft.business.holidays" :key="index">{{ t('p21ClosedDate') }}<input v-model="draft.business.holidays[index]" type="date" required><button type="button" @click="draft.business.holidays.splice(index,1)">{{ t('p21Remove') }}</button></label><button type="button" :disabled="draft.business.holidays.length>=100" @click="draft.business.holidays.push('')">
+{{ t('p21AddHoliday') }}
+</button>
+</fieldset>
+          <fieldset>
+<legend>{{ t('p21Unavailable') }}</legend><p>{{ t('p21IntervalHelp') }} {{ draft.business.timezone }}</p><label v-for="(period,index) in draft.business.unavailable_periods" :key="index">{{ t('p21StartsAt') }}<input :value="scheduleLocal(period.starts_at,draft.business.timezone)" type="datetime-local" required @input="setPeriod(period,'starts_at',($event.target as HTMLInputElement).value)"><span>{{ t('p21EndsAt') }}</span><input :value="scheduleLocal(period.ends_at,draft.business.timezone)" type="datetime-local" required @input="setPeriod(period,'ends_at',($event.target as HTMLInputElement).value)"><button type="button" @click="draft.business.unavailable_periods.splice(index,1)">{{ t('p21Remove') }}</button></label><button type="button" :disabled="draft.business.unavailable_periods.length>=100" @click="draft.business.unavailable_periods.push({starts_at:'',ends_at:''})">
+{{ t('p21AddPeriod') }}
+</button>
+</fieldset><p>{{ t('p21ScheduleScope') }}</p>
           <label>{{ t('duration') }}<input
 v-model.number="draft.business.duration_minutes"
 type="number"

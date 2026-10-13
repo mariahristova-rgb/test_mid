@@ -849,5 +849,22 @@
   "next": "Next page",
   "p16OpenMenu": "Open menu",
   "p16CloseMenu": "Close menu",
-  "p16UsageDay": "Day (UTC)"
+  "p16UsageDay": "Day (UTC)",
+  "p21Description": "Business description",
+  "p21ContactEmail": "Business contact email",
+  "p21ContactPhone": "Business contact phone",
+  "p21ServicePrice": "Service price (optional)",
+  "p21Currency": "Currency",
+  "p21PriceHelp": "Informational price only. No payment is collected.",
+  "p21Holidays": "Closed dates",
+  "p21ClosedDate": "Date",
+  "p21AddHoliday": "Add closed date",
+  "p21Unavailable": "Unavailable periods",
+  "p21IntervalHelp": "Choose dates and times in your business timezone:",
+  "p21StartsAt": "From",
+  "p21EndsAt": "Until",
+  "p21AddPeriod": "Add unavailable period",
+  "p21Remove": "Remove",
+  "p21InvalidLocalTime": "Choose a valid, unambiguous time for this timezone.",
+  "p21ScheduleScope": "These closed dates and periods apply to the mock calendar. Connected Google Calendar uses its separately approved settings."
 }

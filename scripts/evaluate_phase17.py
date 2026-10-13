@@ -13,7 +13,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-MODULES = {'test_assistant','test_google_concierge','test_concierge_api','test_customer_workspace','test_widget','test_booking_workflow','test_saas'}
+MODULES = {'test_assistant','test_google_concierge','test_concierge_api','test_customer_workspace','test_widget','test_booking_workflow','test_saas','test_ux','test_voice_integration'}
 CATEGORIES = {'consent','tool','security','locale','provider','knowledge','recovery','ux'}
 
 
