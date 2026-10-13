@@ -7,6 +7,7 @@ from pydantic import Field, SecretStr
 from .domain import Contract, DomainError, Principal
 from .saas_domain import RegisterOrganization, SubscriptionPlan, UsageEvent, UNITS
 from .store import uid, now
+from .jobs import UNRESOLVED_JOB_STATUSES
 
 
 class Confirmation(Contract):
@@ -206,7 +207,7 @@ def register_saas(app, billing, identity, actor, platform_subjects, privacy, bac
     @app.get('/api/operations')
     def operations(principal: Principal = Depends(actor)):
         principal.require('approve')
-        return {**store.operations.snapshot(principal.tenant_id), 'failed_jobs': [{k: j.get(k) for k in ('id', 'kind', 'status', 'error_code', 'attempts', 'due_at')} for j in store.list('jobs', principal.tenant_id) if j['status'] in ('dead_letter', 'uncertain', 'failed')],
+        return {**store.operations.snapshot(principal.tenant_id), 'failed_jobs': [{k: j.get(k) for k in ('id', 'kind', 'status', 'error_code', 'attempts', 'due_at')} for j in store.list('jobs', principal.tenant_id) if j['status'] in UNRESOLVED_JOB_STATUSES],
             'connections': [{k: c.get(k) for k in ('id', 'channel', 'provider', 'state', 'enabled', 'last_error')} for c in store.list('channel_connections', principal.tenant_id)],
             'schema_version': 5, 'topology': 'single_process_sqlite'}
 

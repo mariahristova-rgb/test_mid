@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "scope": "OFFLINE_CONTRACT_ONLY",
   "cases": [
     {"id":"bg-booking","category":"consent","test":"test_assistant.AssistantAcceptance.test_bulgarian_full_handoff_and_approval"},
@@ -33,7 +33,11 @@
     {"id":"sqlite-reconnect","category":"recovery","test":"test_booking_workflow.BookingAcceptance.test_conversation_restores_after_database_reopen"},
     {"id":"safe-backup-restore","category":"recovery","test":"test_saas.SaaSAcceptance.test_backup_restore_preserves_tenant_usage_and_encrypted_credentials"},
     {"id":"privacy-booking-memory","category":"security","test":"test_widget.WidgetTests.test_clear_and_retention_remove_uncommitted_booking_memory"},
-    {"id":"concurrent-calendar-intents","category":"recovery","test":"test_google_concierge.GoogleConciergeTests.test_concurrent_booking_intents_serialize_without_duplicates"}
+    {"id":"concurrent-calendar-intents","category":"recovery","test":"test_google_concierge.GoogleConciergeTests.test_concurrent_booking_intents_serialize_without_duplicates"},
+    {"id":"redacted-operator-failures","category":"recovery","test":"test_customer_workspace.CustomerWorkspaceTests.test_concierge_unknown_and_blocked_jobs_are_visible_without_private_content"},
+    {"id":"worker-disable-reconstruction","category":"recovery","test":"test_google_concierge.GoogleConciergeTests.test_worker_reconstruction_and_disable_do_not_replay_unknown_mail"},
+    {"id":"interrupted-worker","category":"recovery","test":"test_google_concierge.GoogleConciergeTests.test_interrupted_sending_job_is_not_automatically_reclaimed"},
+    {"id":"booking-disable-rollback","category":"recovery","test":"test_widget.WidgetTests.test_disable_rollback_requires_fresh_session_and_preserves_booking"}
   ],
   "unverified_layers": ["QWEN_MODEL_SIMULATION", "AUTHORIZED_STAGING_GOOGLE", "ATTENDED_BROWSER", "EXTERNAL_CUSTOMER_PILOT", "HEARD_VOICE"]
 }

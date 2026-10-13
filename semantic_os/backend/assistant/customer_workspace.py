@@ -8,6 +8,7 @@ from fastapi import Depends, Query
 from pydantic import Field
 from .domain import Contract, DomainError
 from .store import event_key, now
+from .jobs import UNRESOLVED_JOB_STATUSES
 
 
 class Review(Contract):
@@ -95,7 +96,7 @@ class CustomerWorkspace:
                 'published_draft_id':next((d['id'] for d in matching if d.get('status')=='published'),None),
                 'voice_live_verified':False})
         return {'assistants':items,'connections':[{'kind':c.get('connection'),'state':c.get('state'),'certification':'NOT_CERTIFIED'} for c in connections],
-                'unresolved_jobs':sum(j.get('status') in ('dead_letter','uncertain','failed') for j in jobs),
+                'unresolved_jobs':sum(j.get('status') in UNRESOLVED_JOB_STATUSES for j in jobs),
                 'truncated':truncated or jobs_truncated, 'evidence_scope':'LOCAL_TEXT_TESTS', 'observed_at':self.clock().isoformat()}
 
     def suggestions(self, actor):
@@ -103,7 +104,7 @@ class CustomerWorkspace:
         tests, truncated = self.rows(actor.tenant_id,'operations_events',kind='ux_test',limit=500)
         jobs, more = self.rows(actor.tenant_id,'jobs')
         signals = [('regression_failure',t,'operations_events') for t in tests if t.get('verdict')!='PASS']
-        signals += [('delivery_uncertain' if j.get('status')=='uncertain' else 'provider_failure',j,'jobs') for j in jobs if j.get('status') in ('dead_letter','uncertain','failed')]
+        signals += [('delivery_uncertain' if j.get('status') in ('uncertain','delivery_unknown') else 'provider_failure',j,'jobs') for j in jobs if j.get('status') in UNRESOLVED_JOB_STATUSES]
         tools, tools_more = self.rows(actor.tenant_id,'tool_executions')
         signals += [('tool_failure',t,'tool_executions') for t in tools if t.get('status') in ('failed','denied') or t.get('outcome',{}).get('status') in ('failed','denied')]
         reported, reported_more = self.rows(actor.tenant_id,'operations_events',kind='quality_signal')

@@ -1,5 +1,9 @@
 # Implementation status
 
+## Phases18–19 — authorized local reliability and pilot preparation,13October2026
+
+Phase17 revalidated/pushed to separate feature branches (test_mid db939b7,website6175639), without main merge. Phase18 fixed reproduced provider-time mismatch, mixed-offset reminder scheduling and uncommitted booking-memory retention; its local exit342backend/35frontend/32corpusPASS. Phase19 fixes redacted unknown/blocked operator visibility and unknown Calendar execution receipts, extends no-replay/disable/rollback rehearsals and produces the controlled pilot package. Final346backend/35frontend/78website/36corpusPASS, migration/source/build checksPASS. API/schema5 preserved, website runtime unchanged. **NO-GO for external pilot/production**: real public Google/mail/reminder, browser/device/a11y, actual costs/DR/model quality and participant approvals remain open. No live sends, spending, hosting extension, migration or protected merge. See docs/phase18/RELEASE_DECISION.md and docs/phase19/FINAL_VERIFICATION.md.
+
 ## Phase17 — prerequisite audit and first local P0 increment, 11 October2026
 
 Separate `codex/phase17-production-pilot` branches preserve Phase15–16 work in both repositories. Phase16 is not complete. New widget clear/retention removes agent/tool/approval text copies while preserving bookings and other tenant/conversation data;18widget tests pass. Versioned offline evaluation corpus15/15PASS; source238files/0failures. No live provider action, cloud provisioning, production deployment or main push/merge. **PILOT_BLOCKED** pending public staging/browser, complete authorized Google/mail/reminder lifecycle, recovery and external-customer acceptance. See `docs/phase17/READINESS_AUDIT.md` and `IMPLEMENTATION_PLAN.md`. Historical sections below retain their checkpoint dates and are not current deployment assertions.

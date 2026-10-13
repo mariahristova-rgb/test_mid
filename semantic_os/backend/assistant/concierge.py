@@ -417,7 +417,12 @@ class Concierge:
                     self.store.audit(principal,'tool:'+name,correlation_id=correlation_id,resource_id=intent['id'])
                 return outcome
             except DomainError as error:
-                self.store.update('operations_events',principal.tenant_id,intent['id'],{'status':'unknown' if error.code=='delivery_unknown' else 'failed','error_code':error.code})
+                with self.store.transaction():
+                    self.store.update('operations_events',principal.tenant_id,intent['id'],{'status':'unknown' if error.code=='delivery_unknown' else 'failed','error_code':error.code})
+                    self.store.add('tool_executions',principal.tenant_id,{'conversation_id':conversation['id'],'agent':'executor','tool':name,'arguments':{},
+                        'outcome':{'status':'failed','code':error.code,'data':{'intent_id':intent['id']}},
+                        'correlation_id':correlation_id,'timestamp':self.clock().isoformat()},external_key=cachekey)
+                    self.store.audit(principal,'tool:'+name,correlation_id=correlation_id,resource_id=intent['id'],status=error.code)
                 raise
 
     def worker(self):

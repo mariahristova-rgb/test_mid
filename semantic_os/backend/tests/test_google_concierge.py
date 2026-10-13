@@ -261,6 +261,10 @@ class GoogleConciergeTests(unittest.TestCase):
             self.assertEqual(error.exception.code,'delivery_unknown')
         self.assertEqual(len(posts),1);self.assertEqual(self.store.count('appointments','demo'),0)
         self.assertEqual(self.concierge.rows('demo','concierge_intent')[-1]['status'],'unknown')
+        traces=self.store.list('tool_executions','demo',self.conversation['id'])
+        self.assertEqual(len(traces),1)
+        self.assertEqual(traces[0]['outcome']['code'],'delivery_unknown')
+        self.assertEqual(traces[0]['arguments'],{})
 
     def test_refused_consent_and_revoked_google_cannot_write(self):
         self.connect();verification=self.verified_email()
@@ -304,3 +308,32 @@ class GoogleConciergeTests(unittest.TestCase):
         self.assertEqual(sum(isinstance(result,dict) for result in results),1)
         self.assertIn('slot_unavailable',results)
         self.assertEqual(len(self.events),2);self.assertEqual(self.store.count('appointments','demo'),2)
+
+    def test_worker_reconstruction_and_disable_do_not_replay_unknown_mail(self):
+        self.connect('gmail')
+        job=self.concierge.queue_email('demo',self.conversation['id'],'visitor@example.com','Synthetic accepted test','Synthetic body','restart-unknown')
+        def uncertain(request):
+            if request.url.path.endswith('/messages/send'):
+                self.sent+=1;raise httpx.ReadTimeout('synthetic timeout',request=request)
+            return self.transport(request)
+        self.workspace.transport=httpx.MockTransport(uncertain)
+        self.concierge.worker();self.assertEqual(self.sent,1)
+
+        self.concierge=Concierge(self.store,self.engine,self.workspace,self.secrets,public_origin='http://127.0.0.1:3020')
+        self.concierge.worker();self.assertEqual(self.sent,1)
+        self.assertEqual(self.store.get('jobs','demo',job['id'])['status'],'delivery_unknown')
+        blocked=self.concierge.queue_email('demo',self.conversation['id'],'visitor@example.com','Synthetic paused test','Synthetic body','disabled-mail')
+        policy=self.concierge.policy('demo');policy.operations_authorized=False;self.concierge.configure(self.actor,policy)
+        self.concierge.worker();self.assertEqual(self.sent,1)
+        self.assertEqual(self.store.get('jobs','demo',blocked['id'])['status'],'pending')
+        policy.operations_authorized=True;self.concierge.configure(self.actor,policy);self.workspace.revoke(self.actor,'gmail')
+        self.concierge.worker();self.assertEqual(self.sent,1)
+
+    def test_interrupted_sending_job_is_not_automatically_reclaimed(self):
+        self.connect('gmail')
+        job=self.concierge.queue_email('demo',self.conversation['id'],'visitor@example.com','Synthetic interrupted test','Synthetic body','interrupted')
+        self.store.update('jobs','demo',job['id'],{'status':'sending','attempts':1})
+        restarted=Concierge(self.store,self.engine,self.workspace,self.secrets,public_origin='http://127.0.0.1:3020')
+        restarted.worker();restarted.deliver(job)
+        self.assertEqual(self.sent,0)
+        self.assertEqual(self.store.get('jobs','demo',job['id'])['status'],'sending')

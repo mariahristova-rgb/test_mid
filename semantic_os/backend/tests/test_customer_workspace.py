@@ -38,6 +38,23 @@ class CustomerWorkspaceTests(unittest.TestCase):
         service=CustomerWorkspace(self.store,self.app.state.ux,self.app.state.billing,None)
         self.assertEqual(service.health(self.actor)['observed_at'],self.at.isoformat())
         self.assertEqual(service.purge(),0)
+
+    def test_concierge_unknown_and_blocked_jobs_are_visible_without_private_content(self):
+        owned=[]
+        for status in ('delivery_unknown','blocked'):
+            owned.append(self.store.add('jobs','demo',{'kind':'concierge_email','status':status,'recipient':'PRIVATE-recipient','subject':'PRIVATE-subject','attempts':1,'error_code':'delivery_unknown'}))
+            self.store.add('jobs','other',{'kind':'concierge_email','status':status,'recipient':'OTHER-PRIVATE'})
+        self.assertEqual(self.service.health(self.viewer)['unresolved_jobs'],2)
+        quality=self.service.suggestions(self.operator)
+        self.assertEqual(quality['groups'],{'delivery_uncertain':1,'provider_failure':1})
+        headers={'Authorization':'Bearer workspace-offline-fixture','X-Tenant-ID':'demo'}
+        client=TestClient(self.app)
+        try:response=client.get('/api/operations',headers=headers)
+        finally:client.close()
+        self.assertEqual(response.status_code,200)
+        report=response.json()
+        self.assertEqual({j['id'] for j in report['failed_jobs']},{j['id'] for j in owned})
+        self.assertNotIn('PRIVATE',json.dumps(report));self.assertNotIn('PRIVATE',json.dumps(quality))
     def test_progress_requires_admin_and_never_certifies_actual_installation(self):
         with self.assertRaises(DomainError):self.service.progress(self.viewer)
         draft=self.draft();progress=self.service.progress(self.actor)

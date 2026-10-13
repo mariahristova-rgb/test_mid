@@ -130,6 +130,20 @@ class WidgetTests(unittest.TestCase):
         with self.assertRaises(DomainError):self.widget.ticket(self.public_id,self.site)
         with self.assertRaises(DomainError):self.widget.challenge(self.actor,self.integration['id'],self.site)
 
+    def test_disable_rollback_requires_fresh_session_and_preserves_booking(self):
+        token=self.visitor('en-US')
+        for index,text in enumerate(('Book an appointment tomorrow at 15:00.','My name is Synthetic Visitor.','Yes, confirm.')):
+            self.send(token,text,'rollback-book-'+str(index),'en-US')
+        appointments=self.store.list('appointments','demo');self.assertEqual(len(appointments),1)
+        version=self.widget.rows('demo','widget_version')[0]
+        self.widget.lifecycle(self.actor,self.integration['id'],'unpublish',WidgetAction(confirmed=True))
+        with self.assertRaises(DomainError):self.widget.ticket(self.public_id,self.site)
+        self.widget.lifecycle(self.actor,self.integration['id'],'rollback',WidgetAction(confirmed=True,version_id=version['id']))
+        with self.assertRaises(DomainError):self.send(token,'Yes, confirm.','rollback-old','en-US')
+        fresh=self.visitor('en-US');self.assertNotEqual(fresh,token)
+        self.assertEqual(self.send(fresh,'Hello','rollback-fresh','en-US')['locale'],'en-US')
+        self.assertEqual(self.store.list('appointments','demo'),appointments)
+
     def test_snapshot_does_not_follow_legacy_instruction_edits(self):
         token=self.visitor()
         self.store.update('assistants','demo','default',{'instructions':'Changed staff-only instructions','allowed_tools':['SendMessage']})
