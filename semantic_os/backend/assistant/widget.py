@@ -341,6 +341,7 @@ class WidgetService:
 
     def redact_text_copies(self,tenant,conversation):
         """Erase chat-derived traces without changing durable booking records."""
+        self.store.update('conversations',tenant,conversation,{'booking_state':None})
         for message in self.store.list('messages',tenant,conversation):
             self.store.update('messages',tenant,message['id'],{'content':'','attachments':[],'redacted':True})
         for event in self.store.list('provider_events',tenant,conversation):

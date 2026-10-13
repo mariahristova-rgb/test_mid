@@ -207,6 +207,18 @@ class WidgetTests(unittest.TestCase):
                 for table,original in untouched:self.assertEqual(self.store.get(table,original['tenant_id'],original['id']),original)
                 self.assertEqual(self.store.get('appointments','demo',appointment['id']),appointment)
 
+    def test_clear_and_retention_remove_uncommitted_booking_memory(self):
+        for cleanup in ('clear','purge'):
+            token=self.visitor('en-US')
+            self.send(token,'Book an appointment tomorrow at 15:00.','request-'+cleanup,'en-US')
+            self.send(token,'My name is Synthetic Visitor.','details-'+cleanup,'en-US')
+            _,session,_=self.widget.session(self.public_id,token)
+            self.assertTrue(self.store.get('conversations','demo',session['conversation_id'])['booking_state']['contact_name'])
+            if cleanup=='clear':self.widget.clear(self.public_id,token)
+            else:self.now+=timedelta(days=8);self.widget.purge()
+            self.assertIsNone(self.store.get('conversations','demo',session['conversation_id']).get('booking_state'))
+        self.assertEqual(self.store.count('appointments','demo'),0)
+
     def test_limits_and_payload_replay_do_not_recharge(self):
         row=self.widget.get(self.actor,self.integration['id'])
         self.store.update('operations_events','demo',row['id'],{'settings':{**row['settings'],'daily_sessions':1,'daily_messages':10}})
