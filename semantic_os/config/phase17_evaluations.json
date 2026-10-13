@@ -1,0 +1,22 @@
+{
+  "version": "1.0.0",
+  "scope": "OFFLINE_CONTRACT_ONLY",
+  "cases": [
+    {"id":"bg-booking","category":"consent","test":"test_assistant.AssistantAcceptance.test_bulgarian_full_handoff_and_approval"},
+    {"id":"en-booking","category":"consent","test":"test_assistant.AssistantAcceptance.test_english_full_handoff"},
+    {"id":"duplicate-confirmation","category":"tool","test":"test_assistant.AssistantAcceptance.test_duplicate_confirmation_exactly_once"},
+    {"id":"injection","category":"security","test":"test_assistant.AssistantAcceptance.test_prompt_injection_never_executes"},
+    {"id":"tenant-isolation","category":"security","test":"test_assistant.AssistantAcceptance.test_cross_tenant_auth_and_reads"},
+    {"id":"locale-switch","category":"locale","test":"test_assistant.PureContracts.test_language_precedence_uncertainty_and_explicit_switch"},
+    {"id":"availability-dst","category":"tool","test":"test_google_concierge.GoogleConciergeTests.test_live_freebusy_cutoff_buffers_and_timezone"},
+    {"id":"ownership-lifecycle","category":"security","test":"test_google_concierge.GoogleConciergeTests.test_email_proof_and_owned_management"},
+    {"id":"gmail-uncertainty","category":"provider","test":"test_google_concierge.GoogleConciergeTests.test_uncertain_gmail_send_is_never_replayed"},
+    {"id":"expired-ownership","category":"security","test":"test_google_concierge.GoogleConciergeTests.test_refresh_revocation_and_expired_ownership"},
+    {"id":"reminder-clock","category":"provider","test":"test_google_concierge.GoogleConciergeTests.test_reminder_runs_once_and_never_after_start"},
+    {"id":"business-feature","category":"tool","test":"test_concierge_api.ConciergeAPITests.test_business_and_feature_reuse_two_agents_and_persist_once"},
+    {"id":"no-fake-calendar","category":"provider","test":"test_concierge_api.ConciergeAPITests.test_text_booking_does_not_fall_back_to_fake_calendar"},
+    {"id":"human-reviewed-promotion","category":"knowledge","test":"test_customer_workspace.CustomerWorkspaceTests.test_quality_review_is_tenant_bound_audited_and_cannot_mutate_assistant"},
+    {"id":"privacy-trace-erasure","category":"security","test":"test_widget.WidgetTests.test_clear_and_retention_redact_traces_only_for_owned_conversation"}
+  ],
+  "unverified_layers": ["QWEN_MODEL_SIMULATION", "AUTHORIZED_STAGING_GOOGLE", "ATTENDED_BROWSER", "EXTERNAL_CUSTOMER_PILOT", "HEARD_VOICE"]
+}

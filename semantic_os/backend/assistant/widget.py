@@ -339,6 +339,18 @@ class WidgetService:
             'tool_result':(result.get('outcome') or {}).get('code'),'duplicate':result.get('duplicate',False),
             'human_requested':bool(conversation.get('human_escalation')),'human_online':False,'calendar_state':'MOCK'}
 
+    def redact_text_copies(self,tenant,conversation):
+        """Erase chat-derived traces without changing durable booking records."""
+        for message in self.store.list('messages',tenant,conversation):
+            self.store.update('messages',tenant,message['id'],{'content':'','attachments':[],'redacted':True})
+        for event in self.store.list('provider_events',tenant,conversation):
+            self.store.update('provider_events',tenant,event['id'],{'result':{'redacted':True}})
+        for table in ('agent_executions','tool_executions','approvals'):
+            for trace in self.store.list(table,tenant,conversation):
+                changes={'arguments':{},'outcome':{},'result':{},'handoff':{},'redacted':True}
+                if table=='approvals' and trace['status']=='pending':changes['status']='cancelled'
+                self.store.update(table,tenant,trace['id'],changes)
+
     def clear(self,public_id,secret):
         row=self.resolve(public_id,published=False,privacy=True)
         session=self.store.find('operations_events',row['tenant_id'],'widgetsession:'+sha256(secret.encode()).hexdigest())
@@ -347,12 +359,7 @@ class WidgetService:
         actor=Principal(row['tenant_id'],session['visitor_id'],'operator','widget:'+session['visitor_id'])
         with self.store.transaction():
             self.journey.withdraw(row['tenant_id'],session['conversation_id'])
-            for message in self.store.list('messages',row['tenant_id'],session['conversation_id']):
-                self.store.update('messages',row['tenant_id'],message['id'],{'content':'','attachments':[],'redacted':True})
-            for event in self.store.list('provider_events',row['tenant_id'],session['conversation_id']):
-                self.store.update('provider_events',row['tenant_id'],event['id'],{'result':{'redacted':True}})
-            for approval in self.store.list('approvals',row['tenant_id'],session['conversation_id']):
-                if approval['status']=='pending':self.store.update('approvals',row['tenant_id'],approval['id'],{'status':'cancelled'})
+            self.redact_text_copies(row['tenant_id'],session['conversation_id'])
             self.store.update('conversations',row['tenant_id'],session['conversation_id'],{'status':'closed'})
             self.store.update('operations_events',row['tenant_id'],session['id'],{'status':'cleared'})
             self.store.audit(actor,'widget:chat_cleared',resource_id=session['conversation_id'])
@@ -366,12 +373,7 @@ class WidgetService:
         for item in rows:
             session=json.loads(item['data'])
             with self.store.transaction():
-                for message in self.store.list('messages',session['tenant_id'],session['conversation_id']):
-                    self.store.update('messages',session['tenant_id'],message['id'],{'content':'','attachments':[],'redacted':True})
-                for event in self.store.list('provider_events',session['tenant_id'],session['conversation_id']):
-                    self.store.update('provider_events',session['tenant_id'],event['id'],{'result':{'redacted':True}})
-                for approval in self.store.list('approvals',session['tenant_id'],session['conversation_id']):
-                    if approval['status']=='pending':self.store.update('approvals',session['tenant_id'],approval['id'],{'status':'cancelled'})
+                self.redact_text_copies(session['tenant_id'],session['conversation_id'])
                 self.store.update('conversations',session['tenant_id'],session['conversation_id'],{'status':'closed'})
                 self.store.update('operations_events',session['tenant_id'],session['id'],{'status':'purged'})
         return len(rows)

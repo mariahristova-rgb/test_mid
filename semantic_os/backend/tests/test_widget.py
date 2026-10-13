@@ -176,6 +176,37 @@ class WidgetTests(unittest.TestCase):
         self.widget.purge()
         self.assertTrue(all(row['status']=='purged' for row in self.widget.rows('demo','widget_session')))
 
+    def test_clear_and_retention_redact_traces_only_for_owned_conversation(self):
+        for cleanup in ('clear','purge'):
+            with self.subTest(cleanup=cleanup):
+                token=self.visitor()
+                _,session,_=self.widget.session(self.public_id,token)
+                conversation=session['conversation_id']
+                self.store.add('conversations','other',{'assistant_id':'default','status':'open'},id=conversation)
+                unrelated=self.store.add('conversations','demo',{'assistant_id':'default','status':'open'})['id']
+                targets=[]
+                untouched=[]
+                for table in ('agent_executions','tool_executions','approvals'):
+                    data={'conversation_id':conversation,'status':'pending','arguments':{'name':'Sensitive visitor'},
+                          'result':{'text':'Sensitive visitor'},'handoff':{'arguments':{'name':'Sensitive visitor'}}}
+                    targets.append((table,self.store.add(table,'demo',data)))
+                    untouched.append((table,self.store.add(table,'other',data)))
+                    untouched.append((table,self.store.add(table,'demo',{**data,'conversation_id':unrelated})))
+                appointment=self.store.add('appointments','demo',{'conversation_id':conversation,'contact_name':'Retained booking','status':'confirmed'})
+                if cleanup=='clear':
+                    self.widget.clear(self.public_id,token)
+                    self.assertTrue(self.widget.clear(self.public_id,token)['cleared'])
+                else:
+                    self.now+=timedelta(days=8)
+                    self.widget.purge()
+                for table,original in targets:
+                    actual=self.store.get(table,'demo',original['id'])
+                    self.assertTrue(actual['redacted'])
+                    for field in ('arguments','result','outcome','handoff'):self.assertEqual(actual[field],{})
+                    if table=='approvals':self.assertEqual(actual['status'],'cancelled')
+                for table,original in untouched:self.assertEqual(self.store.get(table,original['tenant_id'],original['id']),original)
+                self.assertEqual(self.store.get('appointments','demo',appointment['id']),appointment)
+
     def test_limits_and_payload_replay_do_not_recharge(self):
         row=self.widget.get(self.actor,self.integration['id'])
         self.store.update('operations_events','demo',row['id'],{'settings':{**row['settings'],'daily_sessions':1,'daily_messages':10}})

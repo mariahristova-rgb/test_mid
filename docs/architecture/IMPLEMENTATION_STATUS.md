@@ -1,5 +1,9 @@
 # Implementation status
 
+## Phase17 — prerequisite audit and first local P0 increment, 11 October2026
+
+Separate `codex/phase17-production-pilot` branches preserve Phase15–16 work in both repositories. Phase16 is not complete. New widget clear/retention removes agent/tool/approval text copies while preserving bookings and other tenant/conversation data;18widget tests pass. Versioned offline evaluation corpus15/15PASS; source238files/0failures. No live provider action, cloud provisioning, production deployment or main push/merge. **PILOT_BLOCKED** pending public staging/browser, complete authorized Google/mail/reminder lifecycle, recovery and external-customer acceptance. See `docs/phase17/READINESS_AUDIT.md` and `IMPLEMENTATION_PLAN.md`. Historical sections below retain their checkpoint dates and are not current deployment assertions.
+
 ## Phase15 — local P0 increment, 11 October2026
 
 Separate feature branches preserve main. Approved three-experience navigation and existing Inbox queue/assignment/revision/audited retained notes are implemented; API/unit verification passes. Concierge diagnostics recognize live calendar tool coverage and persisted appointment states. Full backend309 tests/86.112s; frontend29 tests; source boundary227 files/zero failures. Approved BG reschedule/cancel and English create/cancel have real provider readbacks and replay protection; reminder jobs cancelled correctly and live operations restored off. Owner confirmed BG inbox receipt. Initial browser inspection was rejected; owner subsequently approved scoped synthetic checks, which verified Inbox controls, human provenance and all eight widths without horizontal overflow.
