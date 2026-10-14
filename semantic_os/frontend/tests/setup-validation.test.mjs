@@ -7,7 +7,7 @@ test('invalid Save/Continue opens hidden FAQ and focuses first invalid field bef
   let focused=false, reported=false, notified=0;
   const control = { willValidate:true, validity:{valid:false}, parentElement:details,
     getAttribute:key=>attributes[key], setAttribute:(key,value)=>attributes[key]=value, removeAttribute:key=>delete attributes[key], focus:()=>focused=true };
-  const form = { querySelectorAll:()=>[control], checkValidity:()=>false, querySelector:()=>control, reportValidity:()=>reported=true };
+  const form = { querySelectorAll:()=>[control], checkValidity:()=>false, querySelector:selector=>{assert.equal(selector,'input:invalid,select:invalid,textarea:invalid');return control;}, reportValidity:()=>reported=true };
   assert.equal(await validateSetupForm(form,()=>notified++),false);
   assert.equal(attributes['aria-invalid'],'true');assert.equal(attributes['aria-describedby'],'field-help setup-error');assert.equal(details.open,true);
   assert.equal(focused,true);assert.equal(reported,false);assert.equal(notified,1);
@@ -22,7 +22,7 @@ test('Test Studio without a visible setup form preserves saved configuration pat
 test('invalid feedback is rendered before field focus and avoids a competing native popup', async()=>{
   let rendered=false,focused=false;
   const control={willValidate:true,validity:{valid:false},parentElement:null,getAttribute:()=>null,setAttribute:()=>{},removeAttribute:()=>{},focus:()=>{assert.equal(rendered,true);focused=true;}};
-  const form={querySelectorAll:()=>[control],checkValidity:()=>false,querySelector:()=>control,reportValidity:()=>assert.fail('native popup competes with accessible error')};
+  const form={querySelectorAll:()=>[control],checkValidity:()=>false,querySelector:selector=>{assert.equal(selector,'input:invalid,select:invalid,textarea:invalid');return control;},reportValidity:()=>assert.fail('native popup competes with accessible error')};
   assert.equal(await validateSetupForm(form,async()=>{await Promise.resolve();rendered=true;}),false);
   assert.equal(focused,true);
 });

@@ -10,7 +10,7 @@ export async function validateSetupForm(form, invalid) {
   }
   if (form.checkValidity()) return true;
   await invalid();
-  const first = form.querySelector(':invalid');
+  const first = form.querySelector('input:invalid,select:invalid,textarea:invalid');
   // FAQ constraints can sit inside a collapsed details element.
   for (let parent = first?.parentElement; parent; parent = parent.parentElement) {
     if (parent.tagName === 'DETAILS') parent.open = true;
