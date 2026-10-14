@@ -40,6 +40,8 @@ class SubscriptionPlan(Contract):
     retention_days: StrictInt = Field(default=30, ge=1, le=3650)
     monthly_voice_minutes: StrictInt | None = Field(default=None, ge=0)
     limits: dict[str, Limit] = Field(default_factory=dict)
+    connector_limit: StrictInt | None = Field(default=None, ge=0)
+    connector_providers: list[Literal['google','outlook','calendly','hubspot']] | None = None
     enabled: bool = True
     mock_only: bool = True
 

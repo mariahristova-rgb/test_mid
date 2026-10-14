@@ -90,6 +90,41 @@ class GoogleConciergeTests(unittest.TestCase):
         with self.assertRaises(DomainError):self.connect()
         self.assertNotEqual(self.workspace.row('demo','calendar')['state'],'connected')
 
+    def test_refresh_cannot_restore_tokens_after_disconnect(self):
+        self.connect();self.now+=timedelta(hours=2)
+        original=self.workspace.transport
+        def interrupted(request):
+            if request.url.path.endswith('/token'):
+                self.workspace.transport=original
+                self.workspace.revoke(self.actor,'calendar')
+                return httpx.Response(200,json={'access_token':'late-access','refresh_token':'late-refresh','expires_in':3600})
+            return self.transport(request)
+        self.workspace.transport=httpx.MockTransport(interrupted)
+        with self.assertRaises(DomainError):self.workspace.token('demo','calendar')
+        self.assertEqual(self.workspace.row('demo','calendar')['state'],'revoked')
+        self.assertEqual(json.loads(self.secrets.get('demo','google:calendar:tokens')), {})
+
+    def test_refresh_rotation_is_encrypted_and_tenant_scoped(self):
+        self.connect();self.now+=timedelta(hours=2)
+        self.workspace.transport=httpx.MockTransport(lambda request:httpx.Response(200,json={'access_token':'rotated-access','refresh_token':'rotated-refresh','expires_in':3600}))
+        self.assertEqual(self.workspace.token('demo','calendar'),'rotated-access')
+        self.assertEqual(json.loads(self.secrets.get('demo','google:calendar:tokens'))['refresh_token'],'rotated-refresh')
+        self.assertNotIn('rotated-refresh',json.dumps(self.store.list('secrets','demo')))
+        self.assertIsNone(self.workspace.row('other','calendar'))
+        with self.assertRaises(DomainError):self.workspace.token('other','calendar')
+
+    def test_expired_oauth_and_missing_scopes_fail_closed(self):
+        cfg=GoogleClientConfig(kind='calendar',client_id='calendar-fixture.apps.googleusercontent.com',client_secret='fake',redirect_uri='http://127.0.0.1:3017/backend/api/google/oauth/callback')
+        self.workspace.configure(self.actor,cfg)
+        url,binding=self.workspace.start(self.actor,'calendar');state=parse_qs(urlsplit(url).query)['state'][0]
+        self.now+=timedelta(minutes=11)
+        with self.assertRaises(DomainError):self.workspace.callback(state,'code',{'calendar':binding})
+        self.assertFalse(self.requests)
+        url,binding=self.workspace.start(self.actor,'calendar');state=parse_qs(urlsplit(url).query)['state'][0]
+        self.workspace.transport=httpx.MockTransport(lambda request:httpx.Response(200,json={'access_token':'fake','refresh_token':'fake','scope':'openid email'}))
+        with self.assertRaises(DomainError):self.workspace.callback(state,'code',{'calendar':binding})
+        self.assertEqual(self.workspace.row('demo','calendar')['state'],'disconnected')
+
     def test_live_operations_blocked_without_owner_permission(self):
         self.connect();self.connect('gmail');policy=self.concierge.policy('demo');policy.operations_authorized=False;self.concierge.configure(self.actor,policy)
         with self.assertRaises(DomainError):self.concierge.ready('demo',True)

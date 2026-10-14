@@ -65,6 +65,18 @@ class PlanEntitlementService:
         if limit and limit['mode'] == 'hard' and limit['overage_policy'] == 'block' and self.quantity(tenant, category) + reserved + quantity > limit['maximum']:
             raise DomainError('upgrade_required', 402)
 
+    def check_connector(self, tenant, provider, *, creating=False):
+        """Additive connector policy on the existing subscription snapshot; no new ledger."""
+        self.access(tenant)
+        plan=self.plan(tenant)
+        if not plan:return
+        providers=plan.get('connector_providers')
+        if providers is not None and provider not in providers:raise DomainError('upgrade_required',402)
+        maximum=plan.get('connector_limit')
+        if creating and maximum is not None:
+            configured=sum(row.get('kind')=='connector_fixture' for row in self.store.list('operations_events',tenant))
+            if configured>=maximum:raise DomainError('upgrade_required',402)
+
     def remaining(self, tenant, category):
         plan = self.plan(tenant)
         limit = plan['limits'].get(category) if plan else None
