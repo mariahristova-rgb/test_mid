@@ -1,8 +1,8 @@
 # Google customer booking acceptance
-Status: NOT COMPLETE / LIVE BLOCKED.
+Local implementation: availability and confirmed creation via the existing two agents, tool permissions, approval transaction, appointments, audit and durable jobs. Visitor confirmation queues pending_external; a provider receipt is required before confirmed status. Web Chat polls only its bound booking receipt. Repeated confirmation cannot create a second job/event. Stable event IDs support GET-only reconciliation after an unknown write.
 
-Local implemented: Google signed identity adapter, OAuth lifecycle/API, discovery through existing provider codec, owned resource checks for requested write actions, revision-safe selection and disconnect denial. Mock transport selection yields connected_unverified + OFFLINE_PASS.
+Business timezone, hours, duration, buffer, notice, holidays and unavailable periods reuse existing policy validation. Explicit customer-calendar activation captures a policy snapshot, verifies owned-resource access and blocks unresolved approvals/calls/jobs. Mock draft activation cannot silently change the active customer policy. Cancellation/rescheduling on customer_google are denied until their provider workflow is reviewed.
 
-Missing: adapter binding into existing approval-controlled booking registry, policy/notice/buffer validation for this customer connection, durable uncertain-write reconciliation and appointment/notification consistency tests. No mock calendar is substituted for a purported live connection.
+Evidence: BG and EN synthetic two-agent creation, duplicate confirmation, disconnect-before-write, closed day, DST ambiguity, policy snapshot, disabled configuration and unknown-write reconciliation pass. No live Google requests, events, email/invitations or customer accounts were used. sendUpdates=none; no attendee invitation is claimed.
 
-Required live gate: reviewed server platform app, isolated account/calendar and explicit reversible-write authorization. Then connect, select owned calendar, read real availability, confirm one event, repeat confirmation without duplicate, reconcile timeout by deterministic provider ID, disconnect, prove later writes denied and record cleanup. No such operation performed here.
+Live gate remains BLOCKED: reviewed customer application, actual account consent, isolated calendar, redacted create/reconcile/disconnect receipts and explicit write authorization. OFFLINE_PASS is not LIVE_VERIFIED.

@@ -1,8 +1,11 @@
-# Other provider capability evidence
-| Provider | Existing local capability | Production acceptance |
-| --- | --- | --- |
-| Outlook | Fixture Graph discovery, work-account availability and consent-controlled event codec; stale etag tests | Missing actual app/tenant policy and production identity verifier; no live account |
-| Calendly | Fixture availability/event-type and scheduled-event reads; signature/replay checks | Hosted/read-only limits preserved; no invented direct-booking API; current app/plan eligibility must be verified before activation |
-| HubSpot | Fixture contact lookup/create/update with narrow mappings and duplicate handling | Missing production identity/introspection acceptance and customer app; no deal modifications |
+# Capability-limited provider adapters
+| Provider | Implemented local contract | External acceptance |
+|---|---|---|
+| Google | Signed identity, refresh identity, owner calendar discovery, FreeBusy, durable creation bridge | Not executed |
+| Outlook | Signed issuer/audience/nonce identity with explicit tenant allowlist; owned calendar discovery/calendarView, fail closed on pagination/shared calendars | Not executed |
+| Calendly | Authenticated users/me identity; event types and scheduled-event reads bound to verified user URI | Not executed |
+| HubSpot | Active client-bound introspection, account/scopes binding, CRM read/resource discovery; narrow primitive contact codec | Not executed |
 
-Generic customer lifecycle accepts reviewed provider apps only with an injected verifier. GoogleCustomerIdentity explicitly refuses non-Google providers. Existing fixture success is not parity or live acceptance. No scopes, resources or external accounts were widened.
+Public customer action grants deliberately expose Google availability/create, Outlook availability, Calendly availability/scheduled_events and HubSpot contact_read. Outlook writes, HubSpot writes/associations and Calendly booking/webhooks are not customer agent workflows. Primitive REST codecs do not imply full lifecycle parity. Calendly plan/role/webhook eligibility remains an external gate; no claim that its current API universally lacks booking support.
+
+References: [Microsoft calendarView](https://learn.microsoft.com/en-us/graph/api/calendar-list-calendarview?view=graph-rest-1.0), [Calendly scopes](https://developer.calendly.com/docs/authentication/scopes), [HubSpot OAuth](https://developers.hubspot.com/docs/api-reference/legacy/authentication/manage-oauth-tokens).

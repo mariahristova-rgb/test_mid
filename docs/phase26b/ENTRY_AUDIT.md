@@ -14,3 +14,6 @@ The owner explicitly instructed autonomous implementation without further involv
 Plan: A security/API foundation → B owned-calendar booking/uncertain-write bridge → C capability-limited production adapters → D reviewed persistence/inference dry-run → E customer connection UX → full acceptance. Existing platform configuration contracts, Store/vault, provider codecs, entitlements and evaluation corpus are reused. No DDL or framework change.
 
 Read-only repository inspection found fixtures and production contracts present. No deployment/customer data/secrets were accessed. Real platform OAuth apps and target staging runtime have not been verified in this increment. Do not interpret older owner Google receipts as customer authorization.
+
+## Follow-up after Docker startup
+Baseline 8ffcba7 on codex/phase26b-customer-oauth. Docker is available; previous daemon-unavailable blocker is superseded. Local OAuth transports/identities, durable Google creation bridge and customer UI are implemented. Provider live acceptance, PostgreSQL runtime and GPU staging remain blocked/unverified; see current matrix and regression report. No Phase26A/main merge performed.

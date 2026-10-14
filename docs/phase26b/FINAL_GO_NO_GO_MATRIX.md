@@ -1,15 +1,14 @@
-# Phase26B current gate matrix
-This is an incremental checkpoint, NOT Phase26B completion.
-
-| Gate | Decision |
-| --- | --- |
-| Increment A local OAuth foundation | Targeted synthetic evidence; full regression recorded separately |
-| Customer live OAuth | NO-GO absent reviewed runtime/app/identity configuration and real consent receipt |
-| Customer live booking | NO-GO; registry bridge and uncertainty/notification acceptance pending |
-| Outlook/Calendly/HubSpot production | NO-GO; fixture evidence only |
-| Distributed persistence/GPU staging | NO-GO; no deployment/migration/measurements |
-| Manual accessibility | FAIL / UNVERIFIED; owner authorized continuation without involvement |
-| Limited staging pilot | NO-GO |
+# Phase26B gate matrix
+| Capability | Evidence / decision |
+|---|---|
+| Customer OAuth local foundation | Synthetic PASS; production transport defaults disabled |
+| Google booking bridge | BG/EN mock-provider PASS; durable pending/uncertain/confirmed states |
+| Customer UI | Local mock selection/activation and responsive checks; manual accessibility incomplete |
+| Outlook/Calendly/HubSpot | Capability-limited production HTTP/identity codecs; no real account acceptance |
+| PostgreSQL persistence | Synthetic import/dump/restore/checksum PASS; runtime migration NOT COMPLETE |
+| Cloud/GPU staging | Offline review template/admission PASS; no vendor dry-run/deployment/benchmark |
+| Limited external staging pilot | NO-GO |
 | Public production | NO-GO |
+| Full Phase26B completion | NOT COMPLETE |
 
-No main integration, provider mutation, communications, billing, deployment or spending. Continue locally with booking bridge and transport-security tests before enabling any account. External activation requires the specific gates in the Phase26B prompt; blanket continuation does not invent account consent or cloud budget.
+No real provider mutation, customer communication, billing, main merge, cloud provisioning or new spending. Remaining gates require actual reviewed provider apps/account consent and test-account receipts, PostgreSQL runtime/distributed-worker acceptance, cloud financial approval and real inference measurements. User continuation does not constitute a provider account consent receipt.

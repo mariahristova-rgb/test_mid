@@ -1,8 +1,6 @@
-# Cloud staging and model measurement gate
-No cloud resources, model download, GPU runtime, DNS change or deadline extension performed. No spending incurred by this increment. Cloud Run API/GPU Qwen3-8B, PostgreSQL/Cloud SQL and tenant-isolated Cloud Storage are not deployed or measured.
+# Offline staging and inference plan
+semantic_os/deploy/phase26b/staging-plan.json is a review-only infrastructure template, not a deployed environment. scripts/check_phase26b_staging_plan.py validates local admission constraints: no deployment/spend, private inference, bounded instances, Cloud SQL persistence/backup requirements and tenant file isolation. Vendor schema/IaC dry-run was not executed; Terraform is absent. Placeholder images/accounts/region must be resolved and reviewed.
 
-Proposed architecture requires reviewed infrastructure-as-code, private database/object access, pinned model/tokenizer/config and quantization, bounded concurrency/pooling, durable idempotency/jobs, least-privilege service accounts, Secret Manager references, redacted logging and lifecycle policies. These are requirements, not implemented deployment evidence.
+Proposed Qwen3-8B AWQ configuration: L4, 4 CPU, 16 GiB RAM, context 4096, bounded model concurrency and memory utilization; model/tokenizer revision and actual GPU benchmark remain unverified. [Cloud Run GPU requirements](https://docs.cloud.google.com/run/docs/configuring/services/gpu).
 
-Capacity model without fabricated measurements: for N tenants and 50 conversations/day, daily turns = N × 50 × measured turns/conversation; daily input/output tokens = daily turns × measured tokens/turn × measured agent-call multiplier. Evaluate N=10/25/50/100 using actual pilot distributions, peak concentration and tooling overhead. Cost requires current region/SKU prices and measured GPU busy/idle seconds; numeric estimates not yet established.
-
-Acceptance requires actual p50/p95 prefill/generation/queue, warm/cold start, throughput, error rate, memory, fairness and cost under authorized load. No real GPU result or production capacity claim.
+Sensitivity assumes 50 conversations/day/customer, six turns, 800 input/200 output tokens and two model calls per turn, at 10/25/50/100 tenants. These are assumptions, not measured traffic or capacity. GPU throughput, cold/warm start, p50/p95, fairness and monetary cost are NOT MEASURED. No invented price or release threshold. New cloud cost incurred: none. Paid staging/model execution is blocked pending concrete configuration and financial approval.
