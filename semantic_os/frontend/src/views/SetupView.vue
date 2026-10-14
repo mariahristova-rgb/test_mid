@@ -15,6 +15,7 @@ function validateForm() {
   return validateSetupForm(setupForm.value, () => { error.value = t('setupValidationHelp'); });
 }
 const recovery = ref('');
+const reloadConfirmed = ref(false);
 const locale = ref<'bg-BG'|'en-US'>('bg-BG'), scenario = ref('booking');
 const steps = ['useCaseStep','businessStep','languageStep','toolsStep','channelsStep','testingStep','reviewStep'];
 const scenarios = ['booking','short_confirmation','rejection','ambiguous','occupied','language_switch','handoff','interruption','faq','greeting'];
@@ -59,7 +60,7 @@ async function evidence() {
   if (!draft.value?.id) return;
   [readiness.value, receipts.value] = await Promise.all([request(`/api/ux/drafts/${draft.value.id}/readiness`),request(`/api/ux/drafts/${draft.value.id}/tests`)]);
 }
-async function reloadSaved() { const identity = draft.value.id; drafts.value = await request('/api/ux/drafts'); await open(identity); }
+async function reloadSaved() { if(dirty.value && !reloadConfirmed.value) { error.value=t('reloadDiscardHelp'); return; } reloadConfirmed.value=false; const identity = draft.value.id; drafts.value = await request('/api/ux/drafts'); await open(identity); }
 function newDraft(id?: string) {
   const original = assistants.value.find(a => a.id === id);
   const initial = original || assistants.value[0];
@@ -80,7 +81,7 @@ function newDraft(id?: string) {
 }
 async function save() {
   const saved = await request(draft.value.id ? `/api/ux/drafts/${draft.value.id}` : '/api/ux/drafts',draft.value.id ? 'PUT' : 'POST',payload());
-  draft.value = saved; baseline.value = JSON.stringify(saved); selected.value = saved.id;
+  reloadConfirmed.value=false; draft.value = saved; baseline.value = JSON.stringify(saved); selected.value = saved.id;
   drafts.value = await request('/api/ux/drafts'); await evidence(); notice.value = t('saved');
 }
 async function move(step: number) {
@@ -142,9 +143,10 @@ tabindex="-1"
 {{ notice }}
 </p>
   <div v-if="recovery" class="controls">
+<label v-if="recovery === 'revision' && dirty" class="check"><input v-model="reloadConfirmed" type="checkbox">{{ t('reloadDiscardHelp') }}</label>
 <button :disabled="busy" @click="run(evidence)">
 {{ t('refreshTestResults') }}
-</button><button v-if="recovery === 'revision'" :disabled="busy" @click="run(reloadSaved)">
+</button><button v-if="recovery === 'revision'" :disabled="busy || (!!dirty && !reloadConfirmed)" @click="run(reloadSaved)">
 {{ t('reloadSavedDraft') }}
 </button>
 </div>
@@ -172,6 +174,9 @@ tabindex="-1"
 {{ t('unsavedChanges') }}
 </p>
     <article v-if="!testing">
+      <p role="status">
+{{ t('setupProgress') }} {{ number(draft.step + 1) }} / {{ number(steps.length) }} · {{ t('setupProgressHelp') }}
+</p>
       <ol class="steps">
 <li v-for="(key,index) in steps" :key="key" :aria-current="draft.step === index ? 'step' : undefined">
 {{ t(key) }}
@@ -198,14 +203,18 @@ tabindex="-1"
 {{ t('addFaq') }}
 </button>
 </details>
-          <p>{{ t('useCaseHelp') }}</p>
+          <p>{{ t('useCaseHelp') }}</p><p v-if="!draft.config.faq_entries.length">
+{{ t('faqOptionalEmpty') }}
+</p>
         </template>
         <template v-if="draft.step === 1">
+<h3>{{ t('businessDetailsHelp') }}</h3>
           <label>{{ t('organizationName') }}<input v-model="draft.business.name" required maxlength="120"></label>
           <label>{{ t('businessWebsite') }}<input v-model="draft.business.website" type="url" maxlength="500"></label><label>{{ t('businessIndustry') }}<input v-model="draft.business.industry" maxlength="120"></label>
           <label>{{ t('p21Description') }}<textarea v-model="draft.business.description" maxlength="1000" /></label>
           <label>{{ t('p21ContactEmail') }}<input v-model="draft.business.contact_email" type="email" maxlength="250"></label>
           <label>{{ t('p21ContactPhone') }}<input v-model="draft.business.contact_phone" type="tel" maxlength="50"></label>
+          <h3>{{ t('scheduleSetupHelp') }}</h3>
           <label>{{ t('timezone') }}<input v-model="draft.business.timezone" required></label>
           <fieldset>
 <legend>{{ t('workingDays') }}</legend><div class="checks">
@@ -213,6 +222,7 @@ tabindex="-1"
 </div>
 </fieldset>
           <label>{{ t('opens') }}<input v-model="draft.business.opens" type="time" required></label><label>{{ t('closes') }}<input v-model="draft.business.closes" type="time" required></label>
+          <h3>{{ t('serviceSetupHelp') }}</h3>
           <label>{{ t('serviceName') }}<input v-model="draft.business.service" required maxlength="120"></label>
           <label>{{ t('p21ServicePrice') }}<input v-model="draft.business.service_price" inputmode="decimal" maxlength="12"></label>
           <label>{{ t('p21Currency') }}<select v-model="draft.business.price_currency"><option v-for="code in ['EUR','BGN','USD']" :key="code" :value="code">{{ code }}</option></select></label><p>{{ t('p21PriceHelp') }}</p>
@@ -247,7 +257,7 @@ required
 {{ t('agents') }}
 </RouterLink>
           <fieldset><legend>{{ t('tools') }}</legend><label v-for="item in access.tools" :key="item.name" class="check"><input v-model="draft.config.allowed_tools" type="checkbox" :value="item.name">{{ t(item.name) }}</label></fieldset>
-          <p>{{ t('permissionIntersection') }}</p>
+          <p>{{ t('permissionIntersection') }}</p><p>{{ t('escalationSetupHelp') }}</p>
         </template>
         <template v-if="draft.step === 4">
           <fieldset><legend>{{ t('channels') }}</legend><label v-for="value in ['web_chat','voice','email','whatsapp','sms']" :key="value" class="check"><input v-model="draft.config.enabled_channels" type="checkbox" :value="value">{{ t(value) }}</label></fieldset>
@@ -272,7 +282,7 @@ required
 </form>
     </article>
     <article v-if="draft.status === 'draft' && (testing || draft.id)">
-<h2>{{ t('testing') }}</h2>
+<h2>{{ t('testing') }}</h2><p>{{ t('previewSavedHelp') }}</p>
       <label>{{ t('conversationLanguage') }}<select v-model="locale"><option value="bg-BG">{{ t('bg-BG') }}</option><option value="en-US">{{ t('en-US') }}</option></select></label>
       <label>{{ t('scenario') }}<select v-model="scenario"><option v-for="key in scenarios" :key="key" :value="key">{{ t('scenario_' + key) }}</option></select></label>
       <div class="controls">
@@ -286,7 +296,7 @@ required
     <article v-if="latest" aria-live="polite">
 <h2>{{ t(latest.verdict) }} · {{ t('scenario_' + latest.scenario) }}</h2>
       <p>
-{{ t('simulatedPreview') }} · {{ t('revision') }} {{ number(latest.revision) }} · {{ latest.config_hash === draft.config_hash && !dirty ? t('previewCurrent') : t('previewStale') }}
+{{ t('simulatedPreview') }} · {{ date(latest.timestamp,latest.timezone || draft.business.timezone) }} · {{ t('revision') }} {{ number(latest.revision) }} · {{ latest.config_hash === draft.config_hash && !dirty ? t('previewCurrent') : t('previewStale') }}
 </p><p>
 {{ t('duration') }}: {{ number(latest.duration_ms) }} {{ t('milliseconds') }} · {{ t(latest.locale) }} · {{ t('MOCK_ONLY') }}
 </p>
@@ -294,6 +304,10 @@ required
 {{ t('syntheticClock') }}: {{ date(latest.reference_at,latest.timezone) }} · {{ latest.timezone }}
 </p>
       <p>{{ t('expectedBookings') }}: {{ number(latest.expected_booking_count || 0) }} · {{ t('observedBookings') }}: {{ number(latest.booking_count) }}</p>
+      <p>{{ t(['faq'].includes(latest.scenario) ? 'previewFaqConfig' : ['booking','short_confirmation','rejection','ambiguous','occupied','language_switch'].includes(latest.scenario) ? 'previewBookingConfig' : 'previewBehaviorConfig') }}</p>
+      <p v-if="latest.verdict !== 'PASS'">
+{{ t('previewRecoveryHelp') }}
+</p>
       <p v-if="latest.code !== 'completed'">
 {{ t(latest.code) }}
 </p>
@@ -327,8 +341,11 @@ required
       <p v-for="item in readiness.channels" :key="item.channel">
 {{ t(item.channel) }} · {{ t(item.status) }}
 </p>
+      <p v-if="dirty" class="banner" role="status">
+{{ t('previewStale') }}
+</p>
       <p v-for="item in readiness.required_tests" :key="item.scenario + item.locale">
-{{ t('scenario_' + item.scenario) }} · {{ t(item.locale) }} · {{ t(item.verdict) }}
+{{ t('scenario_' + item.scenario) }} · {{ t(item.locale) }} · {{ dirty ? t('previewStale') : t(item.verdict) }}
 </p>
       <template v-if="editable">
 <p class="banner">
@@ -344,7 +361,7 @@ required
     </article>
     <details v-if="receipts.length">
 <summary>{{ t('testHistory') }}</summary><p v-for="item in receipts" :key="item.id">
-{{ date(item.timestamp,draft.business.timezone) }} · {{ t('scenario_' + item.scenario) }} · {{ t(item.locale) }} · {{ t(item.verdict) }} · {{ t('revision') }} {{ number(item.revision) }}
+{{ date(item.timestamp,draft.business.timezone) }} · {{ t('scenario_' + item.scenario) }} · {{ t(item.locale) }} · {{ dirty ? t('previewStale') : t(item.verdict) }} · {{ t('revision') }} {{ number(item.revision) }}
 </p>
 </details>
   </template>

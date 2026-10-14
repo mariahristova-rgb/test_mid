@@ -91,6 +91,23 @@ class UXTests(unittest.TestCase):
         self.assertEqual(self.ux.simulate(legacy,RunInput(revision=1,scenario='booking',locale='en-US'))['verdict'],'PASS')
         self.assertEqual(self.store.count('appointments','demo'),0)
 
+    def test_preview_narrow_split_weekdays_and_fully_closed_window(self):
+        from semantic_os.backend.assistant.ux import Business
+        cases=[{'opens':'10:00','closes':'10:30'}, {'opens':'16:00','closes':'19:00','weekdays':[4]},
+               {'opens':'09:00','closes':'12:00','unavailable_periods':[{'starts_at':'2030-10-09T06:00:00Z','ends_at':'2030-10-09T07:00:00Z'}]}]
+        for fields in cases:
+            self.payload.business=Business(name='Synthetic',**fields)
+            draft=self.ux.save(self.actor,self.payload)
+            for locale in ('bg-BG','en-US'):
+                for scenario in ('booking','occupied'):
+                    self.assertEqual(self.run_case(draft,scenario,locale)['verdict'],'PASS',fields)
+        self.payload.business=Business(name='Synthetic',unavailable_periods=[{'starts_at':'2030-10-08T00:00:00Z','ends_at':'2030-10-24T00:00:00Z'}])
+        draft=self.ux.save(self.actor,self.payload)
+        for locale in ('bg-BG','en-US'):
+            result=self.run_case(draft,'booking',locale)
+            self.assertEqual((result['verdict'],result['code'],result['booking_count']),('BLOCKED','preview_no_slot',0))
+        self.assertEqual(self.store.count('appointments','demo'),0)
+
     def test_preview_replay_is_idempotent_and_tenant_isolated(self):
         from unittest.mock import patch
         from semantic_os.backend.assistant.orchestration import Orchestrator

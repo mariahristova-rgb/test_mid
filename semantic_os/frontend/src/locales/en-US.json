@@ -874,5 +874,18 @@
   "previewStale": "Earlier configuration; save and rerun tests",
   "setupActivated": "Activated Web Chat configuration",
   "setupTested": "Saved draft tested with mock providers; not activated",
-  "setupDraft": "Draft; required tests are incomplete"
+  "setupDraft": "Draft; required tests are incomplete",
+  "reloadDiscardHelp": "Reloading replaces your unsaved edits with the saved version. I agree to discard these edits.",
+  "setupProgress": "Setup step",
+  "setupProgressHelp": "Steps show your location, not validation or activation. Save changes explicitly.",
+  "faqOptionalEmpty": "FAQs are optional. Add approved questions and answers in both languages to preview product information.",
+  "businessDetailsHelp": "Your business details",
+  "scheduleSetupHelp": "Opening hours and timezone — for example Monday–Friday, 09:00–12:00",
+  "serviceSetupHelp": "One service and its booking duration",
+  "escalationSetupHelp": "Allow Human handoff only when your team can handle requests. This permission alone does not prove that a person is available.",
+  "previewSavedHelp": "Tests use the saved configuration. Unsaved editable changes are saved first. Results are simulated; no live booking or message is sent.",
+  "previewFaqConfig": "Configuration section: approved business FAQs. No external knowledge source is verified by this test.",
+  "previewBookingConfig": "Configuration sections: service, working hours, timezone and allowed booking tools.",
+  "previewBehaviorConfig": "Configuration sections: assistant behavior and agent permissions.",
+  "previewRecoveryHelp": "Review the test message and your configuration, correct any missing settings, save and run again. A blocked audio test requires separate voice acceptance."
 }

@@ -2,8 +2,11 @@
 export function validateSetupForm(form, invalid) {
   if (!form) return true;
   for (const control of form.querySelectorAll('input,select,textarea')) {
-    if (control.willValidate && !control.validity.valid) { control.setAttribute('aria-invalid', 'true'); control.setAttribute('aria-describedby', 'setup-error'); }
-    else { control.removeAttribute('aria-invalid'); control.removeAttribute('aria-describedby'); }
+    const descriptions = (control.getAttribute('aria-describedby') || '').split(/\s+/).filter(value => value && value !== 'setup-error');
+    if (control.willValidate && !control.validity.valid) { control.setAttribute('aria-invalid', 'true'); descriptions.push('setup-error'); }
+    else { control.removeAttribute('aria-invalid');  }
+    if(descriptions.length) control.setAttribute('aria-describedby', descriptions.join(' '));
+    else control.removeAttribute('aria-describedby');
   }
   if (form.checkValidity()) return true;
   invalid();
