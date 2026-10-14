@@ -112,13 +112,17 @@ class GoogleWorkspace:
             if datetime.fromisoformat(tokens['expires_at'])>self.clock()+timedelta(seconds=60):return tokens['access_token']
             response=self.http('POST','https://oauth2.googleapis.com/token',data={'grant_type':'refresh_token','refresh_token':tokens['refresh_token'],
                 'client_id':row['client_id'],'client_secret':self.secrets.get(tenant,'google:'+kind+':client_secret')})
-            if response.status_code!=200:
-                self.store.update('operations_events',tenant,row['id'],{'state':'reconnect_required'})
-                raise DomainError('google_not_connected',503)
-            fresh=response.json()
-            if not fresh.get('access_token'):raise DomainError('provider_error',502)
-            tokens.update(fresh);tokens['expires_at']=(self.clock()+timedelta(seconds=min(int(fresh.get('expires_in',3600)),3600))).isoformat()
-            self.secrets.put(tenant,'google:'+kind+':tokens',json.dumps(tokens))
+            with self.store.transaction():
+                # Disconnect or configuration replacement wins over an in-flight refresh.
+                if self.row(tenant,kind)!=row:raise DomainError('google_not_connected',503)
+                if response.status_code!=200:
+                    self.store.update('operations_events',tenant,row['id'],{'state':'reconnect_required'})
+                else:
+                    fresh=response.json()
+                    if not fresh.get('access_token'):raise DomainError('provider_error',502)
+                    tokens.update(fresh);tokens['expires_at']=(self.clock()+timedelta(seconds=min(int(fresh.get('expires_in',3600)),3600))).isoformat()
+                    self.secrets.put(tenant,'google:'+kind+':tokens',json.dumps(tokens))
+            if response.status_code!=200:raise DomainError('google_not_connected',503)
             return tokens['access_token']
 
     def call(self,tenant,kind,method,path,**kwargs):

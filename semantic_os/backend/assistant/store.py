@@ -241,7 +241,7 @@ class Store:
         with self.lock:
             return self.db.execute(f'SELECT COUNT(*) FROM {table} WHERE tenant_id=?', (tenant_id,)).fetchone()[0]
 
-    def inbox(self, tenant_id, *, filters=None, from_date=None, to_date=None, limit=None, cursor=None, identity=None, to_date_exclusive=False):
+    def inbox(self, tenant_id, *, filters=None, from_date=None, to_date=None, limit=None, cursor=None, identity=None, to_date_exclusive=False,unread=None):
         """One indexed SQL statement instead of per-conversation Python reads.
 
         Legacy callers retain ascending reception order. Bounded pages use stable
@@ -249,20 +249,27 @@ class Store:
         """
         where, args = ['c.tenant_id=?'], [tenant_id]
         for key, value in (filters or {}).items():
-            if key not in ('channel','assistant_id','status','active_locale'): raise ValueError('Unknown filter')
+            if key not in ('channel','assistant_id','status','active_locale','queue_priority','operator_state','queue_assigned_user_id'): raise ValueError('Unknown filter')
             if value is not None:
-                where.append(f"json_extract(c.data,'$.{key}')=?"); args.append(value)
+                expression=f"json_extract(c.data,'$.{key}')"
+                if key=='queue_priority':expression=f"coalesce({expression},'normal')"
+                where.append(expression+'=?'); args.append(value)
         if identity:
             where.append('c.id=?'); args.append(identity)
         if cursor is not None:
             where.append('c.rowid<?'); args.append(cursor)
         sql = '''WITH enriched AS (
             SELECT c.rowid AS seq,c.data AS conversation,contact.data AS contact,
+                (SELECT json_extract(m.data,'$.timestamp') FROM messages m WHERE m.tenant_id=c.tenant_id AND m.conversation_id=c.id AND json_extract(m.data,'$.direction')='inbound'
+                    ORDER BY julianday(json_extract(m.data,'$.timestamp')) DESC,m.rowid DESC LIMIT 1) AS last_inbound,
                 (SELECT m.data FROM messages m WHERE m.tenant_id=c.tenant_id AND m.conversation_id=c.id
                     ORDER BY julianday(json_extract(m.data,'$.timestamp')) DESC,m.rowid DESC LIMIT 1) AS last
             FROM conversations c LEFT JOIN contacts contact ON contact.tenant_id=c.tenant_id
                 AND contact.id=json_extract(c.data,'$.contact_id') WHERE ''' + ' AND '.join(where) + ') SELECT * FROM enriched'
         dates = []
+        if unread is not None:
+            expression="(last_inbound IS NOT NULL AND (json_extract(conversation,'$.queue_read_at') IS NULL OR julianday(last_inbound)>julianday(json_extract(conversation,'$.queue_read_at'))))"
+            dates.append(expression if unread else 'NOT '+expression)
         for operator, value in (('>=',from_date),('<' if to_date_exclusive else '<=',to_date)):
             if value is not None:
                 dates.append(f"julianday(json_extract(last,'$.timestamp')){operator}julianday(?)"); args.append(value.isoformat())
@@ -276,7 +283,9 @@ class Store:
         result=[]
         for row in rows:
             last=json.loads(row['last']) if row['last'] else None
-            result.append({**json.loads(row['conversation']), 'contact':json.loads(row['contact']) if row['contact'] else None,
+            conversation=json.loads(row['conversation'])
+            unread_team=bool(row['last_inbound'] and (not conversation.get('queue_read_at') or datetime.fromisoformat(row['last_inbound'])>datetime.fromisoformat(conversation['queue_read_at'])))
+            result.append({**conversation,'queue_unread':unread_team, 'contact':json.loads(row['contact']) if row['contact'] else None,
                 'last_message':last['content'][:240] if last else '', 'last_message_at':last['timestamp'] if last else None})
         return {'items':result,'next_cursor':rows[-1]['seq'] if more else None} if limit is not None else result
 
@@ -287,6 +296,7 @@ class Store:
             raise DomainError('invalid_input', 422)
         with self.transaction():
             previous = self.get(table, tenant_id, id)
+            if table=='operations_events' and previous.get('kind')=='billing_adjustment':raise DomainError('forbidden',403)
             record = {**previous, **changes}
             if self.entitlements: self.entitlements.before_update(table, tenant_id, previous, record)
             self.db.execute(f'UPDATE {table} SET data=? WHERE tenant_id=? AND id=?',

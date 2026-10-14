@@ -16,7 +16,7 @@ from typing import Literal
 from urllib.parse import urlsplit
 from fastapi import Depends, Request
 from fastapi.responses import HTMLResponse, Response, JSONResponse
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, StrictBool
 from .domain import Contract, DomainError, Incoming, Locale, Principal
 from .store import uid
 from .ux import digest
@@ -44,6 +44,7 @@ def origin(value, local=False):
 
 
 class WidgetSettings(Contract):
+    analytics_enabled:StrictBool=False
     assistant_id: str
     origins: list[str] = Field(min_length=1,max_length=5)
     color: str = Field(default='#1d4ed8',pattern=r'^#[0-9a-fA-F]{6}$')
@@ -133,6 +134,8 @@ class WidgetService:
         self.public_origin=origin(public_origin,local=bool(local_sites)) if public_origin else ''
         self.local_sites=set(local_sites)
         self.fetch_domain=fetch_domain
+        from .journey import Journey
+        self.journey=Journey(store,self.clock)
 
     def rows(self,tenant,kind): return [row for row in self.store.list('operations_events',tenant) if row.get('kind')==kind]
 
@@ -213,6 +216,7 @@ class WidgetService:
         if not payload.confirmed:raise DomainError('forbidden',403)
         draft=self.ux.draft(principal,payload.draft_id)
         if draft['status']!='published' or draft.get('published_assistant_id')!=row['assistant_id']:raise DomainError('conflict',409)
+        if any(test['verdict']!='PASS' for test in self.ux.readiness(principal,draft)['required_tests']):raise DomainError('conflict',409)
         config=draft['config']
         if draft.get('published_business_hash')!=digest({key:self.store.tenant(principal.tenant_id).get(key) for key in ('timezone','calendar_policy')}):raise DomainError('conflict',409)
         if not self.store.tenant(principal.tenant_id).get('email_verified',True):raise DomainError('verification_required',409)
@@ -247,6 +251,8 @@ class WidgetService:
                 version=self.store.get('operations_events',principal.tenant_id,payload.version_id or '')
                 if version.get('kind')!='widget_version' or version.get('integration_id')!=identity:raise DomainError('not_found',404)
                 if version['signature']!=self.signature(principal.tenant_id):raise DomainError('conflict',409)
+                draft=self.ux.draft(principal,version['draft_id'])
+                if any(test['verdict']!='PASS' for test in self.ux.readiness(principal,draft)['required_tests']):raise DomainError('conflict',409)
                 if not all(row['domains'].get(site,{}).get('state')=='verified' for site in version['settings']['origins']):raise DomainError('verification_required',409)
                 changes.update(state='published',active_version=version['id'],settings=version['settings'])
             else:changes.update(state='revoked' if action=='revoke' else 'unpublished',active_version=None)
@@ -285,7 +291,7 @@ class WidgetService:
             if version['signature']!=self.signature(row['tenant_id']):raise DomainError('conflict',409)
             identity=uid();actor=Principal(row['tenant_id'],identity,'operator','widget:'+identity)
             conversation=self.engine.conversation(actor,row['assistant_id'])
-            self.store.update('conversations',row['tenant_id'],conversation['id'],{'widget_snapshot_id':version['id'],'widget_integration_id':row['id']})
+            self.store.update('conversations',row['tenant_id'],conversation['id'],{'widget_snapshot_id':version['id'],'widget_integration_id':row['id'],'active_locale':payload.locale})
             self.store.update('conversations',row['tenant_id'],conversation['id'],{'widget_public_id':public_id})
             secret=secrets.token_urlsafe(32);expires=(self.clock()+timedelta(minutes=10)).isoformat()
             self.store.add('operations_events',row['tenant_id'],{'kind':'widget_session','integration_id':row['id'],'epoch':row['epoch'],'version_id':version['id'],
@@ -294,7 +300,8 @@ class WidgetService:
             self.store.update('operations_events',row['tenant_id'],ticket['id'],{'status':'used'})
             settings=version['settings']
             return {'session_token':secret,'expires_at':expires,'locale':payload.locale,'greeting':settings['greetings'][payload.locale],
-                'privacy_notice':settings['privacy_notices'][payload.locale],'privacy_notices':settings['privacy_notices'],'color':settings['color'],'logo_url':settings['logo_url'],
+                'privacy_notice':settings['privacy_notices'][payload.locale],'privacy_notices':settings['privacy_notices'],'color':settings['color'],'logo_url':settings['logo_url'],'analytics_enabled':settings.get('analytics_enabled',False),
+                'native_booking_enabled':settings['booking_enabled'],
                 'voice_available':False,'calendar_state':'UNAVAILABLE' if settings.get('concierge_enabled') else 'MOCK','human_online':False,'concierge_enabled':settings.get('concierge_enabled',False)}
 
     def session(self,public_id,secret):
@@ -325,9 +332,25 @@ class WidgetService:
             row,session,actor=self.session(public_id,secret)
             result=self.engine.inbound(actor,session['conversation_id'],Incoming(content=payload.content,event_id=key,locale=payload.locale))
             conversation=self.store.get('conversations',row['tenant_id'],session['conversation_id'])
+        try:self.journey.observe(row,session,{**result,'human_requested':bool(conversation.get('human_escalation'))})
+        except Exception:
+            if getattr(self.store,'operations',None):self.store.operations.observe('journey_projection',row['tenant_id'],error='projection_failed')
         return {'response':result['response'],'locale':result['locale'],'booking_status':result.get('booking_status'),
             'tool_result':(result.get('outcome') or {}).get('code'),'duplicate':result.get('duplicate',False),
             'human_requested':bool(conversation.get('human_escalation')),'human_online':False,'calendar_state':'MOCK'}
+
+    def redact_text_copies(self,tenant,conversation):
+        """Erase chat-derived traces without changing durable booking records."""
+        self.store.update('conversations',tenant,conversation,{'booking_state':None})
+        for message in self.store.list('messages',tenant,conversation):
+            self.store.update('messages',tenant,message['id'],{'content':'','attachments':[],'redacted':True})
+        for event in self.store.list('provider_events',tenant,conversation):
+            self.store.update('provider_events',tenant,event['id'],{'result':{'redacted':True}})
+        for table in ('agent_executions','tool_executions','approvals'):
+            for trace in self.store.list(table,tenant,conversation):
+                changes={'arguments':{},'outcome':{},'result':{},'handoff':{},'redacted':True}
+                if table=='approvals' and trace['status']=='pending':changes['status']='cancelled'
+                self.store.update(table,tenant,trace['id'],changes)
 
     def clear(self,public_id,secret):
         row=self.resolve(public_id,published=False,privacy=True)
@@ -336,12 +359,8 @@ class WidgetService:
         if session['status'] in ('cleared','purged'):return {'cleared':True,'appointments_deleted':False}
         actor=Principal(row['tenant_id'],session['visitor_id'],'operator','widget:'+session['visitor_id'])
         with self.store.transaction():
-            for message in self.store.list('messages',row['tenant_id'],session['conversation_id']):
-                self.store.update('messages',row['tenant_id'],message['id'],{'content':'','attachments':[],'redacted':True})
-            for event in self.store.list('provider_events',row['tenant_id'],session['conversation_id']):
-                self.store.update('provider_events',row['tenant_id'],event['id'],{'result':{'redacted':True}})
-            for approval in self.store.list('approvals',row['tenant_id'],session['conversation_id']):
-                if approval['status']=='pending':self.store.update('approvals',row['tenant_id'],approval['id'],{'status':'cancelled'})
+            self.journey.withdraw(row['tenant_id'],session['conversation_id'])
+            self.redact_text_copies(row['tenant_id'],session['conversation_id'])
             self.store.update('conversations',row['tenant_id'],session['conversation_id'],{'status':'closed'})
             self.store.update('operations_events',row['tenant_id'],session['id'],{'status':'cleared'})
             self.store.audit(actor,'widget:chat_cleared',resource_id=session['conversation_id'])
@@ -349,17 +368,13 @@ class WidgetService:
 
     def purge(self):
         """Bounded cleanup of widget text copies, not clinical/business records."""
+        self.journey.purge()
         with self.store.lock:
             rows=self.store.db.execute("SELECT data FROM operations_events WHERE json_extract(data,'$.kind')='widget_session' AND json_extract(data,'$.status')!='purged' AND json_extract(data,'$.purge_at')<=? LIMIT 100",(self.clock().isoformat(),)).fetchall()
         for item in rows:
             session=json.loads(item['data'])
             with self.store.transaction():
-                for message in self.store.list('messages',session['tenant_id'],session['conversation_id']):
-                    self.store.update('messages',session['tenant_id'],message['id'],{'content':'','attachments':[],'redacted':True})
-                for event in self.store.list('provider_events',session['tenant_id'],session['conversation_id']):
-                    self.store.update('provider_events',session['tenant_id'],event['id'],{'result':{'redacted':True}})
-                for approval in self.store.list('approvals',session['tenant_id'],session['conversation_id']):
-                    if approval['status']=='pending':self.store.update('approvals',session['tenant_id'],approval['id'],{'status':'cancelled'})
+                self.redact_text_copies(session['tenant_id'],session['conversation_id'])
                 self.store.update('conversations',session['tenant_id'],session['conversation_id'],{'status':'closed'})
                 self.store.update('operations_events',session['tenant_id'],session['id'],{'status':'purged'})
         return len(rows)
@@ -448,6 +463,25 @@ def register_widget(app,store,engine,ux,actor,*,public_origin='',local_sites=(),
 
     @app.post('/widget/messages/{public_id}')
     def message(public_id:str,payload:WidgetMessage,request:Request):return service.message(public_id,secret(request),payload)
+
+    class AnalyticsConsent(Contract):
+        allowed:StrictBool
+    @app.post('/widget/analytics-consent/{public_id}')
+    def analytics_consent(public_id:str,payload:AnalyticsConsent,request:Request):
+        with store.transaction():
+            if payload.allowed:
+                row,session,_=service.session(public_id,secret(request))
+                version=store.get('operations_events',row['tenant_id'],session['version_id'])
+                if not version['settings'].get('analytics_enabled'):raise DomainError('forbidden',403)
+            else:
+                row=service.resolve(public_id,published=False,privacy=True)
+                session=store.find('operations_events',row['tenant_id'],'widgetsession:'+sha256(secret(request).encode()).hexdigest())
+                if not session or session.get('integration_id')!=row['id'] or session.get('kind')!='widget_session':raise DomainError('unauthorized',401)
+            changed=bool(session.get('analytics_allowed'))!=payload.allowed
+            session=store.update('operations_events',row['tenant_id'],session['id'],{'analytics_allowed':payload.allowed,'analytics_revision':session.get('analytics_revision',0)+int(changed)})
+            if payload.allowed:service.journey.record(row,session,'opted_in_opened','CONSENTED_WIDGET_PRESENT')
+            else:service.journey.withdraw(row['tenant_id'],session['conversation_id'])
+        return {'allowed':payload.allowed,'retention_days_maximum':7,'raw_content_collected':False}
 
     @app.get('/widget/history/{public_id}')
     def history(public_id:str,request:Request):

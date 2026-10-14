@@ -45,6 +45,13 @@ class PrivacyService:
 
     def redact_conversation(self, principal, id):
         self.messaging.delete_content(principal, id)
+        for row in self.store.list('operations_events', principal.tenant_id, id):
+            if row.get('kind') == 'operator_note':
+                self.store.update('operations_events', principal.tenant_id, row['id'], {'content': '', 'redacted': True})
+            if row.get('kind') == 'journey_event':
+                self.store.update('operations_events', principal.tenant_id, row['id'], {'stage': None, 'redacted': True})
+            if row.get('kind') == 'quality_signal':
+                self.store.update('operations_events', principal.tenant_id, row['id'], {'category': None, 'redacted': True})
         for message in self.store.list('messages', principal.tenant_id, id):
             self.store.update('messages', principal.tenant_id, message['id'], {key: 'redacted' for key in ('sender', 'sender_id', 'recipient', 'recipient_id', 'external_id', 'external_message_id')})
         for table in ('agent_executions', 'tool_executions', 'approvals'):
@@ -86,7 +93,9 @@ class PrivacyService:
                 retained = {'billing_usage', 'billing_customers', 'billing_invoices', 'payment_events', 'subscriptions', 'subscription_items', 'audit_events', 'privacy_requests'}
                 # Explicit execution only; never called by startup or retention timers.
                 for table in reversed(TABLES):
-                    if table not in retained: self.store.db.execute(f'DELETE FROM {table} WHERE tenant_id=?', (principal.tenant_id,))
+                    if table=='operations_events':
+                        self.store.db.execute("DELETE FROM operations_events WHERE tenant_id=? AND coalesce(json_extract(data,'$.kind'),'')!='billing_adjustment'",(principal.tenant_id,))
+                    elif table not in retained:self.store.db.execute(f'DELETE FROM {table} WHERE tenant_id=?', (principal.tenant_id,))
                 tenant = self.store.tenant(principal.tenant_id)
                 self.store.update_tenant(principal.tenant_id, {'id': principal.tenant_id, 'name': 'redacted', 'onboarding_state': 'cancelled',
                     'email_verified': False, 'default_locale': tenant['default_locale'], 'timezone': tenant['timezone'], 'retention_days': tenant['retention_days'],

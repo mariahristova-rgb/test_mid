@@ -132,11 +132,11 @@ class Orchestrator:
                     response = provider.reply(incoming.content, locale, assistant['instructions'])
             else: response = None
             faq_answered = False
-            for faq in assistant.get('faq_entries', []):
-                if incoming.content.strip().casefold() in (faq['question_bg'].casefold(), faq['question_en'].casefold()):
-                    response = faq['answer_bg' if locale == 'bg-BG' else 'answer_en']
-                    faq_answered = True
-                    break
+            from .faq_index import lookup
+            matched_faq=lookup(assistant.get('faq_entries',[]),incoming.content,locale)
+            if matched_faq:
+                response=matched_faq['answer'];faq_answered=True
+                result['knowledge_provenance']={'assistant_id':assistant['id'],**matched_faq['provenance']}
             if conversation['channel'] == 'sms' and stop:
                 if not contact:
                     contact = self.store.add('contacts', principal.tenant_id, {'name': sender, 'address': sender,
@@ -264,7 +264,7 @@ class Orchestrator:
                           provider=self.providers.channels[channel].capability.provider,
                           channel=channel, external_id=uid(), sender='assistant', recipient=recipient, content=text, locale=locale,
                           timestamp=at, status='pending', direction='outbound', correlation_id=correlation,
-                          metadata={'window_open': window_open, 'correlation_id': correlation, 'agent': 'receptionist'})
+                          metadata={'window_open': window_open, 'correlation_id': correlation, 'agent': 'human' if kind=='human' else 'receptionist', 'kind':kind})
         delivery = self.providers.channels[channel].send(message)
         if self.store.entitlements and category:
             self.store.entitlements.record(principal.tenant_id, UsageEvent(resource_id=message.id, category=category, quantity=quantity,

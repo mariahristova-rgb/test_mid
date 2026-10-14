@@ -5,6 +5,7 @@ import { request, tenantId } from '../services/api';
 import { t, uiLocale, date, number } from '../services/i18n';
 import { formatMinor } from '../services/money.mjs';
 import EmptyState from '../components/EmptyState.vue';
+import UsageHistory from '../components/UsageHistory.vue';
 const route = useRoute(), router = useRouter();
 const page = computed(() => String(route.meta.page));
 const access = ref<any>({}), state = ref<any>({}), plans = ref<any[]>([]), credentials = ref<any[]>([]), tenants = ref<any[]>([]);
@@ -12,10 +13,14 @@ const busy = ref(false), error = ref(''), notice = ref(''), token = ref(''), sel
 const registration = ref({ name: '', email: '', default_locale: uiLocale.value, timezone: 'Europe/Sofia', plan_id: 'sandbox', interval: 'monthly' });
 const tenantSelection = ref(tenantId.value), credentialName = ref(''), credentialValue = ref('');
 const eventId = crypto.randomUUID();
+const adjustment=ref({invoice_id:'',amount_minor_text:'1',kind:'credit',reason:'service_issue',event_id:crypto.randomUUID(),confirmed:false});
+const targetState=ref<any>(null),targets=ref({latency_p95_ms:1500,maximum_error_basis_points:100,availability_basis_points:9950,window_days:7});
 const canConfigure = computed(() => access.value.role === 'admin');
+const cancelConfirmed=ref(false);
 const timezone = computed(() => access.value.timezone || registration.value.timezone);
 function money(value: string | number, currency: string) { return formatMinor(value, currency, uiLocale.value); }
 async function run(action: () => Promise<unknown>) {
+  if(busy.value)return;
   busy.value = true; error.value = ''; notice.value = '';
   try { await action(); } catch (e) { error.value = e instanceof Error ? e.message : t('error'); }
   finally { busy.value = false; }
@@ -28,6 +33,7 @@ async function load() {
   if (page.value === 'usage') state.value = await request('/api/usage');
   if (page.value === 'operations' && ['admin', 'operator'].includes(access.value.role)) {
     state.value = await request('/api/operations');
+    targetState.value=await request('/api/workspace/operations-targets');if(targetState.value.targets)targets.value={...targetState.value.targets};
     if (canConfigure.value) credentials.value = await request('/api/credentials');
   }
   if (page.value === 'administration') tenants.value = await request('/api/platform/tenants');
@@ -37,7 +43,7 @@ async function load() {
   registration.value.plan_id = selectedPlan.value;
 }
 onMounted(() => run(load));
-watch(page, () => { state.value = {}; void run(load); });
+watch([page,tenantId], () => { state.value = {};access.value={};credentials.value=[];tenants.value=[];targetState.value=null;adjustment.value.invoice_id='';adjustment.value.confirmed=false;void run(load); },{flush:'sync'});
 async function register() {
   const result = await request('/api/saas/register', 'POST', { ...registration.value, event_id: eventId });
   tenantId.value = result.tenant_id;
@@ -50,6 +56,8 @@ async function select(action: string) {
   await load(); notice.value = t('saved');
 }
 async function pay(id: string) { await request(`/api/billing/invoices/${id}/mock-pay`, 'POST', { confirmed: true, event_id: crypto.randomUUID() }); await load(); }
+async function adjust(){const {invoice_id,...payload}=adjustment.value;await request(`/api/billing/invoices/${invoice_id}/adjustments`,'POST',payload);await load();adjustment.value.event_id=crypto.randomUUID();adjustment.value.confirmed=false;notice.value=t('p16MockAdjustmentSaved');}
+async function saveTargets(){targetState.value=await request('/api/workspace/operations-targets','PUT',targets.value);notice.value=t('saved');}
 async function exportTenant() {
   const data = await request('/api/privacy/export');
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
@@ -82,6 +90,9 @@ async function rotateCredential() {
 </button>
 </article>
   <template v-if="page === 'onboarding'">
+    <RouterLink v-if="canConfigure" to="/progress">
+{{ t('progress') }}
+</RouterLink>
     <article>
 <h2>{{ t('registerOrganization') }}</h2><form @submit.prevent="run(register)">
 <fieldset :disabled="busy">
@@ -109,21 +120,34 @@ async function rotateCredential() {
       </template>
       <template v-else>
 <p>{{ t('emailVerified') }}</p><label>{{ t('subscriptionPlan') }}<select v-model="selectedPlan" :aria-label="t('subscriptionPlan')"><option v-for="plan in plans" :key="plan.id" :value="plan.id">{{ uiLocale === 'bg-BG' ? plan.name_bg : plan.name_en }}</option></select></label>
-        <button :disabled="busy" @click="run(() => select('trial'))">
+<div class="page-actions">
+        <button class="button-primary" :disabled="busy || state.status==='active'" @click="run(() => select('trial'))">
 {{ t('startTrial') }}
-</button><RouterLink to="/billing">
+</button><RouterLink class="button-link button-secondary" to="/billing">
 {{ t('billing') }}
-</RouterLink><RouterLink to="/assistants">
+</RouterLink><RouterLink class="button-link button-secondary" to="/assistants">
 {{ t('assistants') }}
-</RouterLink><RouterLink to="/channels">
+</RouterLink><RouterLink class="button-link button-secondary" to="/channels">
 {{ t('channels') }}
-</RouterLink><RouterLink to="/setup">
+</RouterLink><RouterLink class="button-link button-secondary" to="/setup">
 {{ t('guidedSetup') }}
 </RouterLink>
+</div>
       </template>
     </article>
   </template>
   <template v-if="page === 'billing'">
+    <article v-if="canConfigure">
+<h2>{{ t('p16InvoiceAdjustments') }}</h2><p>{{ t('p16AdjustmentNotice') }}</p><form @submit.prevent="run(adjust)">
+<fieldset :disabled="busy">
+<label>{{ t('invoices') }}<select v-model="adjustment.invoice_id" required><option value="">{{ t('none') }}</option><option v-for="invoice in (state.invoices||[]).filter((row:any)=>row.status==='paid' && row.provider==='mock')" :key="invoice.id" :value="invoice.id">{{ date(invoice.created_at,timezone) }} · {{ money(invoice.amount_minor_text,invoice.currency) }}</option></select></label><label>{{ t('p16AmountMinor') }}<input v-model="adjustment.amount_minor_text" inputmode="numeric" pattern="[1-9][0-9]{0,17}" maxlength="18" required></label><label>{{ t('p16AdjustmentKind') }}<select v-model="adjustment.kind"><option v-for="kind in ['credit','refund']" :key="kind" :value="kind">{{ t('p16Adjustment_'+kind) }}</option></select></label><label>{{ t('reason') }}<select v-model="adjustment.reason"><option v-for="reason in ['service_issue','duplicate_charge','goodwill']" :key="reason" :value="reason">{{ t('p16Reason_'+reason) }}</option></select></label><label class="check"><input v-model="adjustment.confirmed" type="checkbox" required>{{ t('p16ConfirmMockAdjustment') }}</label><button :disabled="!adjustment.confirmed || !adjustment.invoice_id">
+{{ t('save') }}
+</button>
+</fieldset>
+</form><p v-for="row in state.adjustments||[]" :key="row.id">
+{{ t('p16Adjustment_'+row.adjustment_kind) }} · {{ money(row.amount_minor_text,row.currency) }} · {{ t('p16Reason_'+row.reason) }} · {{ t('MOCK_ONLY') }}
+</p>
+</article>
     <p v-if="!canConfigure">
 {{ t('adminOnly') }}
 </p>
@@ -138,14 +162,19 @@ async function rotateCredential() {
       <label>{{ t('subscriptionPlan') }}<select v-model="selectedPlan" :aria-label="t('subscriptionPlan')"><option v-for="plan in plans" :key="plan.id" :value="plan.id">{{ uiLocale === 'bg-BG' ? plan.name_bg : plan.name_en }} · {{ money(plan.monthly_minor_text, plan.currency) }}</option></select></label>
       <label>{{ t('billingInterval') }}<select v-model="interval"><option value="monthly">{{ t('monthly') }}</option><option value="annual">{{ t('annual') }}</option></select></label>
       <div class="controls">
-<button :disabled="busy" @click="run(() => select('checkout'))">
+<button class="button-primary" :disabled="busy" @click="run(() => select(state.subscription?'change':'checkout'))">
+{{ t(state.subscription?'changePlan':'prepareCheckout') }}
+</button><button v-if="state.subscription" class="button-secondary" :disabled="busy" @click="run(() => select('checkout'))">
 {{ t('prepareCheckout') }}
-</button><button :disabled="busy" @click="run(() => select('change'))">
-{{ t('changePlan') }}
-</button><button :disabled="busy" @click="run(async () => { await request('/api/billing/cancel', 'POST', { confirmed: true }); await load(); })">
-{{ t('cancelSubscription') }}
 </button>
 </div>
+<details v-if="state.subscription">
+<summary>{{ t('cancelSubscription') }}</summary>
+<label class="check"><input v-model="cancelConfirmed" type="checkbox">{{ t('confirmSubscriptionCancel') }}</label>
+<button class="button-destructive" :disabled="busy || !cancelConfirmed" @click="run(async () => { await request('/api/billing/cancel', 'POST', { confirmed: true }); cancelConfirmed=false; await load(); })">
+{{ t('cancelSubscription') }}
+</button>
+</details>
       <p>{{ t('planChangePolicy') }}</p>
     </article>
     <article v-if="canConfigure">
@@ -154,7 +183,7 @@ async function rotateCredential() {
 <thead><tr><th>{{ t('invoiceDate') }}</th><th>{{ t('amount') }}</th><th>{{ t('status') }}</th><th>{{ t('action') }}</th></tr></thead><tbody>
       <tr v-for="invoice in state.invoices || []" :key="invoice.id">
 <td>{{ date(invoice.created_at, timezone) }}</td><td>{{ money(invoice.amount_minor_text || invoice.amount_minor, invoice.currency) }}</td><td>{{ t(invoice.status) }}</td><td>
-<button v-if="invoice.status !== 'paid'" :disabled="busy" @click="run(() => pay(invoice.id))">
+<button v-if="state.mock_payments_enabled && invoice.provider==='mock' && invoice.status !== 'paid'" :disabled="busy" @click="run(() => pay(invoice.id))">
 {{ t('simulatePayment') }}
 </button>
 </td>
@@ -177,16 +206,28 @@ async function rotateCredential() {
 </p>
       <div class="table-wrap">
 <table>
-<thead><tr><th>{{ t('usageCategory') }}</th><th>{{ t('quantity') }}</th><th>{{ t('reservedQuantity') }}</th><th>{{ t('planLimit') }}</th><th>{{ t('policy') }}</th></tr></thead><tbody>
+<thead><tr><th>{{ t('usageCategory') }}</th><th>{{ t('quantity') }}</th><th>{{ t('reservedQuantity') }}</th><th>{{ t('planLimit') }}</th><th>{{ t('remainingAllowance') }}</th><th>{{ t('policy') }}</th></tr></thead><tbody>
         <tr v-for="(value, category) in (page === 'usage' ? state : state.usage)?.usage || {}" :key="category">
-<td>{{ t(String(category)) }}</td><td>{{ number((value as any).quantity) }}</td><td>{{ number((value as any).reserved_quantity || 0) }}</td><td>{{ (value as any).limit ? number((value as any).limit.maximum) : t('notConfigured') }}</td><td>{{ t((value as any).limit?.mode || 'notConfigured') }}</td>
+<td>{{ t(String(category)) }}</td><td>{{ number((value as any).quantity) }}</td><td>{{ number((value as any).reserved_quantity || 0) }}</td><td>{{ (value as any).limit ? number((value as any).limit.maximum) : t('notConfigured') }}</td><td>{{ (value as any).limit ? number(Math.max(0,(value as any).limit.maximum-(value as any).quantity-((value as any).reserved_quantity||0))) : t('notConfigured') }}</td><td>{{ t((value as any).limit?.mode || 'notConfigured') }} · {{ t((value as any).limit?.overage_policy || 'notConfigured') }}</td>
 </tr>
       </tbody>
 </table>
 </div>
     </article>
   </template>
+  <UsageHistory v-if="page==='usage'" />
   <template v-if="page === 'operations'">
+    <article v-if="targetState">
+<h2>{{ t('p16OperationsTargets') }}</h2><p>{{ t('p16SloNotice') }}</p><p>{{ t('p16NoErrorBudget') }}</p><p v-for="(count,status) in targetState.backlog" :key="status">
+{{ t(String(status)) }}: {{ number(Number(count)) }}
+</p><p v-if="targetState.truncated">
+{{ t('p16BoundedNotice') }}
+</p><form v-if="canConfigure" @submit.prevent="run(saveTargets)">
+<fieldset :disabled="busy">
+<label>{{ t('p16LatencyTarget') }}<input v-model.number="targets.latency_p95_ms" type="number" min="50" max="120000" required></label><label>{{ t('p16ErrorTarget') }}<input v-model.number="targets.maximum_error_basis_points" type="number" min="0" max="10000" required></label><label>{{ t('p16AvailabilityTarget') }}<input v-model.number="targets.availability_basis_points" type="number" min="5000" max="10000" required></label><label>{{ t('p16WindowDays') }}<input v-model.number="targets.window_days" type="number" min="1" max="30" required></label><button>{{ t('save') }}</button>
+</fieldset>
+</form>
+</article>
     <p class="banner">
 {{ t('operationMetricsScope') }}
 </p>
@@ -210,8 +251,8 @@ async function rotateCredential() {
 </p>
 </article>
     <article v-if="canConfigure">
-<h2>{{ t('credentialManagement') }}</h2><form @submit.prevent="run(rotateCredential)">
-<label>{{ t('credentialName') }}<input v-model="credentialName" required></label><label>{{ t('credentialValue') }}<input v-model="credentialValue" type="password" minlength="16" required autocomplete="new-password"></label><button :disabled="busy">
+<h2>{{ t('credentialManagement') }}</h2><form class="credential-form" @submit.prevent="run(rotateCredential)">
+<label>{{ t('credentialName') }}<input v-model="credentialName" required></label><label>{{ t('credentialValue') }}<input v-model="credentialValue" type="password" minlength="16" required autocomplete="new-password"></label><button class="button-primary" :disabled="busy">
 {{ t('rotateCredential') }}
 </button>
 </form>
@@ -220,9 +261,11 @@ async function rotateCredential() {
 {{ t('revoke') }}
 </button>
 </p>
-      <button :disabled="busy" @click="run(exportTenant)">
+<div class="credential-export">
+      <button class="button-secondary" :disabled="busy" @click="run(exportTenant)">
 {{ t('exportTenant') }}
 </button>
+</div>
     </article>
   </template>
   <template v-if="page === 'administration'">

@@ -1,0 +1,71 @@
+version: "3.8"
+services:
+  backend:
+    image: testmid-phase15-backend:reviewed
+    environment:
+      PYTHONPATH: /app
+      ASSISTANT_ENV: staging
+      ASSISTANT_DEMO: "false"
+      ASSISTANT_DATABASE: /data/assistant.sqlite3
+      ASSISTANT_ENCRYPTION_KEY_FILE: /run/secrets/tenant-key
+      ASSISTANT_ALLOW_MOCK_BILLING: "true"
+      ASSISTANT_ENABLE_LIVE_MESSAGING: "false"
+      ASSISTANT_ENABLE_LIVE_VOICE: "false"
+      ASSISTANT_UI_ORIGIN: https://assistant-admin-staging.ontelyx.tech
+      ASSISTANT_GOOGLE_LOGIN_ENABLED: "true"
+      ASSISTANT_GOOGLE_LOGIN_GCP_PROJECT: strong-keel-468007-r7
+      ASSISTANT_GOOGLE_LOGIN_BUNDLE: secondary
+      ASSISTANT_GOOGLE_LOGIN_TENANT: phase15-public-staging
+      ASSISTANT_GOOGLE_LOGIN_REDIRECT_URI: https://assistant-admin-staging.ontelyx.tech/backend/api/auth/google/callback
+      SELF_HOSTED_VOICE_ENABLED: "false"
+      WIDGET_PUBLIC_ORIGIN: https://assistant-staging.ontelyx.tech
+      WIDGET_DEMO_SITE_ORIGINS: ""
+      WIDGET_DEMO_SITE_TARGETS: "{}"
+    volumes:
+      - ./data:/data
+      - ./secrets/tenant-key:/run/secrets/tenant-key:ro
+      - ./bootstrap.py:/bootstrap.py:ro
+      - ./approved-public-config.json:/approved-public-config.json:ro
+      - ./site:/site
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 384m
+    cpus: 0.5
+    restart: unless-stopped
+    networks: [private, edge]
+  widget:
+    image: nginxinc/nginx-unprivileged@sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3
+    environment: {NGINX_ENTRYPOINT_WORKER_PROCESSES_AUTOTUNE: "1"}
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./site:/site:ro
+    read_only: true
+    tmpfs: [/tmp]
+    mem_limit: 64m
+    cpus: 0.25
+    restart: unless-stopped
+    networks: [private]
+  tls:
+    image: caddy@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./tls-data:/data
+      - ./tls-config:/config
+    mem_limit: 64m
+    cpus: 0.25
+    restart: unless-stopped
+    networks: [private, edge]
+  frontend:
+    image: testmid-phase15-frontend:reviewed
+    read_only: true
+    tmpfs: [/tmp]
+    mem_limit: 64m
+    cpus: 0.25
+    restart: unless-stopped
+    networks: [private]
+networks:
+  private: {internal: true}
+  edge: {}

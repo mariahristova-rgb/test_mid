@@ -1,0 +1,7 @@
+# Calendly connector — bounded read scope
+
+Implemented fixtures: OAuth/PKCE, users/me identity, event-type discovery, event-type availability and scheduled-events reads. Scope matrix includes users:read, event_types:read, availability:read and scheduled_events:read. Rotated refresh material is tested. Unsupported create/reschedule/cancel fails closed; availability does not imply permission to alter event types.
+
+Official [scopes](https://developer.calendly.com/docs/authentication/scopes) now include scheduled_events:write for invitee creation/cancellation. This implementation does not claim those endpoints are complete or commercially eligible. Plan/role-dependent capabilities must be verified for an actual account before registration or write scope expansion. [Rotation guidance](https://developer.calendly.com/docs/authentication/refresh-token-rotation-guide) and [PKCE guidance](https://developer.calendly.com/docs/authentication/creating-an-oauth-app) inform the protocol.
+
+Local webhook fixture verifies HMAC over timestamp plus raw payload, a 180-second tolerance, selected synthetic resource and deduplicated receipt. It is an internal test method, not a publicly exposed webhook endpoint or production payload mapper. [Official signature specification](https://developer.calendly.com/api-docs/overview/webhooks/webhook-signatures). Source of truth remains Calendly for its events; no duplicate application booking or CRM write is triggered. Real subscription/signing-key/webhook delivery and lifecycle mapping remain external work.

@@ -292,6 +292,14 @@ class Concierge:
         self.queue_email(principal.tenant_id,conversation['id'],booking['email'],'Нова връзка за управление' if bg else 'New management link',link,'recover:'+verification_id,booking_id=booking['id'])
         return {'status':'queued'}
 
+    @staticmethod
+    def event_times_match(event,start,end):
+        try:
+            actual_start=datetime.fromisoformat(event['start']['dateTime'].replace('Z','+00:00'))
+            actual_end=datetime.fromisoformat(event['end']['dateTime'].replace('Z','+00:00'))
+            return actual_start.tzinfo is not None and actual_end.tzinfo is not None and actual_start==start and actual_end==end
+        except (KeyError,TypeError,ValueError,AttributeError):return False
+
     def create(self,principal,conversation,args,identity):
         tenant=principal.tenant_id;policy=self.ready(tenant,True);start,end=self.valid_start(policy,datetime.fromisoformat(args['starts_at']))
         self.verified(tenant,conversation['id'],args['verification_id'],args['email']);metadata=self.calendar_owner(tenant,policy)
@@ -312,6 +320,7 @@ class Concierge:
         if response.status_code not in (200,201):raise DomainError('delivery_unknown',503)
         actual=response.json()
         if actual.get('id')!=event_id or actual.get('extendedProperties',{}).get('private',{}).get('concierge_booking')!=identity or actual.get('status')!='confirmed':raise DomainError('provider_error',502)
+        if not self.event_times_match(actual,start,end):raise DomainError('delivery_unknown',503)
         return {'kind':'concierge_booking','conversation_id':conversation['id'],'assistant_ref':conversation['assistant_id'],'public_id':conversation['widget_public_id'],'event_id':event_id,'calendar_id':policy.calendar_id,
             'starts_at':start.isoformat(),'ends_at':end.isoformat(),'name':args['name'],'email':args['email'],'topic':args['topic'],'company':args.get('company',''),'locale':conversation['active_locale'],'status':'confirmed','etag':actual.get('etag'),
             'revision':1,'management_nonce':secrets.token_hex(16),'meet_url':actual.get('hangoutLink')}
@@ -337,6 +346,8 @@ class Concierge:
             if any(start<b and end>a for a,b in self.busy(tenant,policy,start.date(),exclude=booking)):raise DomainError('slot_unavailable',409)
             response=self.google.call(tenant,'calendar','PATCH',path,headers={'If-Match':etag},params={'sendUpdates':'all'},json={'start':{'dateTime':start.isoformat(),'timeZone':policy.timezone},'end':{'dateTime':end.isoformat(),'timeZone':policy.timezone}})
             if response.status_code!=200 or response.json().get('status')!='confirmed':raise DomainError('delivery_unknown',503)
+            actual=response.json()
+            if actual.get('id')!=booking['event_id'] or actual.get('extendedProperties',{}).get('private',{}).get('concierge_booking')!=booking['id'] or not self.event_times_match(actual,start,end):raise DomainError('delivery_unknown',503)
             changes={'starts_at':start.isoformat(),'ends_at':end.isoformat(),'etag':response.json().get('etag'),'revision':booking['revision']+1,'management_nonce':secrets.token_hex(16)}
         with self.store.transaction():
             changes['locale']=conversation['active_locale']
@@ -406,13 +417,18 @@ class Concierge:
                     self.store.audit(principal,'tool:'+name,correlation_id=correlation_id,resource_id=intent['id'])
                 return outcome
             except DomainError as error:
-                self.store.update('operations_events',principal.tenant_id,intent['id'],{'status':'unknown' if error.code=='delivery_unknown' else 'failed','error_code':error.code})
+                with self.store.transaction():
+                    self.store.update('operations_events',principal.tenant_id,intent['id'],{'status':'unknown' if error.code=='delivery_unknown' else 'failed','error_code':error.code})
+                    self.store.add('tool_executions',principal.tenant_id,{'conversation_id':conversation['id'],'agent':'executor','tool':name,'arguments':{},
+                        'outcome':{'status':'failed','code':error.code,'data':{'intent_id':intent['id']}},
+                        'correlation_id':correlation_id,'timestamp':self.clock().isoformat()},external_key=cachekey)
+                    self.store.audit(principal,'tool:'+name,correlation_id=correlation_id,resource_id=intent['id'],status=error.code)
                 raise
 
     def worker(self):
         self.purge_requests()
         with self.store.lock:
-            values=self.store.db.execute("SELECT data FROM jobs WHERE json_extract(data,'$.kind')='concierge_email' AND json_extract(data,'$.status')='pending' AND json_extract(data,'$.due_at')<=? ORDER BY json_extract(data,'$.due_at') LIMIT 2",(self.clock().isoformat(),)).fetchall()
+            values=self.store.db.execute("SELECT data FROM jobs WHERE json_extract(data,'$.kind')='concierge_email' AND json_extract(data,'$.status')='pending' AND julianday(json_extract(data,'$.due_at'))<=julianday(?) ORDER BY julianday(json_extract(data,'$.due_at')) LIMIT 2",(self.clock().isoformat(),)).fetchall()
         for value in values:
             job=json.loads(value['data']);tenant=job['tenant_id']
             with self.guard:lock=self.locks.setdefault('google:mariya.manolova92@gmail.com',RLock())

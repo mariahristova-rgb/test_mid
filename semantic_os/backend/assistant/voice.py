@@ -127,10 +127,14 @@ class VoiceSessionManager:
         if self.store.entitlements:
             from .saas_domain import UsageEvent
             self.store.entitlements.record(call['tenant_id'], UsageEvent(resource_id=call['id'], category='tts_characters', quantity=len(text),
-                unit='character', provider=tts.capability.provider, timestamp=self.clock(), idempotency_key='tts:' + uid()), enforce=True)
+                unit='character', provider=tts.capability.provider, timestamp=self.clock(), idempotency_key='tts:' + uid(),assistant_id=call['assistant_id'],channel='voice'), enforce=True)
         if tts.capability.provider == 'mock':
             return tts.synthesize(text, call['voice_locale'], cfg.voices[call['voice_locale']]), 'fixture_utf8'
-        return tts.synthesize(text, call['voice_locale'], cfg.voices[call['voice_locale']]), 'mulaw'
+        audio=tts.synthesize(text, call['voice_locale'], cfg.voices[call['voice_locale']])
+        if self.store.entitlements:
+            self.store.entitlements.record(call['tenant_id'],UsageEvent(resource_id=call['id'],category='tts_audio_milliseconds',quantity=(len(audio)*1000+7999)//8000,
+                unit='millisecond',provider=tts.capability.provider,timestamp=self.clock(),idempotency_key='tts-audio:'+uid(),assistant_id=call['assistant_id'],channel='voice'),enforce=False)
+        return audio, 'mulaw'
 
     @timed('stt_provider')
     def transcribe(self, call, sample, encoding, sample_rate):
@@ -149,7 +153,7 @@ class VoiceSessionManager:
         if self.store.entitlements:
             from .saas_domain import UsageEvent
             self.store.entitlements.record(call['tenant_id'], UsageEvent(resource_id=call['id'], category='stt_seconds', quantity=(len(pcm) + 31999) // 32000,
-                unit='second', provider=stt.capability.provider, timestamp=self.clock(), idempotency_key='stt:' + uid()), enforce=True)
+                unit='second', provider=stt.capability.provider, timestamp=self.clock(), idempotency_key='stt:' + uid(),assistant_id=call['assistant_id'],channel='voice'), enforce=True)
         locale=None if ('language_detection' in stt.capability.features and not call['locale_explicit'] and not call['locale_established']) else call['voice_locale']
         return stt.transcribe(pcm, locale)
 
@@ -376,6 +380,7 @@ class VoiceSessionManager:
             self.store.add('call_usage', principal.tenant_id, {'conversation_id': call['conversation_id'],
                 'call_id': call_id, 'duration_seconds': duration, 'provider': call['provider'], 'price': None}, external_key=call_id)
             self.store.add('usage_records', principal.tenant_id, {'channel': 'voice', 'call_id': call_id,
+                'assistant_id':call['assistant_id'],
                 'duration_seconds': duration, 'provider': call['provider'], 'price': None})
             self.record_event(principal, call, status, error_code)
             if getattr(self,'ari_bridge',None): self.ari_bridge.close_for_call(principal.tenant_id,call_id)

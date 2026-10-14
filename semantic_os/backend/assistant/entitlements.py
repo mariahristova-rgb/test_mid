@@ -42,6 +42,12 @@ class PlanEntitlementService:
             raise DomainError('subscription_required', 402)
 
     def period(self, at=None): return (at or self.clock()).astimezone(timezone.utc).strftime('%Y-%m')
+    def check_connector(self,tenant,provider,*,creating=False):
+        self.access(tenant);plan=self.plan(tenant)
+        if not plan:return
+        if plan.get('connector_providers') is not None and provider not in plan['connector_providers']:raise DomainError('upgrade_required',402)
+        maximum=plan.get('connector_limit')
+        if creating and maximum is not None and sum(row.get('kind')=='connector_fixture' for row in self.store.list('operations_events',tenant))>=maximum:raise DomainError('upgrade_required',402)
 
     def plan(self, tenant):
         subscription = self.subscription(tenant)
@@ -64,6 +70,18 @@ class PlanEntitlementService:
         reserved = self.reserved(tenant, category)
         if limit and limit['mode'] == 'hard' and limit['overage_policy'] == 'block' and self.quantity(tenant, category) + reserved + quantity > limit['maximum']:
             raise DomainError('upgrade_required', 402)
+
+    def check_connector(self, tenant, provider, *, creating=False):
+        """Additive connector policy on the existing subscription snapshot; no new ledger."""
+        self.access(tenant)
+        plan=self.plan(tenant)
+        if not plan:return
+        providers=plan.get('connector_providers')
+        if providers is not None and provider not in providers:raise DomainError('upgrade_required',402)
+        maximum=plan.get('connector_limit')
+        if creating and maximum is not None:
+            configured=sum(row.get('kind')=='connector_fixture' for row in self.store.list('operations_events',tenant))
+            if configured>=maximum:raise DomainError('upgrade_required',402)
 
     def remaining(self, tenant, category):
         plan = self.plan(tenant)
@@ -92,7 +110,7 @@ class PlanEntitlementService:
         if event.category not in UNITS or UNITS[event.category] != event.unit: raise DomainError('invalid_input', 422)
         if event.timestamp > self.clock(): raise DomainError('invalid_input', 422)
         key = event_key('billing_usage', event.idempotency_key)
-        payload = event.model_dump(mode='json')
+        payload = event.model_dump(mode='json',exclude_none=True)
         fingerprint = sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
         with self.store.transaction():
             existing = self.store.find('billing_usage', tenant, key)
@@ -108,12 +126,15 @@ class PlanEntitlementService:
             result = self.store.add('billing_usage', tenant, {**payload, 'fingerprint': fingerprint,
                 'billing_period': self.period(event.timestamp), 'plan_id': (plan or {}).get('id'), 'plan_version': (plan or {}).get('version'),
                 'charge_minor': charge, 'currency': (plan or {}).get('currency'), 'rate_snapshot': limit}, external_key=key)
-            total = self.quantity(tenant, event.category)
-            if limit and total * 100 >= limit['maximum'] * limit['warning_percent']:
-                warning_key = event_key('usage_warning', self.period() + ':' + event.category)
+            period=self.period(event.timestamp)
+            total = self.quantity(tenant, event.category,period)
+            thresholds=sorted(set([limit['warning_percent'],*limit.get('warning_thresholds',[])])) if limit else []
+            for threshold in thresholds:
+                if total*100 < limit['maximum']*threshold:continue
+                warning_key = event_key('usage_warning', period + ':' + event.category + ':' + str(threshold))
                 if not self.store.find('usage_warnings', tenant, warning_key):
-                    self.store.add('usage_warnings', tenant, {'category': event.category, 'code': 'usage_warning',
-                        'maximum': limit['maximum'], 'billing_period': self.period(), 'timestamp': self.clock().isoformat()}, external_key=warning_key)
+                    self.store.add('usage_warnings', tenant, {'category': event.category, 'code': 'usage_warning','threshold_percent':threshold,
+                        'maximum': limit['maximum'], 'billing_period': period, 'timestamp': self.clock().isoformat()}, external_key=warning_key)
             return result
 
     def before_add(self, table, tenant, record):
@@ -145,12 +166,13 @@ class PlanEntitlementService:
         if channel == 'voice' and 'duration_seconds' in record:
             from decimal import Decimal, ROUND_CEILING
             categories['voice_seconds'] = int(Decimal(str(record['duration_seconds'])).to_integral_value(rounding=ROUND_CEILING))
-        for category in ('llm_input_tokens', 'llm_output_tokens', 'stt_seconds', 'tts_characters'):
+        for category in ('llm_input_tokens', 'llm_output_tokens', 'stt_seconds', 'tts_characters','llm_milliseconds','tts_audio_milliseconds'):
             if isinstance(record.get(category), int): categories[category] = record[category]
         for category, quantity in categories.items():
             self.record(tenant, UsageEvent(resource_id=record.get('message_id') or record.get('call_id') or record['id'], category=category,
                 quantity=quantity, unit=UNITS[category], provider=record.get('provider', 'mock'), timestamp=datetime.fromisoformat(record['occurred_at']) if record.get('occurred_at') else self.clock(),
                 correlation_id=record.get('correlation_id', ''), idempotency_key=record['id'] + ':' + category,
+                assistant_id=record.get('assistant_id'),channel=record.get('channel'),
                 billable=False), enforce=False, plan_snapshot=record.get('plan_snapshot'))  # Observed usage is retained if an operation overran its quota.
 
     def summary(self, tenant):
@@ -160,4 +182,4 @@ class PlanEntitlementService:
                 'reserved_quantity': self.reserved(tenant, category),
                 'limit': (plan or {}).get('limits', {}).get(category)} for category in (*RESOURCES.values(), *UNITS)},
             'warnings': [w for w in self.store.list('usage_warnings', tenant) if w['billing_period'] == self.period()],
-            'llm_tokens_status': 'unreported_by_mock', 'monetary_estimate_status': 'MOCK_UNVERIFIED'}
+            'llm_tokens_status': 'reported_events_only_missing_providers_not_zero', 'monetary_estimate_status': 'UNAVAILABLE_NOT_INFERRED_FROM_TOKENS'}

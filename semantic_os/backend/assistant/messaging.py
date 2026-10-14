@@ -502,7 +502,7 @@ class MessagingGateway:
                 previous = self.store.find('provider_events', principal.tenant_id, 'human:' + conversation_id + ':' + key)
                 if previous: return previous['result']
                 result = self.orchestrator.dispatch(principal, assistant, conversation, content,
-                    conversation['active_locale'] or assistant['default_locale'], 'human:' + key)
+                      conversation['active_locale'] or assistant['default_locale'], 'human:' + key, kind='human')
                 self.store.add('provider_events', principal.tenant_id, {'result': result}, external_key='human:' + conversation_id + ':' + key)
             self.store.audit(principal, 'human:replied', resource_id=conversation_id)
             return result

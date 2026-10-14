@@ -1,5 +1,7 @@
 # Multi-channel AI Assistant foundation
 
+Phase 16: [release scope and remaining gates](docs/phase16/RELEASE_DECISION.md), [baseline and gaps](docs/phase16/BASELINE_AND_GAP_MATRIX.md). The approved local SaaS foundation passes 328 backend and 31 frontend tests. Isolated synthetic HTTPS FAQ staging and Google owner sign-in are verified; full Phase 16/pilot/production acceptance remains blocked. No Phase 16 main push or production website deployment.
+
 Independent Vue 3/FastAPI modular monolith with tenant membership, two agents, bilingual UI and conversations, validated business tools, appointments, reminders and five communication contracts. The application directory remains `semantic_os/` for checkout compatibility; no proprietary runtime is loaded.
 
 ## Dedicated local voice demo — release blocked
@@ -115,3 +117,8 @@ Tests use synthetic data and no external providers. CI repeats these checks and 
 - [Channels](docs/architecture/CHANNEL_ADAPTERS.md), [orchestration](docs/architecture/AGENT_ORCHESTRATION.md), [language and i18n](docs/architecture/LANGUAGE_AND_I18N.md)
 
 Recordings/transcripts default off. Mock audio is UTF-8 fixture data, not playable speech. Retention is an explicit tenant operation that redacts expired message bodies/attachments; full subject erasure and retention of contacts/tool/audit records require an owner policy and further implementation before processing real personal data. This foundation makes no GDPR compliance or legal IP claim. No confidential disclosure documents were incorporated, and original workspaces/data remain untouched.
+
+
+## Phase15 local product increment
+
+See [audit](docs/product/PHASE15_PRODUCT_AUDIT.md), [implementation plan](docs/product/PHASE15_IMPLEMENTATION_PLAN.md) and [release decision](docs/product/PHASE15_RELEASE_DECISION.md). Current feature-branch work adds grouped navigation and tenant-scoped operator queue/notes to the existing Inbox. Approved BG reschedule/cancel and English create/cancel passed real Google readbacks. Browser/staging/reminder gates remain open; P1 Quality Coach/outcome analytics are not implemented. No Phase15 public release is claimed.

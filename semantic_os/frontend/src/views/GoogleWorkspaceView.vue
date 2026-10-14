@@ -2,6 +2,7 @@
 import {onMounted,ref,computed} from 'vue';
 import {request} from '../services/api';
 import {t} from '../services/i18n';
+import ConnectorCatalog from '../components/ConnectorCatalog.vue';
 const access=ref<any>({}),connections=ref<any[]>([]),policy=ref<any>(null),busy=ref(false),error=ref(''),notice=ref('');
 const allowed=computed(()=>access.value.user?.role==='admin');
 const form=ref({kind:'calendar',client_id:'',client_secret:'',redirect_uri:window.location.origin+'/backend/api/google/oauth/callback',expected_account:'mariya.manolova92@gmail.com'});
@@ -23,6 +24,7 @@ onMounted(()=>void run(load));
 </p><p v-if="access.user && !allowed">
 {{ t('forbidden') }}
 </p><template v-if="allowed">
+<ConnectorCatalog />
 <article>
 <h2>{{ t('googleClient') }}</h2><form @submit.prevent="run(saveClient)">
 <fieldset :disabled="busy">

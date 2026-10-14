@@ -40,7 +40,11 @@ role="tab"
 {{ error }}
 </p>
       <template v-if="selected === 'overview'">
-<p>{{ assistant.description || t('noDescription') }}</p><p>{{ t(assistant.status) }} · {{ t(assistant.default_locale) }}</p><p>{{ t('voice_acceptance_blocked') }}</p>
+<p v-if="assistant.description">
+{{ assistant.description }}
+</p><p v-else>
+{{ t('assistantOverviewHelp') }}
+</p>
 </template>
       <template v-if="selected === 'instructions'">
 <p class="bubble">
@@ -88,9 +92,6 @@ role="tab"
 {{ t('calls') }}
 </RouterLink>
 </template>
-      <RouterLink v-if="canConfigure" class="action-link" :to="{path:'/setup',query:{assistant:assistant.id}}">
-{{ t('editDraft') }}
-</RouterLink>
     </div>
   </section>
 </template>
