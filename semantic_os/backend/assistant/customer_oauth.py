@@ -26,6 +26,8 @@ class GoogleCustomerIdentity:
             raise DomainError('unconfigured', 503)
         try:
             token = tokens['id_token']
+            if not isinstance(token, str) or len(token) > 16000:
+                raise ValueError()
             key = self.jwks.get_signing_key_from_jwt(token).key
             claims = jwt.decode(token, key, algorithms=['RS256'], audience=client_id,
                 issuer=['https://accounts.google.com', 'accounts.google.com'],
@@ -53,7 +55,7 @@ class CustomerOAuthService:
         actor.require('configure')
         if not self.http or not self.platform_secret or not self.verify_identity or not self.vault.cipher:
             raise DomainError('unconfigured', 503)
-        if provider and provider not in self.apps:
+        if provider and (provider not in self.apps or hasattr(self.verify_identity, 'supports') and not self.verify_identity.supports(provider)):
             raise DomainError('unconfigured', 503)
         if self.store.entitlements:
             self.store.entitlements.access(actor.tenant_id, recovery=recovery)
@@ -67,10 +69,13 @@ class CustomerOAuthService:
     @staticmethod
     def project(row):
         return {k: row.get(k) for k in ('id', 'provider', 'actions', 'resource_ids',
-                'state', 'revision', 'verification', 'failure_code')}
+                'state', 'revision', 'verification', 'failure_code', 'booking_enabled')}
 
     def create(self, actor, config: CustomerConnectionConfig):
         self.guard(actor, config.provider)
+        available=next(item['actions'] for item in self.catalog(actor) if item['provider']==config.provider)
+        if set(config.actions)-set(available):
+            raise DomainError('tool_denied',403)
         if config.revision != 1 or config.resource_ids:
             raise DomainError('invalid_input', 422)  # Resources must be discovered after authorization.
         with self.store.transaction():
@@ -86,6 +91,16 @@ class CustomerOAuthService:
         actor.require('configure')
         return [self.project(r) for r in self.store.list('operations_events', actor.tenant_id)
                 if r.get('kind') == 'customer_connection']
+
+    def catalog(self, actor):
+        actor.require('configure')
+        capabilities={'google':['availability','create'],'outlook':['availability'],'calendly':['availability','scheduled_events'],'hubspot':['contact_read']}
+        return [{'provider': provider, 'configured': provider in self.apps and bool(
+                    self.http and self.platform_secret and self.verify_identity and self.vault.cipher)
+                    and (not isinstance(self.verify_identity, GoogleCustomerIdentity) or provider == 'google')
+                    and (not hasattr(self.verify_identity, 'supports') or self.verify_identity.supports(provider)),
+                 'actions': capabilities[provider], 'verification': 'NOT_TESTED'}
+                for provider in PROFILES]
 
     def start(self, actor, identity, revision):
         self.guard(actor)
@@ -123,6 +138,9 @@ class CustomerOAuthService:
 
     def validate_tokens(self, row, tokens):
         scope = tokens.get('scope')
+        if row['provider'] == 'hubspot' and isinstance(tokens.get('scopes'), list) and all(isinstance(v, str) for v in tokens['scopes']):
+            scope = ' '.join(tokens['scopes'])
+            tokens = {**tokens, 'scope': scope}
         if not isinstance(scope, str) or not set(required_scopes(row['provider'], row['actions'])) <= set(scope.split()):
             raise DomainError('oauth_denied', 403)
         if not all(isinstance(tokens.get(k), str) and tokens[k] for k in ('access_token', 'refresh_token')):
@@ -140,9 +158,9 @@ class CustomerOAuthService:
             raise DomainError('oauth_denied', 403)
         return response.json()
 
-    def complete(self, actor, identity, provider, state, binding, code):
+    def complete(self, actor, identity, provider, state, binding, code, *, refused=False):
         self.guard(actor, provider)
-        if not isinstance(code, str) or not 1 <= len(code) <= 4096:
+        if not refused and (not isinstance(code, str) or not 1 <= len(code) <= 4096):
             raise DomainError('invalid_input', 422)
         with self.store.transaction():
             event = self.store.find('operations_events', actor.tenant_id,
@@ -160,15 +178,22 @@ class CustomerOAuthService:
             if self.store.entitlements:
                 self.store.entitlements.check_connector(actor.tenant_id, provider)
             self.store.update('operations_events', actor.tenant_id, event['id'], {'state': 'consumed'})
+            if refused:
+                row=self.store.update('operations_events',actor.tenant_id,identity,{'state':'reauthorization_required','revision':row['revision']+1,'failure_code':'oauth_denied','verification':'NOT_TESTED'})
+                self.store.audit(actor,'connector:customer_authorization_refused',resource_id=identity)
+                return self.project(row)
         data = {'grant_type': 'authorization_code', 'code': code, 'redirect_uri': app.redirect_uri}
         if PROFILES[provider]['pkce']:
             data['code_verifier'] = self.vault.get(actor.tenant_id, 'customer:verifier:' + event['id'], actor)
-        tokens = self.validate_tokens(row, self.exchange(row, data))
+        tokens = self.exchange(row, data)
+        if not isinstance(tokens, dict) or not all(isinstance(tokens.get(k), str) and tokens[k] for k in ('access_token', 'refresh_token')):
+            raise DomainError('oauth_denied', 403)
         # Server-injected verifier must validate signature/issuer/audience/nonce or
         # provider introspection, never trust unverified JWTs or customer identity input.
         account = self.verify_identity(provider, tokens, app.client_id, event['nonce'])
         if not isinstance(account, str) or not account or len(account) > 500:
             raise DomainError('oauth_account_mismatch', 403)
+        tokens = self.validate_tokens(row, tokens)
         with self.store.transaction():
             if self.row(actor, identity) != row:
                 raise DomainError('conflict', 409)
@@ -198,7 +223,11 @@ class CustomerOAuthService:
         # the same grant. A crashed refresh requires explicit reauthorization.
         try:
             fresh = self.exchange(row, {'grant_type': 'refresh_token', 'refresh_token': tokens['refresh_token']})
-            updated = self.validate_tokens(row, {**tokens, **fresh})
+            updated={**tokens,**fresh}
+            if hasattr(self.verify_identity,'refresh'):
+                account=self.vault.get(actor.tenant_id,'customer:account:'+identity,actor)
+                self.verify_identity.refresh(row['provider'],updated,self.apps[row['provider']].client_id,account)
+            updated = self.validate_tokens(row, updated)
         except Exception:
             with self.store.transaction():
                 current = self.row(actor, identity)
@@ -216,20 +245,24 @@ class CustomerOAuthService:
         return updated['access_token']
 
     def disconnect(self, actor, identity, revision):
-        self.guard(actor, recovery=True)
+        actor.require('configure')
+        if self.store.entitlements:
+            self.store.entitlements.access(actor.tenant_id, recovery=True)
         with self.store.transaction():
             row = self.row(actor, identity)
             if row['revision'] != revision:
                 raise DomainError('conflict', 409)
-            self.vault.put(actor.tenant_id, 'customer:tokens:' + identity, '{}', actor)
-            self.vault.put(actor.tenant_id, 'customer:account:' + identity, '', actor)
+            for name in ('customer:tokens:'+identity,'customer:account:'+identity,'customer:resources:'+identity):
+                secret=self.store.find('secrets',actor.tenant_id,name)
+                if secret:
+                    self.vault.revoke(actor,secret['id'])
             row = self.store.update('operations_events', actor.tenant_id, identity, {
                 'state': 'disconnected', 'revision': revision + 1, 'refresh_claim': None,
-                'verification': 'NOT_TESTED'})
+                'verification': 'NOT_TESTED', 'booking_enabled': False})
             self.store.audit(actor, 'connector:customer_disconnected', resource_id=identity)
         return self.project(row)
 
-    def callback(self, provider, state, code, binding):
+    def callback(self, provider, state, code, binding, *, refused=False):
         # Opaque state is the only global lookup. No tenant/subject is accepted from
         # the browser; recover the existing membership and recheck configure rights.
         rows = self.store.db.execute(
@@ -239,12 +272,26 @@ class CustomerOAuthService:
             raise DomainError('unauthorized', 401)
         event = json.loads(rows[0]['data'])
         actor = self.store.principal(event['subject'], event['tenant_id'])
-        return self.complete(actor, event['connection_id'], provider, state, binding, code)
+        return self.complete(actor, event['connection_id'], provider, state, binding, code, refused=refused)
 
     def resources(self, actor, identity):
-        from .connector_adapters import ProviderAdapter
+        from .connector_adapters import ProviderAdapter,ProductionProviderAdapter,ProductionProviderHTTP
         row = self.row(actor, identity)
+        if isinstance(self.http,ProductionProviderHTTP):
+            found=ProductionProviderAdapter(row['provider'],self.http).resources(self.token(actor,identity),account_id=self.vault.get(actor.tenant_id,'customer:account:'+identity,actor))
+            mapping={'resource_'+sha256((identity+'|'+item['id']).encode()).hexdigest()[:32]:item for item in found}
+            self.vault.put(actor.tenant_id,'customer:resources:'+identity,json.dumps(mapping),actor)
+            return [{'id':reference,'writable':item['writable'],'ordinal':index+1,'primary':item.get('primary',False)} for index,(reference,item) in enumerate(mapping.items())]
         return ProviderAdapter(row['provider'], self.http).resources(self.token(actor, identity))
+
+    def resolve_resource(self, actor, row, reference):
+        from .connector_adapters import ProductionProviderHTTP
+        if not isinstance(self.http,ProductionProviderHTTP):
+            return reference
+        mapping=json.loads(self.vault.get(actor.tenant_id,'customer:resources:'+row['id'],actor))
+        if reference not in mapping:
+            raise DomainError('forbidden',403)
+        return mapping[reference]['id']
 
     def select_resources(self, actor, identity, revision, resources):
         from .connector_adapters import OfflineProviderHTTP
@@ -279,6 +326,10 @@ def register_customer_oauth(app, service, actor):
     class ResourceSelection(Revision):
         resource_ids: list[str] = Field(min_length=1, max_length=8)
 
+    @app.get('/api/customer-connectors')
+    def catalog(principal: Principal = Depends(actor)):
+        return service.catalog(principal)
+
     @app.get('/api/customer-connectors/connections')
     def connections(principal: Principal = Depends(actor)):
         return service.list(principal)
@@ -297,15 +348,26 @@ def register_customer_oauth(app, service, actor):
         return {'authorization_url': started['authorization_url'], 'revision': started['revision']}
 
     @app.get('/api/connectors/oauth/{provider}/callback')
-    def callback(provider: str, state: str, code: str, request: Request, response: Response):
-        if provider not in PROFILES or len(state) > 200 or len(code) > 4096:
+    def callback(provider: str, state: str, request: Request, code: str | None = None, error: str | None = None):
+        from fastapi.responses import RedirectResponse
+        from urllib.parse import urlsplit
+        if provider not in PROFILES or provider not in service.apps or len(state) > 200 or code and len(code) > 4096:
             raise DomainError('invalid_input', 422)
-        result = service.callback(provider, state, code, request.cookies.get('customer-oauth-' + provider, ''))
+        if error:
+            # Refusal never installs a grant. A fresh authorization can replace the
+            # pending revision; no provider error text or OAuth material is echoed.
+            service.callback(provider,state,None,request.cookies.get('customer-oauth-' + provider,''),refused=True)
+            outcome = 'denied'
+        else:
+            service.callback(provider, state, code, request.cookies.get('customer-oauth-' + provider, ''))
+            outcome = 'connected'
+        origin = urlsplit(service.apps[provider].redirect_uri)
+        response = RedirectResponse(origin.scheme+'://'+origin.netloc+'/integrations?connection='+outcome, status_code=303)
         response.delete_cookie('customer-oauth-' + provider,
                                path='/backend/api/connectors/oauth/' + provider + '/callback', secure=True, httponly=True)
         response.headers['Cache-Control'] = 'no-store'
         response.headers['Referrer-Policy'] = 'no-referrer'
-        return result
+        return response
 
     @app.post('/api/customer-connectors/connections/{identity}/disconnect')
     def disconnect(identity: str, payload: Revision, principal: Principal = Depends(actor)):

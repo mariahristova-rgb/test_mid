@@ -49,10 +49,46 @@ class OfflineProviderHTTP:
         if response.status_code==412:raise DomainError('stale_event',409)
         if response.status_code>=500:raise DomainError('delivery_unknown' if method in ('POST','PATCH','DELETE') else 'provider_error',502)
         if response.status_code not in (200,201,204,404,409):raise DomainError('provider_error',502)
+        if response.status_code != 204:
+            try:
+                if not isinstance(response.json(),dict):raise ValueError()
+            except (ValueError,TypeError):
+                raise DomainError('delivery_unknown' if method in ('POST','PATCH','DELETE') else 'provider_error',502) from None
         return response
 
+class ProductionProviderHTTP(OfflineProviderHTTP):
+    """Explicit server-side activation, fixed provider egress and bounded HTTP.
+
+    No transport is opened until request(); construction requires the operator's
+    reviewed activation flag. An injected MockTransport supports contract tests.
+    """
+    def __init__(self, providers, *, approved=False, transport=None):
+        if approved is not True or not providers or set(providers)-set(PROFILES):
+            raise DomainError('unconfigured',503)
+        self.providers=set(providers)
+        self.transport=transport
+
+    def request(self,method,url,**kwargs):
+        from urllib.parse import urlsplit,unquote
+        parsed=urlsplit(url)
+        if parsed.scheme!='https' or parsed.username or parsed.password or parsed.fragment or parsed.query or '..' in unquote(parsed.path).split('/') or parsed.port not in (None,443):
+            raise DomainError('forbidden',403)
+        if method not in ('GET','POST','PATCH','DELETE'):
+            raise DomainError('forbidden',403)
+        permitted=False
+        for provider in self.providers:
+            profile=PROFILES[provider]
+            if url in (profile['token'],profile['identity'][1]) or url.startswith(profile['base']):
+                permitted=True
+        if not permitted:
+            raise DomainError('forbidden',403)
+        # Do not accept callers' alternate transport, timeout, redirect or TLS policy.
+        if set(kwargs)-{'headers','params','data','json'}:
+            raise DomainError('forbidden',403)
+        return super().request(method,url,**kwargs)
+
 class ProviderAdapter:
-    def __init__(self,provider,http):self.provider,self.http=provider,http
+    def __init__(self,provider,http,*,synthetic_only=True):self.provider,self.http,self.synthetic_only=provider,http,synthetic_only
     def call(self,token,method,path,**kwargs):
         return self.http.request(method,PROFILES[self.provider]['base']+path,headers={'Authorization':'Bearer '+token,**kwargs.pop('headers',{})},**kwargs)
     def resources(self,token):
@@ -111,7 +147,7 @@ class ProviderAdapter:
             if set(properties)-{'email','firstname','lastname','company'}:raise DomainError('invalid_input',422)
             if action=='contact_read':response=self.call(token,'GET','crm/v3/objects/contacts/'+identity)
             else:
-                if not properties.get('email','').endswith('@example.invalid'):raise DomainError('invalid_input',422)
+                if not isinstance(properties.get('email'), str) or '@' not in properties['email'] or len(properties['email']) > 254 or '\n' in properties['email'] or '\r' in properties['email'] or self.synthetic_only and not properties['email'].endswith('@example.invalid'):raise DomainError('invalid_input',422)
                 # Explicit unique email lookup avoids partial-upsert semantics and duplicate creates.
                 existing=self.call(token,'GET','crm/v3/objects/contacts/'+quote(properties['email'],safe=''),params={'idProperty':'email'})
                 if existing.status_code==200:
@@ -120,7 +156,7 @@ class ProviderAdapter:
                 else:raise DomainError('conflict',409)
         if response.status_code in (404,409):raise DomainError('conflict',409)
         data=response.json() if response.content else {}
-        result={'provider_id':str(data.get('id','')),'status':'SIMULATED'}
+        result={'provider_id':str(data.get('id','')),'status':'SIMULATED' if self.synthetic_only else 'PROVIDER_ACCEPTED_UNVERIFIED'}
         if action=='availability':
             if self.provider=='google':
                 calendar=data.get('calendars',{}).get(resource)
@@ -132,6 +168,61 @@ class ProviderAdapter:
                 result['available']=all(not any(event.get('status')!='free' for event in item['scheduleItems']) for item in schedules)
             else:result['available']=bool(data.get('collection'))
         return result
+
+class ProductionProviderAdapter(ProviderAdapter):
+    """Capability-limited real codecs, separate from synthetic-only fixture policy."""
+    def __init__(self,provider,http):
+        super().__init__(provider,http,synthetic_only=False)
+
+    def resources(self,token,*,account_id=None):
+        if self.provider=='google':
+            response=self.call(token,'GET','users/me/calendarList')
+            data=response.json()
+            if response.status_code!=200 or data.get('nextPageToken'):
+                raise DomainError('provider_error',502)
+            return [{'id':item['id'],'writable':item.get('accessRole')=='owner','primary':item.get('primary') is True} for item in data.get('items',[]) if isinstance(item.get('id'),str)]
+        if self.provider=='calendly':
+            if not account_id or not account_id.startswith('https://api.calendly.com/users/'):
+                raise DomainError('forbidden',403)
+            response=self.call(token,'GET','event_types',params={'user':account_id})
+            if response.status_code!=200 or response.json().get('pagination',{}).get('next_page_token'):
+                raise DomainError('provider_error',502)
+            return [{'id':item['uri'],'writable':False} for item in response.json().get('collection',[])
+                    if isinstance(item.get('uri'),str) and item['uri'].startswith('https://api.calendly.com/event_types/')]
+        if self.provider=='hubspot':
+            if not account_id or not account_id.isdigit():
+                raise DomainError('forbidden',403)
+            response=self.call(token,'GET','crm/v3/properties/contacts')
+            if response.status_code!=200:
+                raise DomainError('provider_error',502)
+            return [{'id':'hubspot:'+account_id,'writable':True}]
+        return super().resources(token)
+
+    def execute(self,token,action,resource,args,key,*,account_type='work',owned=False,consent=False):
+        if self.provider=='outlook' and action=='availability':
+            if account_type not in ('work','personal'):
+                raise DomainError('forbidden',403)  # Shared-resource scopes are not assumed.
+            try:
+                start=datetime.fromisoformat(args['start']);end=datetime.fromisoformat(args['end'])
+                if start.tzinfo is None or end.tzinfo is None or end<=start:
+                    raise ValueError()
+            except (TypeError,ValueError,KeyError):
+                raise DomainError('invalid_input',422) from None
+            response=self.call(token,'GET','me/calendars/'+quote(resource,safe='')+'/calendarView',
+                params={'startDateTime':start.isoformat(),'endDateTime':end.isoformat(),'$select':'showAs,isAllDay,start,end','$top':1000},
+                headers={'Prefer':'outlook.timezone="UTC"'})
+            data=response.json()
+            if response.status_code!=200 or not isinstance(data.get('value'),list) or data.get('@odata.nextLink'):
+                raise DomainError('provider_error',502)  # Incomplete pagination cannot claim a free slot.
+            return {'provider_id':'','status':'PROVIDER_ACCEPTED_UNVERIFIED',
+                    'available':all(item.get('showAs')=='free' for item in data['value'])}
+        if self.provider=='calendly' and action=='scheduled_events':
+            # The verified account is a server-side binding, not an arbitrary
+            # caller-provided URL. Public action registration remains gated.
+            if not resource.startswith('https://api.calendly.com/users/'):
+                raise DomainError('forbidden',403)
+        return super().execute(token,action,resource,args,key,account_type=account_type,owned=owned,consent=consent)
+
 
 def calendly_signature(raw,header,secret,at):
     try:

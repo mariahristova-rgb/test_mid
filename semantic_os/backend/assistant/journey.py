@@ -35,7 +35,7 @@ class Journey:
             tool=receipt.get('tool')
             scope='CONNECTED_PROVIDER_RECEIPT' if tool and tool.startswith('Concierge') else 'MOCK_TOOL_RECEIPT'
             if tool in ('CheckAvailability','ConciergeAvailability'):self.record(row,session,'availability_checked',scope)
-            if tool in ('CreateAppointment','ConciergeBooking'):self.record(row,session,'calendar_created',scope)
+            if tool in ('CreateAppointment','ConciergeBooking') and outcome.get('data',{}).get('status')=='confirmed':self.record(row,session,'calendar_created',scope)
             if tool=='ConciergeRequest':self.record(row,session,'inquiry_recorded',scope)
     def purge(self):
         with self.store.transaction():

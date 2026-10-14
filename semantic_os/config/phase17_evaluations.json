@@ -1,5 +1,5 @@
 {
-  "version": "1.9.0",
+  "version": "1.10.0",
   "scope": "OFFLINE_CONTRACT_ONLY",
   "cases": [
     {
@@ -346,6 +346,56 @@
       "id": "customer-oauth-entitlements",
       "category": "security",
       "test": "test_customer_oauth.CustomerOAuthTests.test_customer_connections_share_existing_plan_limit"
+    },
+    {
+      "id": "customer-booking-bg",
+      "category": "locale",
+      "test": "test_customer_booking.CustomerBookingTests.test_bulgarian_two_agent_confirmation_queue_and_provider_booking"
+    },
+    {
+      "id": "customer-booking-en-recovery",
+      "category": "recovery",
+      "test": "test_customer_booking.CustomerBookingTests.test_english_unknown_write_reconciles_without_second_post"
+    },
+    {
+      "id": "customer-booking-disconnect",
+      "category": "consent",
+      "test": "test_customer_booking.CustomerBookingTests.test_disconnect_before_worker_prevents_provider_write"
+    },
+    {
+      "id": "customer-booking-closed-day",
+      "category": "tool",
+      "test": "test_customer_booking.CustomerBookingTests.test_closed_day_never_uses_fixture_slots_as_provider_success"
+    },
+    {
+      "id": "customer-booking-policy",
+      "category": "security",
+      "test": "test_customer_booking.CustomerBookingTests.test_explicit_activation_snapshots_policy_and_refuses_missing_consent"
+    },
+    {
+      "id": "customer-booking-dst",
+      "category": "locale",
+      "test": "test_customer_booking.CustomerBookingTests.test_dst_day_skips_ambiguous_wall_times_without_hiding_valid_slots"
+    },
+    {
+      "id": "provider-outlook-identity",
+      "category": "security",
+      "test": "test_provider_identity.ProviderIdentityTests.test_outlook_signature_nonce_audience_and_tenant_policy"
+    },
+    {
+      "id": "provider-hubspot-identity",
+      "category": "security",
+      "test": "test_provider_identity.ProviderIdentityTests.test_hubspot_active_client_bound_account_and_scopes"
+    },
+    {
+      "id": "provider-refresh-account",
+      "category": "security",
+      "test": "test_provider_identity.ProviderIdentityTests.test_refresh_identity_cannot_change_bound_account"
+    },
+    {
+      "id": "customer-booking-malformed-receipt",
+      "category": "recovery",
+      "test": "test_customer_booking.CustomerBookingTests.test_malformed_write_receipt_stays_uncertain_and_reconciles_without_replay"
     }
   ],
   "unverified_layers": [

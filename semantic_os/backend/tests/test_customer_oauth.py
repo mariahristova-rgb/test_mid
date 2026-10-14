@@ -64,7 +64,7 @@ class CustomerOAuthTests(unittest.TestCase):
         self.hook=lambda:self.service.disconnect(self.actor,row['id'],connected['revision'])
         with self.assertRaises(DomainError):self.service.token(self.actor,row['id'])
         self.assertEqual(self.service.row(self.actor,row['id'])['state'],'disconnected')
-        self.assertEqual(self.vault.get('demo','customer:tokens:'+row['id'],self.actor),'{}')
+        with self.assertRaises(DomainError):self.vault.get('demo','customer:tokens:'+row['id'],self.actor)
     def test_refresh_claim_and_scope_downgrade(self):
         row,start=self.begin();self.finish(row,start);self.now+=timedelta(minutes=3)
         self.hook=lambda:self.assertRaises(DomainError,self.service.token,self.actor,row['id'])
@@ -149,7 +149,43 @@ class CustomerOAuthTests(unittest.TestCase):
         # Direct app is mounted without /backend in ASGI tests; send the cookie to
         # its declared browser callback path explicitly, as a mounted deployment does.
         callback='/api/connectors/oauth/google/callback'
-        result=client.get(callback,params={'state':query['state'][0],'code':'synthetic-code'},headers={'Cookie':'customer-oauth-google='+cookie_value})
-        self.assertEqual(result.status_code,200);self.assertEqual(result.headers['cache-control'],'no-store')
-        self.assertNotIn('synthetic-access',result.text);self.assertEqual(result.json()['state'],'connected_unverified')
+        result=client.get(callback,params={'state':query['state'][0],'code':'synthetic-code'},headers={'Cookie':'customer-oauth-google='+cookie_value},follow_redirects=False)
+        self.assertEqual(result.status_code,303);self.assertEqual(result.headers['cache-control'],'no-store')
+        self.assertNotIn('synthetic-access',result.text);self.assertEqual(result.headers['location'],'https://staging.example.invalid/integrations?connection=connected');self.assertEqual(app.state.customer_oauth.row(self.actor,row['id'])['state'],'connected_unverified')
         self.assertEqual(client.get(callback,params={'state':query['state'][0],'code':'synthetic-code'},headers={'Cookie':'customer-oauth-google='+cookie_value}).status_code,401)
+
+    def test_production_transport_requires_activation_and_refuses_arbitrary_egress(self):
+        from semantic_os.backend.assistant.connector_adapters import ProductionProviderHTTP
+        from unittest.mock import patch
+        import httpx
+        with self.assertRaises(DomainError):ProductionProviderHTTP(['google'])
+        http=ProductionProviderHTTP(['google'],approved=True,transport=httpx.MockTransport(lambda request:httpx.Response(200,json={})))
+        with patch('httpx.Client',side_effect=AssertionError('forbidden request reached transport')):
+            for url in ['http://www.googleapis.com/calendar/v3/freeBusy','https://attacker.example/','https://www.googleapis.com.attacker.example/calendar/v3/freeBusy','https://www.googleapis.com:8443/calendar/v3/freeBusy','https://user:password@www.googleapis.com/calendar/v3/freeBusy']:
+                with self.assertRaises(DomainError):http.request('GET',url)
+            with self.assertRaises(DomainError):http.request('GET','https://www.googleapis.com/calendar/v3/freeBusy',verify=False)
+        self.assertEqual(http.request('POST','https://www.googleapis.com/calendar/v3/freeBusy',json={}).status_code,200)
+    def test_catalog_contains_no_platform_credentials_and_marks_unconfigured_providers(self):
+        import json
+        catalog=self.service.catalog(self.actor)
+        self.assertTrue(next(x for x in catalog if x['provider']=='google')['configured'])
+        self.assertFalse(next(x for x in catalog if x['provider']=='outlook')['configured'])
+        self.assertNotIn('synthetic-client',json.dumps(catalog));self.assertNotIn('secret_reference',json.dumps(catalog))
+
+    def test_consent_refusal_is_bound_consumed_and_never_exchanges_tokens(self):
+        row,start=self.begin()
+        with self.assertRaises(DomainError):self.service.callback('google',start['state'],None,'forged',refused=True)
+        result=self.service.callback('google',start['state'],None,start['binding'],refused=True)
+        self.assertEqual(result['state'],'reauthorization_required');self.assertEqual(self.calls,[])
+        with self.assertRaises(DomainError):self.finish(row,start)
+
+    def test_production_resources_are_opaque_and_privately_resolved(self):
+        from semantic_os.backend.assistant.connector_adapters import ProductionProviderHTTP
+        import httpx,json
+        row,start=self.begin();connected=self.finish(row,start)
+        self.service.http=ProductionProviderHTTP(['google'],approved=True,transport=httpx.MockTransport(lambda request:httpx.Response(200,json={'items':[{'id':'synthetic-owner@example.invalid','accessRole':'owner','primary':True}]})))
+        resources=self.service.resources(self.actor,row['id']);self.assertTrue(resources[0]['primary'])
+        self.assertNotIn('@example.invalid',json.dumps(resources))
+        selected=self.service.select_resources(self.actor,row['id'],connected['revision'],[resources[0]['id']])
+        self.assertNotIn('@example.invalid',json.dumps(selected))
+        self.assertEqual(self.service.resolve_resource(self.actor,self.service.row(self.actor,row['id']),resources[0]['id']),'synthetic-owner@example.invalid')

@@ -37,7 +37,7 @@ class ToolRegistry:
         return [{'name': name, 'description_key': name, 'input_schema': schema.model_json_schema(),
                  'output_schema': ToolOutcome.model_json_schema(), 'timeout_seconds': 90 if name in self.extensions else 5,
                  'confirmation_policy': 'none' if name in ('CheckAvailability','ConciergeAvailability') else 'explicit',
-                 'idempotency': 'tenant_conversation_action', 'state': 'LIVE_UNVERIFIED' if name in self.extensions else 'MOCK'} for name, schema in SCHEMAS.items()]
+                 'idempotency': 'tenant_conversation_action', 'state': getattr(self.extensions.get(name), 'state', 'LIVE_UNVERIFIED') if name in self.extensions else 'MOCK'} for name, schema in SCHEMAS.items()]
 
     def validate(self, name, arguments):
         if name not in SCHEMAS:
@@ -63,7 +63,7 @@ class ToolRegistry:
         if name != 'CheckAvailability' and not approved:
             if name=='ConciergeAvailability':pass
             else:raise DomainError('forbidden', 403)
-        if name in self.extensions:
+        if name in self.extensions and (not hasattr(self.extensions[name], 'supports') or self.extensions[name].supports(principal.tenant_id)):
             return self.extensions[name].execute(principal,assistant,conversation,name,args,key=key,correlation_id=correlation_id,approved=approved)
         if name.startswith('Concierge'):
             raise DomainError('unconfigured',503)
@@ -106,7 +106,7 @@ class ToolRegistry:
                 raise DomainError('invalid_input', 422)
             if name == 'RescheduleAppointment':
                 original = self.store.get('appointments', tenant_id, args['appointment_id'])
-                if original.get('provider')=='google':raise DomainError('tool_denied',403)
+                if original.get('provider') in ('google','customer_google'):raise DomainError('tool_denied',403)
                 if original['status'] == 'cancelled':
                     raise DomainError('conflict', 409)
             free = self.available(tenant_id, args['starts_at'], args['duration_minutes'], args.get('appointment_id'))
@@ -136,7 +136,7 @@ class ToolRegistry:
                 self.store.add('jobs', tenant_id, {'appointment_id': data['id'], 'conversation_id': conversation['id'],
                                'due_at': due_at, 'status': 'pending', 'attempts': 0, 'kind': 'appointment_reminder'}, external_key=job_key)
         elif name == 'CancelAppointment':
-            if self.store.get('appointments',tenant_id,args['appointment_id']).get('provider')=='google':raise DomainError('tool_denied',403)
+            if self.store.get('appointments',tenant_id,args['appointment_id']).get('provider') in ('google','customer_google'):raise DomainError('tool_denied',403)
             data = self.providers.calendar.cancel(tenant_id, args['appointment_id'])
             if self.messaging: self.messaging.cancel_obsolete(tenant_id, args['appointment_id'])
             code = 'appointment_cancelled'
