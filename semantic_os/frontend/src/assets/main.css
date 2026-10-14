@@ -72,8 +72,9 @@ form:has(input[type=password]) button { justify-self:start; }
 @media(max-width:390px) { .page-actions > * { width:100%; } }
 .integration-row { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:16px 0; border-bottom:1px solid #e2e8f0; }
 .integration-row h3,.integration-row p { margin:0 0 6px; }
-.integration-row .action-link { flex-shrink:0; margin:0; }
-@media(max-width:390px) { .integration-row { align-items:flex-start; flex-direction:column; gap:8px; } }
+.integration-row .action-link, .integration-row > button { flex-shrink:0; margin:0; }
+.integration-row > div { min-width:0; }
+@media(max-width:640px) { .integration-row { align-items:flex-start; flex-direction:column; gap:8px; } }
 form,label { min-width:0; }
 input,select,textarea { max-width:100%; }
 main a { overflow-wrap:anywhere; }

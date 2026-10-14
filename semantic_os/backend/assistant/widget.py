@@ -336,8 +336,8 @@ class WidgetService:
         except Exception:
             if getattr(self.store,'operations',None):self.store.operations.observe('journey_projection',row['tenant_id'],error='projection_failed')
         return {'response':result['response'],'locale':result['locale'],'booking_status':result.get('booking_status'),
-            'tool_result':(result.get('outcome') or {}).get('code'),'duplicate':result.get('duplicate',False),
-            'human_requested':bool(conversation.get('human_escalation')),'human_online':False,'calendar_state':'MOCK'}
+            'tool_result':(result.get('outcome') or {}).get('code'),'booking_reference':(result.get('outcome') or {}).get('data',{}).get('id') if (result.get('outcome') or {}).get('code')=='appointment_pending' else None,'duplicate':result.get('duplicate',False),
+            'human_requested':bool(conversation.get('human_escalation')),'human_online':False,'calendar_state':(result.get('outcome') or {}).get('data',{}).get('state','MOCK')}
 
     def redact_text_copies(self,tenant,conversation):
         """Erase chat-derived traces without changing durable booking records."""
@@ -487,7 +487,7 @@ def register_widget(app,store,engine,ux,actor,*,public_origin='',local_sites=(),
     def history(public_id:str,request:Request):
         if request.headers.get('origin','') not in ('',public_origin):raise DomainError('forbidden',403)
         row,session,_=service.session(public_id,secret(request))
-        return {'messages':[{**{key:item.get(key) for key in ('id','content','direction','locale','timestamp')},'from_human':bool(item.get('metadata',{}).get('kind')=='human' or str(item.get('correlation_id') or item.get('metadata',{}).get('correlation_id','')).startswith('human:'))} for item in store.list('messages',row['tenant_id'],session['conversation_id'])[-50:]],'human_requested':bool(store.get('conversations',row['tenant_id'],session['conversation_id']).get('human_escalation')),'human_online':False}
+        return {'messages':[{**{key:item.get(key) for key in ('id','content','direction','locale','timestamp')},'booking_reference':item.get('metadata',{}).get('appointment_id') if item.get('metadata',{}).get('kind') in ('customer_booking_confirmation','customer_booking_notice') else None,'booking_final':item.get('metadata',{}).get('kind')=='customer_booking_confirmation' or item.get('metadata',{}).get('final') is True,'from_human':bool(item.get('metadata',{}).get('kind')=='human' or str(item.get('correlation_id') or item.get('metadata',{}).get('correlation_id','')).startswith('human:'))} for item in store.list('messages',row['tenant_id'],session['conversation_id'])[-50:]],'human_requested':bool(store.get('conversations',row['tenant_id'],session['conversation_id']).get('human_escalation')),'human_online':False}
 
     @app.post('/widget/clear/{public_id}')
     def clear(public_id:str,payload:WidgetAction,request:Request):

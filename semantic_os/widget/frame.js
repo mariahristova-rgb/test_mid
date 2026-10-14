@@ -8,10 +8,12 @@ let locale = initial === 'bg-BG' ? 'bg-BG' : 'en-US', token = '', privacyToken =
 const translated = key => labels[locale][key];
 let privacyNotices = {};
 let concierge=null;
+let pendingBookingReference='',bookingDeadline=0;
 const seenHuman = new Set();
 async function refreshHuman() {
-  if (!token || !human || busy || document.hidden || !navigator.onLine) return;
-  try { const history = await api('history'); for (const message of history.messages) { if (message.from_human && !seenHuman.has(message.id)) { seenHuman.add(message.id); bubble(message.content, 'assistant'); } } }
+  if (!token || (!human && !pendingBookingReference) || busy || document.hidden || !navigator.onLine) return;
+  if(pendingBookingReference && Date.now()>bookingDeadline){pendingBookingReference='';byId('error').textContent=translated('failed');if(!human)return;}
+  try { const history = await api('history'); for (const message of history.messages) { if ((message.from_human || pendingBookingReference && message.booking_reference===pendingBookingReference) && !seenHuman.has(message.id)) { seenHuman.add(message.id); bubble(message.content, 'assistant'); if(message.booking_reference===pendingBookingReference && message.booking_final!==false)pendingBookingReference=''; } } }
   catch (error) { if (error.status === 401 || error.status === 403) {token='';restart();controls();} }
 }
 setInterval(() => void refreshHuman(), 5000);
@@ -65,7 +67,8 @@ async function send(retry = false, override) {
   }
   busy = true; byId('error').textContent = ''; state('sending'); controls();
   try {
-    const result = await api('messages', pending); pending = null; bubble(result.response, 'assistant');
+    const result = await api('messages', pending); pending = null;
+    if(result.tool_result==='appointment_pending' && result.booking_reference){pendingBookingReference=result.booking_reference;bookingDeadline=Date.now()+300000;} bubble(result.response, 'assistant');
     if(['bg-BG','en-US'].includes(result.locale)) language(result.locale);
     human = result.human_requested; byId('confirm').hidden = result.booking_status !== 'awaiting_confirmation'; byId('retry').hidden = true; state(human ? 'handoff' : 'ready');
   } catch (error) { const expired=error.status === 401 || error.status === 403; byId('error').textContent = translated(expired ? 'expired' : 'failed'); byId('retry').hidden = expired; if (expired) {token = '';restart();} }
@@ -92,7 +95,7 @@ byId('analytics-consent').addEventListener('change',async()=>{
 byId('clear').addEventListener('click', async () => {
   if (!byId('clear-confirm').checked) { byId('error').textContent = translated('consent'); return; }
   if (busy || !privacyToken) return; busy = true; controls();
-  try { await api('clear', { confirmed:true },privacyToken); token=''; privacyToken=''; pending=null; byId('messages').replaceChildren(); state('cleared'); restart(); parentStatus('session-cleared');} catch { byId('error').textContent=translated('error'); }
+  try { await api('clear', { confirmed:true },privacyToken); token=''; privacyToken=''; pending=null; pendingBookingReference=''; byId('messages').replaceChildren(); state('cleared'); restart(); parentStatus('session-cleared');} catch { byId('error').textContent=translated('error'); }
   finally { busy=false; controls(); }
 });
 window.addEventListener('offline', () => state('offline'));
