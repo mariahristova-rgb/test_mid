@@ -19,7 +19,7 @@ const baseline = ref('');
 const setupForm = ref<HTMLFormElement | null>(null);
 const errorPanel = ref<HTMLElement | null>(null);
 function validateForm() {
-  return validateSetupForm(setupForm.value, () => { error.value = t('setupValidationHelp'); });
+  return validateSetupForm(setupForm.value, async () => { error.value = ''; await nextTick(); error.value = t('setupValidationHelp'); await nextTick(); });
 }
 const recovery = ref('');
 const reloadConfirmed = ref(false);
@@ -32,7 +32,7 @@ const canExecute = computed(() => ['admin','operator'].includes(access.value.use
 const editable = computed(() => draft.value?.status === 'draft' && canConfigure.value);
 const dirty = computed(() => draft.value && JSON.stringify(draft.value) !== baseline.value);
 const latest = computed(() => receipts.value.at(-1));
-function runValidated(action: () => Promise<unknown>) { if(validateForm()) void run(action); }
+async function runValidated(action: () => Promise<unknown>) { if(busy.value) return; if(await validateForm()) await run(action); }
 async function run(action: () => Promise<unknown>) {
   if (busy.value) return; busy.value = true; error.value = ''; notice.value = ''; recovery.value = '';
   try { await action(); } catch(e) {
@@ -139,11 +139,11 @@ watch(() => route.meta.page, () => { if(!draft.value) void run(load); });
   <p v-if="busy" role="status">
 {{ t('busy') }}
 </p><p
-v-if="error"
 id="setup-error"
 ref="errorPanel"
-class="error"
+:class="error ? 'error' : 'visually-hidden'"
 role="alert"
+aria-atomic="true"
 tabindex="-1"
 >
 {{ error }}

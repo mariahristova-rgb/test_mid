@@ -1,5 +1,8 @@
 name: Offline assistant checks
 on: [push, pull_request]
+permissions:
+  contents: read
+  pull-requests: read
 jobs:
   checks:
     runs-on: ubuntu-latest

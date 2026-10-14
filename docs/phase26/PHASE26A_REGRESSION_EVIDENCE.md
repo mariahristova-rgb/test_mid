@@ -18,3 +18,7 @@ Executed 2026-10-14. Local synthetic/offline scope only.
 Initial command errors: npm typecheck was initially called from repository root without package.json; corrected working directory passed. Migration initially failed opening sandbox temporary DB; authorized offline retry passed. Backend emits a Starlette/httpx deprecation warning, not a failure. Website tests required authorized process spawning.
 
 Ignored artifacts retain backend log and machine-readable migration/evaluation outputs. Remote CI, dependency advisory checks and Gitleaks receipt remain pending. Browser acceptance is recorded separately and must not be inferred from unit tests.
+
+## CI follow-up and correction
+Remote run 38588097299: backend/frontend/evaluations/build/migrations, pip-audit and npm audit PASS (npm zero advisories). Gitleaks failed before scanning with HTTP403 on PR commit-list API. Workflow now explicitly grants contents:read and pull-requests:read only; no secret scan is disabled. Fresh CI must verify this correction.
+Frontend accessibility follow-up: node --test semantic_os/frontend/tests/setup-validation.test.mjs: initial 2 PASS/1 FAIL, corrected 3 PASS. npm test: 46 PASS; npm run typecheck/lint/build repeated after correction. Source check: 262 files, zero failures; whitespace PASS. Backend/website unchanged since their recorded full regressions.
