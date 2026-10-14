@@ -866,5 +866,13 @@
   "p21AddPeriod": "Add unavailable period",
   "p21Remove": "Remove",
   "p21InvalidLocalTime": "Choose a valid, unambiguous time for this timezone.",
-  "p21ScheduleScope": "These closed dates and periods apply to the mock calendar. Connected Google Calendar uses its separately approved settings."
+  "p21ScheduleScope": "These closed dates and periods apply to the mock calendar. Connected Google Calendar uses its separately approved settings.",
+  "setupValidationHelp": "Check the highlighted fields before saving or continuing.",
+  "preview_no_slot": "No valid synthetic slot was found within the 14-day preview window. Check working hours and closures.",
+  "simulatedPreview": "Simulated text preview",
+  "previewCurrent": "Current saved configuration",
+  "previewStale": "Earlier configuration; save and rerun tests",
+  "setupActivated": "Activated Web Chat configuration",
+  "setupTested": "Saved draft tested with mock providers; not activated",
+  "setupDraft": "Draft; required tests are incomplete"
 }

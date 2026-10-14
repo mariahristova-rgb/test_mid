@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { validateSetupForm } from '../services/setupValidation.mjs';
 import { scheduleLocal, scheduleInstant } from '../services/businessSchedule.mjs';
 import { computed, onMounted, ref, watch, nextTick, onUnmounted } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
@@ -8,6 +9,11 @@ const route = useRoute(), router = useRouter();
 const access = ref<any>({}), drafts = ref<any[]>([]), assistants = ref<any[]>([]), draft = ref<any>(null), readiness = ref<any>(null), receipts = ref<any[]>([]);
 const busy = ref(false), error = ref(''), notice = ref(''), confirmed = ref(false), abandon = ref(false), selected = ref('');
 const baseline = ref('');
+const setupForm = ref<HTMLFormElement | null>(null);
+const errorPanel = ref<HTMLElement | null>(null);
+function validateForm() {
+  return validateSetupForm(setupForm.value, () => { error.value = t('setupValidationHelp'); });
+}
 const recovery = ref('');
 const locale = ref<'bg-BG'|'en-US'>('bg-BG'), scenario = ref('booking');
 const steps = ['useCaseStep','businessStep','languageStep','toolsStep','channelsStep','testingStep','reviewStep'];
@@ -18,6 +24,7 @@ const canExecute = computed(() => ['admin','operator'].includes(access.value.use
 const editable = computed(() => draft.value?.status === 'draft' && canConfigure.value);
 const dirty = computed(() => draft.value && JSON.stringify(draft.value) !== baseline.value);
 const latest = computed(() => receipts.value.at(-1));
+function runValidated(action: () => Promise<unknown>) { if(validateForm()) void run(action); }
 async function run(action: () => Promise<unknown>) {
   if (busy.value) return; busy.value = true; error.value = ''; notice.value = ''; recovery.value = '';
   try { await action(); } catch(e) {
@@ -25,7 +32,7 @@ async function run(action: () => Promise<unknown>) {
     else if(e instanceof ApiError && e.status === 409) {error.value=t('draftConflictHelp'); recovery.value='revision';}
     else error.value = e instanceof Error && e.message ? e.message : t('error');
   }
-  finally { busy.value = false; }
+  finally { busy.value = false; if(error.value) { await nextTick(); errorPanel.value?.focus(); } }
 }
 function payload() {
   return { revision: draft.value.revision || 0, assistant_id: draft.value.target_assistant_id || null,
@@ -77,7 +84,9 @@ async function save() {
   drafts.value = await request('/api/ux/drafts'); await evidence(); notice.value = t('saved');
 }
 async function move(step: number) {
-  draft.value.step = step; await save(); await nextTick(); document.getElementById('setup-step')?.focus();
+  const previous = draft.value.step;
+  draft.value.step = step;
+  try { await save(); } catch(e) { draft.value.step = previous; throw e; } await nextTick(); document.getElementById('setup-step')?.focus();
 }
 async function testOne(chosen = scenario.value, language = locale.value) {
   if (dirty.value && canConfigure.value) await save();
@@ -120,7 +129,14 @@ watch(() => route.meta.page, () => { if(!draft.value) void run(load); });
 </p>
   <p v-if="busy" role="status">
 {{ t('busy') }}
-</p><p v-if="error" class="error" role="alert">
+</p><p
+v-if="error"
+id="setup-error"
+ref="errorPanel"
+class="error"
+role="alert"
+tabindex="-1"
+>
 {{ error }}
 </p><p v-if="notice" role="status">
 {{ notice }}
@@ -164,7 +180,7 @@ watch(() => route.meta.page, () => { if(!draft.value) void run(load); });
       <h2 id="setup-step" tabindex="-1">
 {{ t(steps[draft.step]) }}
 </h2>
-      <form @submit.prevent="run(() => move(Math.min(6,draft.step + 1)))">
+      <form ref="setupForm" novalidate :aria-describedby="error ? 'setup-error' : undefined" @submit.prevent="runValidated(() => move(Math.min(6,draft.step + 1)))">
 <fieldset :disabled="busy || !editable">
 <legend class="visually-hidden">
 {{ t(steps[draft.step]) }}
@@ -244,9 +260,9 @@ required
 <p>{{ t('readinessReview') }}</p>
 </template>
         <div class="controls">
-<button v-if="draft.step > 0" type="button" @click="run(() => move(draft.step - 1))">
+<button v-if="draft.step > 0" type="button" @click="runValidated(() => move(draft.step - 1))">
 {{ t('back') }}
-</button><button type="button" @click="run(save)">
+</button><button type="button" @click="runValidated(save)">
 {{ t('saveDraft') }}
 </button><button v-if="draft.step < 6">
 {{ t('continueSetup') }}
@@ -260,16 +276,20 @@ required
       <label>{{ t('conversationLanguage') }}<select v-model="locale"><option value="bg-BG">{{ t('bg-BG') }}</option><option value="en-US">{{ t('en-US') }}</option></select></label>
       <label>{{ t('scenario') }}<select v-model="scenario"><option v-for="key in scenarios" :key="key" :value="key">{{ t('scenario_' + key) }}</option></select></label>
       <div class="controls">
-<button :disabled="busy" @click="run(() => testOne())">
+<button :disabled="busy" @click="runValidated(() => testOne())">
 {{ t('runScenario') }}
-</button><button :disabled="busy" @click="run(suite)">
+</button><button :disabled="busy" @click="runValidated(suite)">
 {{ t('runRequiredTests') }}
 </button>
 </div>
     </article>
     <article v-if="latest" aria-live="polite">
 <h2>{{ t(latest.verdict) }} · {{ t('scenario_' + latest.scenario) }}</h2>
-      <p>{{ t('duration') }}: {{ number(latest.duration_ms) }} {{ t('milliseconds') }} · {{ t(latest.locale) }} · {{ t('MOCK_ONLY') }}</p>
+      <p>
+{{ t('simulatedPreview') }} · {{ t('revision') }} {{ number(latest.revision) }} · {{ latest.config_hash === draft.config_hash && !dirty ? t('previewCurrent') : t('previewStale') }}
+</p><p>
+{{ t('duration') }}: {{ number(latest.duration_ms) }} {{ t('milliseconds') }} · {{ t(latest.locale) }} · {{ t('MOCK_ONLY') }}
+</p>
         <p v-if="latest.reference_at">
 {{ t('syntheticClock') }}: {{ date(latest.reference_at,latest.timezone) }} · {{ latest.timezone }}
 </p>
@@ -296,7 +316,9 @@ required
 <RouterLink v-if="draft.status === 'published'" to="/widgets">
 {{ t('widgets') }}
 </RouterLink>
-<h2>{{ t('readinessReview') }}</h2><p>{{ t('voice_acceptance_blocked') }}</p>
+<h2>{{ t('readinessReview') }}</h2><p role="status">
+{{ t(draft.status === 'published' ? 'setupActivated' : readiness.required_tests?.length && readiness.required_tests.every((item:any) => item.verdict === 'PASS') && !dirty ? 'setupTested' : 'setupDraft') }}
+</p><p>{{ t('voice_acceptance_blocked') }}</p>
       <ul>
 <li v-for="key in readiness.reasons" :key="key">
 {{ t(key) }}

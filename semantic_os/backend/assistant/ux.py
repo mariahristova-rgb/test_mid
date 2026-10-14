@@ -17,6 +17,8 @@ from .orchestration import Orchestrator
 from .providers import ProviderRegistry
 from .store import Store, now, uid
 from .voice import TERMINAL
+from .calendar import MockCalendarProvider
+from .language import parse_date
 
 SCENARIOS = ('booking', 'short_confirmation', 'rejection', 'ambiguous', 'occupied', 'language_switch', 'handoff', 'interruption','faq','greeting')
 BUSINESS_TENANT_FIELDS=('name','timezone','calendar_policy','description','contact_email','contact_phone','service_price','price_currency')
@@ -196,6 +198,33 @@ class UXService:
             for agent in draft['agents']:
                 sandbox.update('agents', 'demo', agent['id'], {k:v for k,v in agent.items() if k != 'id'})
             clock = datetime(2030, 10, 8, 9, tzinfo=timezone.utc)
+            zone = ZoneInfo(business['timezone'])
+            selected = None
+            if payload.scenario not in ('faq', 'greeting', 'handoff'):
+                calendar = MockCalendarProvider(sandbox)
+                # Bounded synthetic search; real availability and DST parsing remain authoritative.
+                opening = sum(int(v)*m for v,m in zip(business['opens'].split(':'),(60,1)))
+                closing = sum(int(v)*m for v,m in zip(business['closes'].split(':'),(60,1)))
+                for offset in range(1, 15):
+                    day = clock.astimezone(zone).date()+timedelta(days=offset)
+                    if day.weekday() not in business['weekdays']: continue
+                    candidates = list(range(opening, closing-business['duration_minutes']+1))
+                    if 900 in candidates: candidates.remove(900); candidates.insert(0,900)
+                    for minute in candidates:
+                        try:
+                            start = parse_date(f'{day}T{minute//60:02d}:{minute%60:02d}', 'en-US', business['timezone'])
+                            finish = parse_date((start+timedelta(minutes=business['duration_minutes'])).replace(tzinfo=None).isoformat(), 'en-US', business['timezone'])
+                        except DomainError: continue
+                        if (finish.astimezone(timezone.utc)-start.astimezone(timezone.utc)).total_seconds() != business['duration_minutes']*60: continue
+                        if calendar.available('demo', start.isoformat(), business['duration_minutes']):
+                            selected = start; break
+                    if selected: break
+                if selected is None:
+                    return {'verdict':'BLOCKED','code':'preview_no_slot','turns':[],'tools':[],'agents':[],
+                            'booking_count':0,'reference_at':clock.isoformat(),'timezone':business['timezone']}
+                # Tomorrow refers to the selected day in the declared tenant-local synthetic clock.
+                clock = datetime.combine(selected.date()-timedelta(days=1), datetime.min.time(), zone).astimezone(timezone.utc)
+            sample_time = selected.strftime('%H:%M') if selected else '15:00'
             engine = Orchestrator(sandbox, ProviderRegistry(), clock=lambda: clock)
             from .messaging import MessagingGateway
             from .security import TenantSecretStore
@@ -203,7 +232,7 @@ class UXService:
             actor = sandbox.principal('demo-admin', 'demo')
             conversation = engine.conversation(actor, 'default')
             bg = payload.locale == 'bg-BG'
-            inputs = [('Здравейте, искам да запиша час за утре в 15:00.' if bg else 'Hello, I would like to book an appointment for tomorrow at 15:00.'),
+            inputs = [(f'Здравейте, искам да запиша час за утре в {sample_time}.' if bg else f'Hello, I would like to book an appointment for tomorrow at {sample_time}.'),
                 ('Казвам се Иван Иванов.' if bg else 'My name is John Smith.'), ('Да, потвърждавам.' if bg else 'Yes, confirm.')]
             if payload.scenario == 'short_confirmation': inputs[-1] = 'Да.' if bg else 'Yes.'
             if payload.scenario == 'rejection': inputs[-1] = 'Не.' if bg else 'No.'
@@ -215,9 +244,7 @@ class UXService:
                 if not config['faq_entries']:return {'verdict':'BLOCKED','code':'faq_missing','turns':[],'tools':[],'agents':[],'booking_count':0}
                 inputs=[config['faq_entries'][0]['question_bg' if bg else 'question_en']]
             if payload.scenario == 'occupied':
-                zone=ZoneInfo(business['timezone'])
-                day=clock.astimezone(zone).date()+timedelta(days=1)
-                starts = datetime(day.year,day.month,day.day,15,tzinfo=zone).isoformat()
+                starts = selected.isoformat()
                 sandbox.add('appointments', 'demo', {'starts_at': starts, 'duration_minutes': business['duration_minutes'], 'status': 'confirmed', 'synthetic': True})
                 inputs = inputs[:1]
             turns, code = [], 'completed'

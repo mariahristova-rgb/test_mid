@@ -1,5 +1,5 @@
 {
-  "version": "1.3.0",
+  "version": "1.4.0",
   "scope": "OFFLINE_CONTRACT_ONLY",
   "cases": [
     {"id":"bg-booking","category":"consent","test":"test_assistant.AssistantAcceptance.test_bulgarian_full_handoff_and_approval"},
@@ -42,7 +42,11 @@
     {"id":"business-owner-setup","category":"ux","test":"test_ux.UXTests.test_business_setup_resume_publish_and_mock_schedule_isolation"},
     {"id":"business-closed-date","category":"tool","test":"test_ux.UXTests.test_closed_dates_are_enforced_inside_disposable_simulation"},
     {"id":"business-concurrent-change","category":"security","test":"test_ux.UXTests.test_concurrent_business_profile_change_invalidates_new_draft"},
-    {"id":"voice-committed-interruption","category":"recovery","test":"test_voice_integration.VoiceAcceptance.test_bilingual_playback_interruption_preserves_committed_booking"}
+    {"id":"voice-committed-interruption","category":"recovery","test":"test_voice_integration.VoiceAcceptance.test_bilingual_playback_interruption_preserves_committed_booking"},
+    {"id": "preview-valid-slot", "category": "ux", "test": "test_ux.UXTests.test_representative_preview_hours_and_no_slot"},
+    {"id": "preview-legacy-closures", "category": "ux", "test": "test_ux.UXTests.test_preview_unavailable_periods_and_legacy_draft"},
+    {"id": "preview-dst-refusal", "category": "locale", "test": "test_ux.UXTests.test_preview_dst_and_real_closed_day_refusal"},
+    {"id":"preview-replay-isolation","category":"security","test":"test_ux.UXTests.test_preview_replay_is_idempotent_and_tenant_isolated"}
   ],
   "unverified_layers": ["QWEN_MODEL_SIMULATION", "AUTHORIZED_STAGING_GOOGLE", "ATTENDED_BROWSER", "EXTERNAL_CUSTOMER_PILOT", "HEARD_VOICE"]
 }

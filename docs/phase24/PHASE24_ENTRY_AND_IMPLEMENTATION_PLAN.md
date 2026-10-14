@@ -1,6 +1,6 @@
 # Phase24 entry audit and proposed local implementation
 
-13October2026. Read-only audit/research/reproduction first; runtime changes awaiting reviewed approval. Starting clean branch codex/phase23-pilot-preparation at66e5f5f; website d7fab0b unchanged. Phase23was preparation only,not a live pilot. Phase22exit/verified-continuity/model/browser/DR/participant gates remain incomplete.
+14 October 2026 update: the user explicitly approved Increment 1 only, against audit commit d71c08d. Local implementation and synthetic regression evidence are recorded in PHASE24_FINAL_EVIDENCE_MATRIX.md. Deferred work remains unapproved. Original 13 October audit follows. Starting clean branch codex/phase23-pilot-preparation at66e5f5f; website d7fab0b unchanged. Phase23was preparation only,not a live pilot. Phase22exit/verified-continuity/model/browser/DR/participant gates remain incomplete.
 
 ## Evidence and highest-impact reproduced gap
 
@@ -8,7 +8,7 @@ Phase21full351backend/37frontend/41corpus and Phase23fresh73fixture tests are da
 
 Fresh disposable UX reproduction: valid Business09:00–12:00→TestStudiobookingBG/ENbothFAIL,0bookings,because simulate() always asks15:00. Calendar refusal is correct. Evidence artifacts/phase24/setup-baseline.json; no customerDB/provider access. This blocks valid owner configurations from mandatory test/publication; fix preview preconditions without weakening actual availability.
 
-## Proposed first local increment to review
+## Reviewed first local increment (approved 14 October 2026)
 
 | Priority | Change | Exact affected files / reuse |
 |---|---|---|

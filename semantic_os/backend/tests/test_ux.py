@@ -61,8 +61,76 @@ class UXTests(unittest.TestCase):
         draft=self.ux.save(self.actor,self.payload)
         for locale in ('bg-BG','en-US'):
             result=self.run_case(draft,'booking',locale)
-            self.assertEqual(result['verdict'],'FAIL');self.assertEqual(result['booking_count'],0)
+            self.assertEqual(result['verdict'],'PASS');self.assertEqual(result['booking_count'],1)
         self.assertEqual(self.store.count('appointments','demo'),0)
+
+    def test_representative_preview_hours_and_no_slot(self):
+        from semantic_os.backend.assistant.ux import Business
+        for zone in ('Europe/Sofia','Pacific/Honolulu','Pacific/Kiritimati'):
+            self.payload.business=Business(name='Synthetic',timezone=zone,opens='09:00',closes='12:00',holidays=['2030-10-09'])
+            draft=self.ux.save(self.actor,self.payload)
+            for locale in ('bg-BG','en-US'):
+                for scenario in ('booking','rejection','ambiguous','occupied','short_confirmation'):
+                    result=self.run_case(draft,scenario,locale)
+                    self.assertEqual(result['verdict'],'PASS',(zone,locale,scenario))
+                    self.assertIn('09:00',result['turns'][0]['input'])
+        self.payload.business.closes='09:10'
+        draft=self.ux.save(self.actor,self.payload)
+        for locale in ('bg-BG','en-US'):
+            result=self.run_case(draft,'booking',locale)
+            self.assertEqual((result['verdict'],result['code'],result['booking_count']),('BLOCKED','preview_no_slot',0))
+        self.assertEqual(self.store.count('appointments','demo'),0)
+
+    def test_preview_unavailable_periods_and_legacy_draft(self):
+        from semantic_os.backend.assistant.ux import Business
+        self.payload.business=Business(name='Synthetic',unavailable_periods=[{'starts_at':'2030-10-09T00:00:00Z','ends_at':'2030-10-22T00:00:00Z'}])
+        draft=self.ux.save(self.actor,self.payload)
+        for locale in ('bg-BG','en-US'):self.assertEqual(self.run_case(draft,'booking',locale)['verdict'],'PASS')
+        legacy=dict(draft);legacy['business']=dict(draft['business'])
+        legacy['business'].pop('unavailable_periods');legacy['business'].pop('holidays')
+        self.assertEqual(self.ux.simulate(legacy,RunInput(revision=1,scenario='booking',locale='en-US'))['verdict'],'PASS')
+        self.assertEqual(self.store.count('appointments','demo'),0)
+
+    def test_preview_replay_is_idempotent_and_tenant_isolated(self):
+        from unittest.mock import patch
+        from semantic_os.backend.assistant.orchestration import Orchestrator
+        original=Orchestrator.inbound
+        def replay(engine,actor,identity,incoming):
+            first=original(engine,actor,identity,incoming)
+            repeated=original(engine,actor,identity,incoming)
+            self.assertEqual(first['response'],repeated['response'])
+            return first
+        tables=('appointments','conversations','messages','jobs','assistants','agents','usage_records')
+        before={(tenant,table):self.store.list(table,tenant) for tenant in ('demo','other') for table in tables}
+        draft=self.ux.save(self.actor,self.payload)
+        with patch.object(Orchestrator,'inbound',replay):
+            for locale in ('bg-BG','en-US'):
+                result=self.run_case(draft,'booking',locale)
+                self.assertEqual((result['verdict'],result['booking_count']),('PASS',1))
+                self.assertEqual(sum(tool['tool']=='CreateAppointment' for tool in result['tools']),1)
+        for (tenant,table),rows in before.items():self.assertEqual(self.store.list(table,tenant),rows)
+
+    def test_preview_dst_and_real_closed_day_refusal(self):
+        from datetime import datetime, timezone
+        from unittest.mock import patch
+        from semantic_os.backend.assistant.calendar import MockCalendarProvider
+        for month,day in ((3,28),(10,24)):
+            class Reference(datetime):
+                def __new__(cls,*args,**kwargs):
+                    if args[:3]==(2030,10,8): return datetime(2030,month,day,9,tzinfo=timezone.utc)
+                    return datetime(*args,**kwargs)
+            self.payload.business.weekdays=[6]
+            self.payload.business.opens='03:00';self.payload.business.closes='04:00'
+            draft=self.ux.save(self.actor,self.payload)
+            with patch('semantic_os.backend.assistant.ux.datetime',Reference):
+                for locale in ('bg-BG','en-US'):
+                    result=self.run_case(draft,'booking',locale)
+                    self.assertEqual(result['verdict'],'PASS')
+                    reference=datetime.fromisoformat(result['reference_at'])
+                    self.assertEqual(reference.month,4 if month==3 else 11)
+        tenant=self.store.tenant('demo');tenant['calendar_policy']={'holidays':['2030-10-09'],'weekdays':[0,1,2,3,4],'opens':'09:00','closes':'18:00','duration_minutes':30,'slot_minutes':1,'resources':[{'id':'synthetic'}]}
+        self.store.update_tenant('demo',tenant)
+        self.assertFalse(MockCalendarProvider(self.store).available('demo','2030-10-09T15:00:00+03:00',30))
 
     def test_concurrent_business_profile_change_invalidates_new_draft(self):
         draft=self.ux.save(self.actor,self.payload)
