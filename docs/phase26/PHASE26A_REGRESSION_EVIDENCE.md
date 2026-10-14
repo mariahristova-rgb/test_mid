@@ -22,3 +22,5 @@ Ignored artifacts retain backend log and machine-readable migration/evaluation o
 ## CI follow-up and correction
 Remote run 38588097299: backend/frontend/evaluations/build/migrations, pip-audit and npm audit PASS (npm zero advisories). Gitleaks failed before scanning with HTTP403 on PR commit-list API. Workflow now explicitly grants contents:read and pull-requests:read only; no secret scan is disabled. Fresh CI must verify this correction.
 Frontend accessibility follow-up: node --test semantic_os/frontend/tests/setup-validation.test.mjs: initial 2 PASS/1 FAIL, corrected 3 PASS. npm test: 46 PASS; npm run typecheck/lint/build repeated after correction. Source check: 262 files, zero failures; whitespace PASS. Backend/website unchanged since their recorded full regressions.
+
+Remote follow-up run 38605476843: functional, dependency, migration checks PASS. Gitleaks read permission fixed; scan then failed with ambiguous revision because checkout omitted history. Partial scan reported no leaks but is NOT acceptance. Checkout fetch-depth is now 0; complete scan must pass.
