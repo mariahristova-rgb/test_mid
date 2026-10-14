@@ -18,9 +18,9 @@ from .providers import ProviderRegistry
 from .store import Store, now, uid
 from .voice import TERMINAL
 from .calendar import MockCalendarProvider
-from .language import parse_date
+from .language import parse_date, tr
 
-SCENARIOS = ('booking', 'short_confirmation', 'rejection', 'ambiguous', 'occupied', 'language_switch', 'handoff', 'interruption','faq','greeting')
+SCENARIOS = ('booking', 'short_confirmation', 'rejection', 'ambiguous', 'occupied', 'language_switch', 'handoff', 'interruption','faq','greeting','reschedule','cancellation','out_of_hours','closed_day','unsupported','provider_failure','provider_uncertain')
 BUSINESS_TENANT_FIELDS=('name','timezone','calendar_policy','description','contact_email','contact_phone','service_price','price_currency')
 
 
@@ -108,7 +108,7 @@ class DraftInput(Contract):
 
 class RunInput(Contract):
     revision: int = Field(ge=1)
-    scenario: Literal['booking', 'short_confirmation', 'rejection', 'ambiguous', 'occupied', 'language_switch', 'handoff', 'interruption','faq','greeting']
+    scenario: Literal['booking', 'short_confirmation', 'rejection', 'ambiguous', 'occupied', 'language_switch', 'handoff', 'interruption','faq','greeting','reschedule','cancellation','out_of_hours','closed_day','unsupported','provider_failure','provider_uncertain']
     locale: Locale
 
 
@@ -200,7 +200,7 @@ class UXService:
             clock = datetime(2030, 10, 8, 9, tzinfo=timezone.utc)
             zone = ZoneInfo(business['timezone'])
             selected = None
-            if payload.scenario not in ('faq', 'greeting', 'handoff'):
+            if payload.scenario not in ('faq', 'greeting', 'handoff', 'unsupported', 'out_of_hours', 'closed_day'):
                 calendar = MockCalendarProvider(sandbox)
                 # Bounded synthetic search; real availability and DST parsing remain authoritative.
                 opening = sum(int(v)*m for v,m in zip(business['opens'].split(':'),(60,1)))
@@ -225,13 +225,29 @@ class UXService:
                 # Tomorrow refers to the selected day in the declared tenant-local synthetic clock.
                 clock = datetime.combine(selected.date()-timedelta(days=1), datetime.min.time(), zone).astimezone(timezone.utc)
             sample_time = selected.strftime('%H:%M') if selected else '15:00'
-            engine = Orchestrator(sandbox, ProviderRegistry(), clock=lambda: clock)
+            registry = ProviderRegistry()
+            fault = {'attempts':0, 'simulated_remote_commits':0}
+            if payload.scenario in ('provider_failure','provider_uncertain'):
+                class FaultCalendar(MockCalendarProvider):
+                    def create(self, *args, **kwargs):
+                        fault['attempts'] += 1
+                        # Independent fake remote state models an unknown acknowledgement.
+                        if payload.scenario == 'provider_uncertain': fault['simulated_remote_commits'] += 1
+                        raise DomainError('delivery_unknown' if payload.scenario == 'provider_uncertain' else 'provider_error', 502)
+                registry.calendar = FaultCalendar(sandbox)
+            engine = Orchestrator(sandbox, registry, clock=lambda: clock)
             from .messaging import MessagingGateway
             from .security import TenantSecretStore
             MessagingGateway(sandbox, TenantSecretStore(sandbox), engine)
             actor = sandbox.principal('demo-admin', 'demo')
             conversation = engine.conversation(actor, 'default')
             bg = payload.locale == 'bg-BG'
+            management_tool = {'reschedule':'RescheduleAppointment','cancellation':'CancelAppointment'}.get(payload.scenario)
+            if management_tool:
+                try: engine.tools.authorize(actor, sandbox.get('assistants','demo','default'), management_tool)
+                except DomainError:
+                    return {'verdict':'BLOCKED','code':'tool_denied','turns':[],'tools':[],'agents':[],'booking_count':0,
+                            'reference_at':clock.isoformat(),'timezone':business['timezone']}
             inputs = [(f'Здравейте, искам да запиша час за утре в {sample_time}.' if bg else f'Hello, I would like to book an appointment for tomorrow at {sample_time}.'),
                 ('Казвам се Иван Иванов.' if bg else 'My name is John Smith.'), ('Да, потвърждавам.' if bg else 'Yes, confirm.')]
             if payload.scenario == 'short_confirmation': inputs[-1] = 'Да.' if bg else 'Yes.'
@@ -239,6 +255,23 @@ class UXService:
             if payload.scenario == 'ambiguous': inputs[-1] = 'Да, потвърждавам?' if bg else 'Yes, confirm?'
             if payload.scenario == 'language_switch': inputs.insert(2, 'Switch to English.' if bg else 'Премини на български.'); inputs[-1] = 'Yes, confirm.' if bg else 'Да, потвърждавам.'
             if payload.scenario == 'handoff': inputs = ['Искам да говоря с човек.' if bg else 'I want to speak to a human.']
+            if payload.scenario == 'unsupported':
+                inputs = ['Каква е цената на несъществуващия продукт ZXQ-999?' if bg else 'What is the price of the nonexistent product ZXQ-999?']
+            if payload.scenario in ('out_of_hours','closed_day'):
+                day = clock.astimezone(zone).date()+timedelta(days=1)
+                negative_time = '23:59'
+                if payload.scenario == 'closed_day':
+                    closed = next((day+timedelta(days=i) for i in range(14)
+                                   if (day+timedelta(days=i)).weekday() not in business['weekdays'] or
+                                   (day+timedelta(days=i)).isoformat() in tenant['calendar_policy'].get('holidays',[])),None)
+                    if closed is None:
+                        return {'verdict':'BLOCKED','code':'preview_no_closed_day','turns':[],'tools':[],'agents':[],
+                                'booking_count':0,'reference_at':clock.isoformat(),'timezone':business['timezone']}
+                    day = closed; negative_time = business['opens']
+                try: negative = parse_date(f'{day}T{negative_time}', 'en-US', business['timezone'])
+                except DomainError:
+                    return {'verdict':'BLOCKED','code':'timezone_required','turns':[],'tools':[],'agents':[],'booking_count':0}
+                inputs = [f'Искам да запиша час за {negative.isoformat()}.' if bg else f'I would like to book an appointment for {negative.isoformat()}.']
             if payload.scenario=='greeting':inputs=['Здравейте.' if bg else 'Hello.']
             if payload.scenario=='faq':
                 if not config['faq_entries']:return {'verdict':'BLOCKED','code':'faq_missing','turns':[],'tools':[],'agents':[],'booking_count':0}
@@ -251,24 +284,75 @@ class UXService:
             for text in inputs:
                 turn_start = monotonic()
                 try:
-                    result = engine.inbound(actor, conversation['id'], Incoming(content=text, event_id=uid(),locale=payload.locale if payload.scenario in ('faq','greeting') else None))
+                    result = engine.inbound(actor, conversation['id'], Incoming(content=text, event_id=uid(),locale=payload.locale if payload.scenario in ('faq','greeting','reschedule','cancellation','out_of_hours','closed_day','unsupported','provider_failure','provider_uncertain') else None))
                     turns.append({'input': text, 'response': result['response'], 'locale': result['locale'],
                         'booking_status': result.get('booking_status'), 'duration_ms': round((monotonic()-turn_start)*1000, 3)})
                 except DomainError as error:
                     code = error.code
+                    if payload.scenario in ('provider_failure','provider_uncertain'):
+                        expected_fault = 'delivery_unknown' if payload.scenario == 'provider_uncertain' else 'provider_error'
+                        fault_observed = code == expected_fault and fault['attempts'] == 1
+                        turns.append({'input':text,'response':tr(payload.locale, ('preview_uncertain_response' if payload.scenario == 'provider_uncertain' else 'preview_failure_response') if fault_observed else code),
+                                      'locale':payload.locale,'booking_status':('unknown' if payload.scenario == 'provider_uncertain' else 'failed') if fault_observed else None,
+                                      'duration_ms':round((monotonic()-turn_start)*1000,3)})
                     break
+            lifecycle_checks = {}
+            if management_tool and code == 'completed':
+                owned = sandbox.list('appointments','demo')
+                if len(owned) != 1 or owned[0].get('conversation_id') != conversation['id']:
+                    code = 'preview_booking_missing'
+                else:
+                    original = owned[0]
+                    arguments = {'appointment_id':original['id']}
+                    if payload.scenario == 'reschedule':
+                        calendar = registry.calendar
+                        candidates = []
+                        for offset in range(14):
+                            day = selected.date()+timedelta(days=offset)
+                            try: candidates = calendar.day_slots('demo',day.isoformat(),business['duration_minutes'],business['timezone'],selected+timedelta(minutes=business['duration_minutes']-1))
+                            except DomainError: continue
+                            if candidates: break
+                        if not candidates: code = 'preview_no_slot'
+                        else:
+                            arguments.update(starts_at=candidates[0],duration_minutes=business['duration_minutes'],contact_name=original['contact_name'])
+                    if code == 'completed':
+                        request_text = ('Искам да преместя записания час.' if bg else 'I want to reschedule my appointment.') if payload.scenario == 'reschedule' else ('Искам да отменя записания час.' if bg else 'I want to cancel my appointment.')
+                        try:
+                            lifecycle_start = monotonic()
+                            proposed = engine.inbound(actor,conversation['id'],Incoming(content=request_text,event_id=uid(),locale=payload.locale,tool=management_tool,arguments=arguments))
+                            lifecycle_checks['unchanged_before_confirmation'] = sandbox.get('appointments','demo',original['id']) == original
+                            turns.append({'input':request_text,'response':proposed['response'],'locale':proposed['locale'],'booking_status':'awaiting_confirmation','duration_ms':round((monotonic()-lifecycle_start)*1000,3)})
+                            lifecycle_start = monotonic()
+                            confirmed = engine.approve(actor,proposed['approval']['id'])
+                            lifecycle_checks['approval_replay'] = engine.approve(actor,proposed['approval']['id']) == confirmed
+                            actual = sandbox.get('appointments','demo',original['id'])
+                            lifecycle_checks['owned_record'] = actual['conversation_id'] == conversation['id']
+                            lifecycle_checks['lifecycle_outcome'] = (actual['starts_at'] == arguments['starts_at'] and actual['status'] == 'confirmed') if payload.scenario == 'reschedule' else actual['status'] == 'cancelled'
+                            turns.append({'input':'Да, потвърждавам.' if bg else 'Yes, confirm.','response':confirmed['response'],'locale':confirmed['locale'],'booking_status':'completed' if payload.scenario == 'reschedule' else 'cancelled','duration_ms':round((monotonic()-lifecycle_start)*1000,3)})
+                        except DomainError as error: code=error.code
             bookings = [row for row in sandbox.list('appointments', 'demo') if not row.get('synthetic')]
             state = sandbox.get('conversations', 'demo', conversation['id'])
-            wanted = 0 if payload.scenario in ('rejection', 'ambiguous', 'occupied', 'handoff','faq','greeting') else 1
+            wanted = 0 if payload.scenario in ('rejection', 'ambiguous', 'occupied', 'handoff','faq','greeting','out_of_hours','closed_day','unsupported','provider_failure','provider_uncertain') else 1
             last = turns[-1] if turns else {}
-            checks = {'booking_count': len(bookings) == wanted, 'no_error': code == 'completed'}
+            expected_code = {'provider_failure':'provider_error','provider_uncertain':'delivery_unknown'}.get(payload.scenario,'completed')
+            checks = {'booking_count': len(bookings) == wanted, 'no_error':code == expected_code, 'expected_outcome':code == expected_code, **lifecycle_checks}
+            if payload.scenario in ('provider_failure','provider_uncertain'):
+                checks.update(provider_attempted_once=fault['attempts']==1,
+                              no_automatic_retry=fault['attempts']==1,
+                              simulated_remote_state=fault['simulated_remote_commits']==(1 if payload.scenario=='provider_uncertain' else 0))
+            if management_tool: checks['lifecycle_verified'] = bool(lifecycle_checks) and all(lifecycle_checks.values())
+            if payload.scenario == 'unsupported':
+                checks['no_tools'] = not sandbox.list('tool_executions','demo')
+                safe_reply = ('Мога да помогна с одобрена информация за Ontelyx. Изберете демонстрация или бизнес запитване.' if bg else 'I can help with approved Ontelyx information. Choose a demo or a business inquiry.') if config.get('public_knowledge_only') else tr(payload.locale,'hello')
+                checks['safe_fallback'] = last.get('response') == safe_reply
+            if payload.scenario in ('out_of_hours','closed_day'): checks['unavailable'] = last.get('booking_status') == 'unavailable'
             if payload.scenario == 'ambiguous': checks['confirmation_pending'] = last.get('booking_status') == 'awaiting_confirmation'
             if payload.scenario == 'rejection': checks['rejected'] = last.get('booking_status') == 'cancelled'
             if payload.scenario == 'occupied': checks['unavailable'] = last.get('booking_status') == 'unavailable'
             if payload.scenario == 'handoff': checks['paused'] = bool(state.get('human_escalation'))
             if payload.scenario=='faq':checks['faq_answer']=last.get('response')==config['faq_entries'][0]['answer_bg' if bg else 'answer_en']
             if payload.scenario == 'language_switch': checks['switched'] = last.get('locale') == ('en-US' if bg else 'bg-BG')
-            return {'verdict': 'PASS' if all(checks.values()) else 'FAIL', 'code': code, 'checks': checks, 'turns': turns,
+            return {'verdict': ('BLOCKED' if code=='preview_no_slot' else 'PASS' if all(checks.values()) else 'FAIL'), 'code': code, 'checks': checks, 'turns': turns,
                 'booking_count': len(bookings), 'expected_booking_count': wanted,
                 'reference_at': clock.isoformat(), 'timezone': business['timezone'],
                 'tools': [{'tool': row['tool'], 'code': row['outcome']['code'], 'correlation_id': row['correlation_id']} for row in sandbox.list('tool_executions', 'demo')],

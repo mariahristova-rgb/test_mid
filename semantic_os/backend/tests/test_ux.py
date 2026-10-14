@@ -91,6 +91,53 @@ class UXTests(unittest.TestCase):
         self.assertEqual(self.ux.simulate(legacy,RunInput(revision=1,scenario='booking',locale='en-US'))['verdict'],'PASS')
         self.assertEqual(self.store.count('appointments','demo'),0)
 
+    def test_lifecycle_and_provider_preview_bilingual_isolated(self):
+        self.payload.config.allowed_tools += ['RescheduleAppointment','CancelAppointment']
+        draft=self.ux.save(self.actor,self.payload)
+        tables=('appointments','jobs','conversations','messages','assistants','agents','usage_records')
+        before={(tenant,table):self.store.list(table,tenant) for tenant in ('demo','other') for table in tables}
+        for locale in ('bg-BG','en-US'):
+            for scenario in ('reschedule','cancellation','out_of_hours','closed_day','unsupported','provider_failure','provider_uncertain'):
+                result=self.run_case(draft,scenario,locale)
+                self.assertEqual(result['verdict'],'PASS',(locale,scenario,result))
+                self.assertTrue(all(result['checks'].values()))
+                self.assertEqual(result['turns'][-1]['locale'],locale)
+                if scenario in ('provider_failure','provider_uncertain'):
+                    self.assertEqual(result['booking_count'],0)
+                    self.assertNotIn('CreateAppointment',[row['tool'] for row in result['tools']])
+                if scenario in ('reschedule','cancellation'):
+                    self.assertEqual(result['booking_count'],1)
+                    self.assertEqual(sum(row['tool']==('RescheduleAppointment' if scenario=='reschedule' else 'CancelAppointment') for row in result['tools']),1)
+        for (tenant,table),rows in before.items():self.assertEqual(self.store.list(table,tenant),rows)
+
+    def test_lifecycle_preview_permissions_and_missing_preconditions(self):
+        from semantic_os.backend.assistant.ux import Business
+        draft=self.ux.save(self.actor,self.payload)
+        for locale in ('bg-BG','en-US'):
+            for scenario in ('reschedule','cancellation'):
+                result=self.run_case(draft,scenario,locale)
+                self.assertEqual((result['verdict'],result['code'],result['booking_count']),('BLOCKED','tool_denied',0))
+        self.payload.business=Business(name='Synthetic',weekdays=list(range(7)))
+        draft=self.ux.save(self.actor,self.payload)
+        for locale in ('bg-BG','en-US'):
+            result=self.run_case(draft,'closed_day',locale)
+            self.assertEqual((result['verdict'],result['code']),('BLOCKED','preview_no_closed_day'))
+        self.payload.config.allowed_tools += ['RescheduleAppointment','CancelAppointment']
+        draft=self.ux.save(self.actor,self.payload)
+        modified=dict(draft);modified['agents']=[dict(row) for row in draft['agents']]
+        for row in modified['agents']:
+            if row['id']=='executor':row['allowed_tools']=['CheckAvailability','CreateAppointment']
+        self.assertEqual(self.ux.simulate(modified,RunInput(revision=1,scenario='reschedule',locale='en-US'))['code'],'tool_denied')
+        from semantic_os.backend.assistant.language import tr
+        blocked=dict(draft);blocked['config']={**draft['config'],'allowed_tools':[]}
+        for locale in ('bg-BG','en-US'):
+            for scenario in ('provider_failure','provider_uncertain'):
+                result=self.ux.simulate(blocked,RunInput(revision=1,scenario=scenario,locale=locale))
+                self.assertEqual((result['verdict'],result['code']),('FAIL','tool_denied'))
+                self.assertEqual(result['turns'][-1]['response'],tr(locale,'tool_denied'))
+                self.assertIsNone(result['turns'][-1]['booking_status'])
+        self.assertEqual(self.store.count('appointments','demo'),0)
+
     def test_preview_narrow_split_weekdays_and_fully_closed_window(self):
         from semantic_os.backend.assistant.ux import Business
         cases=[{'opens':'10:00','closes':'10:30'}, {'opens':'16:00','closes':'19:00','weekdays':[4]},

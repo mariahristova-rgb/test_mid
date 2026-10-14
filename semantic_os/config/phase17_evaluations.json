@@ -1,5 +1,5 @@
 {
-  "version": "1.4.1",
+  "version": "1.5.0",
   "scope": "OFFLINE_CONTRACT_ONLY",
   "cases": [
     {"id":"bg-booking","category":"consent","test":"test_assistant.AssistantAcceptance.test_bulgarian_full_handoff_and_approval"},
@@ -47,7 +47,9 @@
     {"id": "preview-legacy-closures", "category": "ux", "test": "test_ux.UXTests.test_preview_unavailable_periods_and_legacy_draft"},
     {"id": "preview-dst-refusal", "category": "locale", "test": "test_ux.UXTests.test_preview_dst_and_real_closed_day_refusal"},
     {"id":"preview-replay-isolation","category":"security","test":"test_ux.UXTests.test_preview_replay_is_idempotent_and_tenant_isolated"},
-    {"id":"preview-narrow-split-closed","category":"ux","test":"test_ux.UXTests.test_preview_narrow_split_weekdays_and_fully_closed_window"}
+    {"id":"preview-narrow-split-closed","category":"ux","test":"test_ux.UXTests.test_preview_narrow_split_weekdays_and_fully_closed_window"},
+    {"id":"preview-lifecycle-faults","category":"recovery","test":"test_ux.UXTests.test_lifecycle_and_provider_preview_bilingual_isolated"},
+    {"id":"preview-lifecycle-permissions","category":"security","test":"test_ux.UXTests.test_lifecycle_preview_permissions_and_missing_preconditions"}
   ],
   "unverified_layers": ["QWEN_MODEL_SIMULATION", "AUTHORIZED_STAGING_GOOGLE", "ATTENDED_BROWSER", "EXTERNAL_CUSTOMER_PILOT", "HEARD_VOICE"]
 }

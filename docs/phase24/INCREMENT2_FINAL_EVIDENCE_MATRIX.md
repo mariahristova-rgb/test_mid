@@ -1,5 +1,7 @@
 # Increment 2 final evidence matrix
 
+Historical Increment 2 checkpoint. The subsequent explicitly approved Increment 3 closes the selectable lifecycle/provider and scoped local mobile/keyboard/manual AT gates. See [Increment 3 evidence](INCREMENT3_FINAL_EVIDENCE_MATRIX.md); historical NOT TESTED/BLOCKED results below are not rewritten as if they passed at this checkpoint. Overall Phase 24 and production GO remain unclaimed.
+
 14 October 2026. Focusedlocalpatchimplemented following concretefile-levelplananduser“continue”. **FullIncrement2 NO-GO;Phase24completion,UXGOandproductionGOarenotclaimed.** All remaining external/voice/identity/API/schema/financial/protectedbranch gatespreserved.
 
 | Gate | Result | Actual evidence |

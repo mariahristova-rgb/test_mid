@@ -18,7 +18,7 @@ const recovery = ref('');
 const reloadConfirmed = ref(false);
 const locale = ref<'bg-BG'|'en-US'>('bg-BG'), scenario = ref('booking');
 const steps = ['useCaseStep','businessStep','languageStep','toolsStep','channelsStep','testingStep','reviewStep'];
-const scenarios = ['booking','short_confirmation','rejection','ambiguous','occupied','language_switch','handoff','interruption','faq','greeting'];
+const scenarios = ['booking','short_confirmation','rejection','ambiguous','occupied','language_switch','handoff','interruption','faq','greeting','reschedule','cancellation','out_of_hours','closed_day','unsupported','provider_failure','provider_uncertain'];
 const testing = computed(() => route.meta.page === 'testing');
 const canConfigure = computed(() => access.value.user?.role === 'admin');
 const canExecute = computed(() => ['admin','operator'].includes(access.value.user?.role));
@@ -282,7 +282,11 @@ required
 </form>
     </article>
     <article v-if="draft.status === 'draft' && (testing || draft.id)">
-<h2>{{ t('testing') }}</h2><p>{{ t('previewSavedHelp') }}</p>
+<h2>{{ t('testing') }}</h2><p>{{ t('previewSavedHelp') }}</p><p>{{ t('previewExpectedHelp') }}</p><p v-if="['reschedule','cancellation'].includes(scenario)">
+{{ t('previewManagementScope') }}
+</p><p v-if="['provider_failure','provider_uncertain'].includes(scenario)">
+{{ t('previewFaultScope') }}
+</p>
       <label>{{ t('conversationLanguage') }}<select v-model="locale"><option value="bg-BG">{{ t('bg-BG') }}</option><option value="en-US">{{ t('en-US') }}</option></select></label>
       <label>{{ t('scenario') }}<select v-model="scenario"><option v-for="key in scenarios" :key="key" :value="key">{{ t('scenario_' + key) }}</option></select></label>
       <div class="controls">
@@ -304,7 +308,7 @@ required
 {{ t('syntheticClock') }}: {{ date(latest.reference_at,latest.timezone) }} · {{ latest.timezone }}
 </p>
       <p>{{ t('expectedBookings') }}: {{ number(latest.expected_booking_count || 0) }} · {{ t('observedBookings') }}: {{ number(latest.booking_count) }}</p>
-      <p>{{ t(['faq'].includes(latest.scenario) ? 'previewFaqConfig' : ['booking','short_confirmation','rejection','ambiguous','occupied','language_switch'].includes(latest.scenario) ? 'previewBookingConfig' : 'previewBehaviorConfig') }}</p>
+      <p>{{ t(['faq'].includes(latest.scenario) ? 'previewFaqConfig' : ['booking','short_confirmation','rejection','ambiguous','occupied','language_switch','reschedule','cancellation','out_of_hours','closed_day','provider_failure','provider_uncertain'].includes(latest.scenario) ? 'previewBookingConfig' : 'previewBehaviorConfig') }}</p>
       <p v-if="latest.verdict !== 'PASS'">
 {{ t('previewRecoveryHelp') }}
 </p>
@@ -314,7 +318,7 @@ required
       <div class="diagnostic-grid">
 <section>
 <h3>{{ t('history') }}</h3><div v-for="(turn,index) in latest.turns" :key="index" class="bubble">
-<p>{{ turn.input }}</p><p>{{ turn.response }}</p><small>{{ t(turn.locale) }} · {{ t(turn.booking_status || 'notRecorded') }} · {{ number(turn.duration_ms) }} {{ t('milliseconds') }}</small>
+<p>{{ turn.input }}</p><p>{{ turn.response }}</p><small>{{ t(turn.locale) }} · {{ t(turn.booking_status === 'unknown' ? 'previewUnknownStatus' : turn.booking_status === 'failed' ? 'previewFailedStatus' : turn.booking_status || 'notRecorded') }} · {{ number(turn.duration_ms) }} {{ t('milliseconds') }}</small>
 </div>
 </section>
       <section>
