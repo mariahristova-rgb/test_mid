@@ -1,0 +1,7 @@
+# Bulgarian/English setup and preview tests
+
+14 October 2026. Existingcorpusversion1.4.1,46/46PASS. New narrow/split/weekday/fullyclosedtestregistered alongsideexistingBG/ENprivacy/tool/recoverytests. No parallelframeworkorpaidmodelmeasurement.
+
+Fresh targetedtest_ux28PASS6.464s;fullbackend356PASS60.756s. Newscenarios:10–10:30one30minslot;Friday-onlyafternoon;09–12withfirsthourblockedexistingunavailableperiod;fullyblocked14daywindowreturnsBLOCKED/preview_no_slot/zero. ExistingDSTfold/gap,holiday,old-draft,replayandtenantisolationPASS.
+
+Actualbrowserupdatedbuild: BulgarianUIcreateFAQ+service/schedule,required8BG/ENcasesPASS;EnglishUIshowslocale-preservedreceipt/staleflags. EnglishandBulgarianlocalizedhelpkeysasserted inexistingfrontendtest. No timednontechnicalownercompletionorfullsevenstepnewownerEnglishjourneyclaimed. Defaultsyntheticreference2030-Oct remainsexplicitlyfictional,neverusedforrealcalendarwrites.

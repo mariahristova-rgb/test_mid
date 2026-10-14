@@ -218,6 +218,8 @@ def register_messaging(app, gateway, actor):
               from_date: datetime | None = None, to_date: datetime | None = None,
               limit: int | None = Query(None,ge=1,le=100), cursor: int | None = Query(None,ge=0), conversation_id: str | None = None,
               local_day: date | None = None,
+              priority:Literal['low','normal','high','urgent']|None=None,queue_state:Literal['needs_review','assigned','awaiting_customer','resolved']|None=None,
+              assigned_to_me:bool=False,unread:bool|None=None,
               principal: Principal = Depends(actor)):
         if any(d and d.tzinfo is None for d in (from_date, to_date)): raise DomainError('timezone_required', 422)
         if cursor is not None and limit is None: raise DomainError('invalid_input',422)
@@ -227,5 +229,5 @@ def register_messaging(app, gateway, actor):
             zone=ZoneInfo(store.tenant(principal.tenant_id)['timezone'])
             from_date=datetime.combine(local_day,time.min,tzinfo=zone)
             to_date=datetime.combine(local_day+timedelta(days=1),time.min,tzinfo=zone)
-        return store.inbox(principal.tenant_id, filters={'channel':channel,'assistant_id':assistant_id,'status':status,'active_locale':locale},
-            from_date=from_date,to_date=to_date,limit=limit,cursor=cursor,identity=conversation_id,to_date_exclusive=bool(local_day))
+        return store.inbox(principal.tenant_id, filters={'channel':channel,'assistant_id':assistant_id,'status':status,'active_locale':locale,'queue_priority':priority,'operator_state':queue_state,'queue_assigned_user_id':principal.user_id if assigned_to_me else None},
+            from_date=from_date,to_date=to_date,limit=limit,cursor=cursor,identity=conversation_id,to_date_exclusive=bool(local_day),unread=unread)

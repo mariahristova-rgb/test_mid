@@ -47,6 +47,48 @@ class WidgetTests(unittest.TestCase):
     def send(self,token,text,event,locale='bg-BG'):
         return self.widget.message(self.public_id,token,WidgetMessage(content=text,event_id=event,locale=locale))
 
+    def enable_analytics(self):
+        settings=WidgetSettings.model_validate(self.integration['settings']).model_copy(update={'analytics_enabled':True})
+        self.widget.configure(self.actor,settings,self.integration['id'])
+        self.widget.publish(self.actor,self.integration['id'],WidgetPublish(draft_id=self.draft['id'],confirmed=True))
+
+    def test_optional_analytics_require_owner_enablement_and_explicit_visitor_consent(self):
+        token=self.visitor()
+        headers={'Authorization':'Bearer '+token,'Origin':'http://127.0.0.1:3020'}
+        url='/widget/analytics-consent/'+self.public_id
+        self.assertEqual(self.client.post(url,headers=headers,json={'allowed':True}).status_code,403)
+        self.assertEqual(self.widget.rows('demo','journey_event'),[])
+        self.enable_analytics();token=self.visitor();headers['Authorization']='Bearer '+token
+        self.assertEqual(self.client.post(url,headers=headers,json={'allowed':'true'}).status_code,422)
+        self.assertEqual(self.client.post(url,headers=headers,json={'allowed':True}).status_code,200)
+        self.assertEqual(self.client.post(url,headers=headers,json={'allowed':True}).status_code,200)
+        self.send(token,'Здравейте','consent-event');self.send(token,'Здравейте','consent-event')
+        rows=self.widget.rows('demo','journey_event')
+        self.assertEqual(sorted(r['stage'] for r in rows),['conversation_started','opted_in_opened'])
+        self.assertNotIn('Здравейте',json.dumps(rows,ensure_ascii=False));self.assertNotIn(token,json.dumps(rows))
+        self.assertEqual(self.client.post(url,headers=headers,json={'allowed':False}).status_code,200)
+        self.assertTrue(all(r.get('redacted') for r in self.widget.rows('demo','journey_event')))
+
+    def test_analytics_withdrawal_survives_session_expiry_and_erasure_purges_evidence(self):
+        self.enable_analytics();token=self.visitor()
+        headers={'Authorization':'Bearer '+token,'Origin':'http://127.0.0.1:3020'}
+        url='/widget/analytics-consent/'+self.public_id
+        self.client.post(url,headers=headers,json={'allowed':True})
+        self.now+=timedelta(minutes=11)
+        self.assertEqual(self.client.post(url,headers=headers,json={'allowed':False}).status_code,200)
+        self.assertEqual(self.client.post(url,headers=headers,json={'allowed':True}).status_code,401)
+        self.assertEqual(self.app.state.customer_workspace.analytics(self.actor,30)['funnel'],[])
+
+    def test_analytics_observer_cannot_restore_withdrawn_consent_from_stale_session(self):
+        self.enable_analytics();token=self.visitor()
+        headers={'Authorization':'Bearer '+token,'Origin':'http://127.0.0.1:3020'}
+        url='/widget/analytics-consent/'+self.public_id
+        self.client.post(url,headers=headers,json={'allowed':True})
+        row,snapshot,_=self.widget.session(self.public_id,token)
+        self.client.post(url,headers=headers,json={'allowed':False})
+        self.widget.journey.observe(row,snapshot,{'human_requested':True})
+        self.assertTrue(all(r.get('redacted') for r in self.widget.rows('demo','journey_event')))
+
     def test_bilingual_runtime_booking_and_duplicate_confirmation(self):
         for index,locale in enumerate(('bg-BG','en-US')):
             token=self.visitor(locale)
@@ -87,6 +129,20 @@ class WidgetTests(unittest.TestCase):
         self.widget.lifecycle(self.actor,self.integration['id'],'revoke',WidgetAction(confirmed=True))
         with self.assertRaises(DomainError):self.widget.ticket(self.public_id,self.site)
         with self.assertRaises(DomainError):self.widget.challenge(self.actor,self.integration['id'],self.site)
+
+    def test_disable_rollback_requires_fresh_session_and_preserves_booking(self):
+        token=self.visitor('en-US')
+        for index,text in enumerate(('Book an appointment tomorrow at 15:00.','My name is Synthetic Visitor.','Yes, confirm.')):
+            self.send(token,text,'rollback-book-'+str(index),'en-US')
+        appointments=self.store.list('appointments','demo');self.assertEqual(len(appointments),1)
+        version=self.widget.rows('demo','widget_version')[0]
+        self.widget.lifecycle(self.actor,self.integration['id'],'unpublish',WidgetAction(confirmed=True))
+        with self.assertRaises(DomainError):self.widget.ticket(self.public_id,self.site)
+        self.widget.lifecycle(self.actor,self.integration['id'],'rollback',WidgetAction(confirmed=True,version_id=version['id']))
+        with self.assertRaises(DomainError):self.send(token,'Yes, confirm.','rollback-old','en-US')
+        fresh=self.visitor('en-US');self.assertNotEqual(fresh,token)
+        self.assertEqual(self.send(fresh,'Hello','rollback-fresh','en-US')['locale'],'en-US')
+        self.assertEqual(self.store.list('appointments','demo'),appointments)
 
     def test_snapshot_does_not_follow_legacy_instruction_edits(self):
         token=self.visitor()
@@ -133,6 +189,49 @@ class WidgetTests(unittest.TestCase):
         self.now+=timedelta(days=8)
         self.widget.purge()
         self.assertTrue(all(row['status']=='purged' for row in self.widget.rows('demo','widget_session')))
+
+    def test_clear_and_retention_redact_traces_only_for_owned_conversation(self):
+        for cleanup in ('clear','purge'):
+            with self.subTest(cleanup=cleanup):
+                token=self.visitor()
+                _,session,_=self.widget.session(self.public_id,token)
+                conversation=session['conversation_id']
+                self.store.add('conversations','other',{'assistant_id':'default','status':'open'},id=conversation)
+                unrelated=self.store.add('conversations','demo',{'assistant_id':'default','status':'open'})['id']
+                targets=[]
+                untouched=[]
+                for table in ('agent_executions','tool_executions','approvals'):
+                    data={'conversation_id':conversation,'status':'pending','arguments':{'name':'Sensitive visitor'},
+                          'result':{'text':'Sensitive visitor'},'handoff':{'arguments':{'name':'Sensitive visitor'}}}
+                    targets.append((table,self.store.add(table,'demo',data)))
+                    untouched.append((table,self.store.add(table,'other',data)))
+                    untouched.append((table,self.store.add(table,'demo',{**data,'conversation_id':unrelated})))
+                appointment=self.store.add('appointments','demo',{'conversation_id':conversation,'contact_name':'Retained booking','status':'confirmed'})
+                if cleanup=='clear':
+                    self.widget.clear(self.public_id,token)
+                    self.assertTrue(self.widget.clear(self.public_id,token)['cleared'])
+                else:
+                    self.now+=timedelta(days=8)
+                    self.widget.purge()
+                for table,original in targets:
+                    actual=self.store.get(table,'demo',original['id'])
+                    self.assertTrue(actual['redacted'])
+                    for field in ('arguments','result','outcome','handoff'):self.assertEqual(actual[field],{})
+                    if table=='approvals':self.assertEqual(actual['status'],'cancelled')
+                for table,original in untouched:self.assertEqual(self.store.get(table,original['tenant_id'],original['id']),original)
+                self.assertEqual(self.store.get('appointments','demo',appointment['id']),appointment)
+
+    def test_clear_and_retention_remove_uncommitted_booking_memory(self):
+        for cleanup in ('clear','purge'):
+            token=self.visitor('en-US')
+            self.send(token,'Book an appointment tomorrow at 15:00.','request-'+cleanup,'en-US')
+            self.send(token,'My name is Synthetic Visitor.','details-'+cleanup,'en-US')
+            _,session,_=self.widget.session(self.public_id,token)
+            self.assertTrue(self.store.get('conversations','demo',session['conversation_id'])['booking_state']['contact_name'])
+            if cleanup=='clear':self.widget.clear(self.public_id,token)
+            else:self.now+=timedelta(days=8);self.widget.purge()
+            self.assertIsNone(self.store.get('conversations','demo',session['conversation_id']).get('booking_state'))
+        self.assertEqual(self.store.count('appointments','demo'),0)
 
     def test_limits_and_payload_replay_do_not_recharge(self):
         row=self.widget.get(self.actor,self.integration['id'])

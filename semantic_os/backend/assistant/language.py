@@ -7,6 +7,8 @@ from .domain import Locale, LOCALES, DomainError
 
 TEXT = {
     'en-US': {
+        'preview_uncertain_response':'The simulated provider outcome is unknown. No local booking is confirmed. Do not repeat the action automatically; reconcile the provider state first.',
+        'preview_failure_response':'The simulated provider failed. No appointment was created. Review the failure before retrying.',
         'test_worker_busy':'Another isolated test is running. Refresh results, or retry when it finishes. Your draft was not changed.',
         'voice_keypad_required':'To book the proposed appointment, press 1 after the details finish. Press 0 to cancel.',
         'voice_keypad_proposal':'Please check: {name}, {date}, {duration} minutes. Press 1 to book, or 0 to cancel.',
@@ -71,6 +73,8 @@ TEXT = {
         'usage_warning': 'Your usage is approaching the plan limit.',
     },
     'bg-BG': {
+        'preview_uncertain_response':'Резултатът от симулирания доставчик е неизвестен. Няма потвърден локален час. Не повтаряйте автоматично действието; първо сверете състоянието при доставчика.',
+        'preview_failure_response':'Симулираният доставчик отказа. Не е създаден час. Прегледайте грешката преди повторен опит.',
         'test_worker_busy':'Изпълнява се друг изолиран тест. Опреснете резултатите или опитайте след приключването му. Черновата не е променена.',
         'voice_keypad_required':'За да запишете предложения час, натиснете едно след края на предложението. За отказ натиснете нула.',
         'voice_keypad_proposal':'Моля, проверете: {name}, {date}, {duration} минути. За записване натиснете едно, за отказ натиснете нула.',

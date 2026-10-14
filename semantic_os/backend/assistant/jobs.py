@@ -4,6 +4,8 @@ from .domain import DomainError
 from .language import tr, format_date
 from .store import now
 
+UNRESOLVED_JOB_STATUSES = frozenset({'dead_letter','uncertain','failed','delivery_unknown','blocked'})
+
 
 class ReminderQueue:
     def __init__(self, store, orchestrator):

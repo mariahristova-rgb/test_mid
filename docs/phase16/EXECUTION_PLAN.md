@@ -1,0 +1,30 @@
+# Phase 16 execution plan
+
+11 October 2026, Europe/Sofia. Status: **local implementation approved and delivered; full acceptance remains BLOCKED**. Separate `codex/phase16-saas-operations` branches preserve local Phase 15 work. No destructive migration, public deployment, live send, billing charge, merge or push is authorized by this plan alone.
+
+## Proposed increments and review boundaries
+
+1. **B — close critical acceptance gaps.** Reuse the synthetic Phase 15 workspace and existing Inbox/Widget/Setup views for keyboard, zoom, offline recovery and narrow-width checks. Record screen-reader/physical-device blockers honestly. Prepare deterministic Google lifecycle/DST/reminder/reconciliation cases using existing `concierge.py`, `jobs.py` and Google tests. Additional live operations require named owner approval. Public staging remains independently blocked by the earlier OAuth scope rejection and DNS/redirect prerequisites; do not bypass it.
+2. **C — customer operations and onboarding.** Extend `frontend/src/services/navigation.mjs`, `App.vue`, `views/{SaaSView,SetupView,WidgetView,WorkspaceView}.vue`, `components/InboxQueue.vue`, `services/i18n.ts`; reuse `backend/assistant/{billing,ux,widget,inbox_queue}.py`. Preserve existing routes and backend RBAC. Add validated resumable step projections and actionable publishing blockers. Templates are configurable drafts, never a silent live activation. Add priority/SLA/unread/resolution data only additively, with CAS/tenant/retention tests. Promote Leads/Team navigation only when functioning views and permissions exist.
+3. **D — usage and costs.** Extend `entitlements.py`, `saas_api.py`, `saas_domain.py` and `SaaSView.vue` without duplicating the ledger. Define measured dimensions/unit provenance first; show missing metrics explicitly. Add period filters, quota warnings at configurable thresholds and auditable adjustment records if absent. Separate compute estimates, provider charges and invoices; decimal/minor-unit arithmetic and pricing snapshots remain authoritative. Test event replay, reservations, threshold deduplication, period boundaries and role access.
+4. **E — health and reviewable quality.** Add bounded tenant projections beside `ux.py`/`observability.py`, reusing the debugger and Test Studio. Health derives from actual versioned tests, provider state and incidents. Quality suggestions carry provenance and redact content; saving a suggestion cannot change prompts, permissions or published assistants. Human approval and fresh BG/EN tests precede publication.
+5. **F — business analytics.** Reuse `store.py`, `widget.py`, `concierge.py`, `privacy.py`; define minimal consent-aware event contracts before collecting anything. Default to aggregates and short retention; implement erasure/export and outcome provenance. No booking conversion from cancelled fixture counts, inferred reminder success, invented attendance or revenue.
+6. **G — measured optimization and operations.** Re-run `scripts/benchmark_phase11.py` with identical samples/data and record load confounders. Inspect UI pagination and SQLite query plans before tuning. Keep lazy routes; optimize only measured bottlenecks. Extend existing operations/dead-letter views and runbooks with correlation IDs, safe retry boundaries and SLO targets clearly marked unobserved. Use synthetic encrypted restore fixtures; never restore into the active database.
+7. **H — release gates.** Repeat targeted and full backend/frontend/website checks, source/security scans, BG/EN journeys and isolated recovery. Produce scoped readiness per chat/voice/provider capability. STAGING_VERIFIED requires an actual permitted HTTPS host and verified installation; PILOT_READY/PRODUCTION_READY require their real acceptance evidence, not local healthy containers.
+
+Each increment gets a small reviewable local commit and the corresponding report: customer journey/workspace/onboarding/handoff; usage; health; analytics; performance/operations; mobile/security/recovery; release decision. Relevant READMEs and `docs/architecture/IMPLEMENTATION_STATUS.md` update with actual outcomes. Do not prefill acceptance reports with PASS or claim all deliverables implemented.
+
+## Approval request
+
+Approve the incremental local product scope C–G after B's deterministic checks, while carrying unavailable live/device gates explicitly as blocked. This allows local improvements without pretending the missing public/voice/provider gates passed. The task itself requires this plan review before large changes. Paid/public cloud actions, live Calendar/email tests and production push remain separate, specific approvals.
+
+## Current release decision
+
+**BLOCKED for Phase 16 completion and commercial launch.** The approved customer/operations foundation is implemented and tested; see RELEASE_DECISION.md for remaining acceptance and capability scope. Exact evidence and constraints: `BASELINE_AND_GAP_MATRIX.md`. No real-device, screen-reader, same-day reminder, hosted owner login or public widget integration result is inferred from the test suites.
+
+
+## Approved implementation checkpoint — 11 October 2026
+
+The owner approved incremental local scope. The isolated hosting/public endpoint and required VM OAuth scope were subsequently authorized; three DNS records were added by the owner. HTTPS, real domain verification, FAQ publication and owner-only Google sign-in now work. `G_CLIENT_ID2` is a corrected alias of the existing client matching the unchanged shared secret; no original Calendar/Gmail refresh tokens or customer database were moved. No main push/merge/production website deploy.
+
+Local implementation and exact remaining gates are recorded in the Phase16 workstream reports and `RELEASE_DECISION.md`.328 backend and31 frontend tests pass; source236 files/zero failures; redacted2.61MB/no leaks. Final public BG/EN protocol tests pass; public browser acceptance remains pending explicit scope approval after automatic review rejected inspection. No pilot/production certification.

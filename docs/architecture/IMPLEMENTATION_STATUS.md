@@ -1,5 +1,32 @@
 # Implementation status
 
+## Phase23 — pilot preparation only,13October2026
+
+Read-only Phase22exit audit confirms only an entry proposal exists; missing verified continuity/real speech/latency/concurrency/approval gates remain blockers. Existing mock self-hosted voice,RTP/ARI,voice integration,confirmation and setup subset73PASS/10.353s. Fourteen Phase23readiness/security/acceptance/authorization documents prepared; no new runtime or testcode,PBX/model start,customer access,live action,recording,spending,public exposure,protected merge or deployment. **Live pilot/Phase24production NO-GO.** Pending Phase21continuity contract/Phase22local plan review is not superseded by this prompt. See docs/phase23/PHASE23_FINAL_EVIDENCE_MATRIX.md.
+
+## Phase21 first approved increment / Phase22 entry audit —13October2026
+
+Optional no-code Business description/contact/price metadata and holiday/unavailable periods added to existing drafts/UI; mock calendar restrictions enforced,tenant-timezone DST-aware pickers,legacy defaults and concurrent profile invalidation tested. Fixture BG/EN speak/barge/replay/terminate preserves exactly one committed booking.351backend/37frontend/41corpusPASS,frontendtypecheck/lint/build, schema1–5preserved/source242/0failures. No real speech/model/container restart or external activation. FullPhase21 and Phase22 entry remainBLOCKED on reviewed verified-continuity contracts and actual model/browser/live evidence. Proposed contracts in docs/phase21/CROSS_CHANNEL_IDENTITY_AND_CONSENT.md; Phase22entryplan in docs/phase22. No production/real-time voice claim.
+
+## Phase20 — local deployment readiness and advisory repair,13October2026
+
+Phase19clean branches/history and346test log/36corpus receipts verified; corpus hash matches. Fresh dependency audits: Python40dependencies/0findings, assistantfrontend0, website initially1high source-map-js advisory. Owner-approved3line lock update1.2.1→1.2.2, clean install, repeat audit0findings and78website/config/typecheck/buildPASS.67fresh security regressionsPASS/8.461s; source240/0failures, environment-secret324filesPASS, five-file local staging archive hashes match. Ten readiness/approval/DR/model/browser/Google documents prepared under docs/phase20. **Production/pilot NO-GO**: no real model,live Google,public browser,deployedDR,current billing or external activation evidence. No deployment,spending,deadline extension,token migration,protected merge or push in Phase20. API/schema/backend/frontend runtime unchanged; website transitive patch only.
+
+## Phases18–19 — authorized local reliability and pilot preparation,13October2026
+
+Phase17 revalidated/pushed to separate feature branches (test_mid db939b7,website6175639), without main merge. Phase18 fixed reproduced provider-time mismatch, mixed-offset reminder scheduling and uncommitted booking-memory retention; its local exit342backend/35frontend/32corpusPASS. Phase19 fixes redacted unknown/blocked operator visibility and unknown Calendar execution receipts, extends no-replay/disable/rollback rehearsals and produces the controlled pilot package. Final346backend/35frontend/78website/36corpusPASS, migration/source/build checksPASS. API/schema5 preserved, website runtime unchanged. **NO-GO for external pilot/production**: real public Google/mail/reminder, browser/device/a11y, actual costs/DR/model quality and participant approvals remain open. No live sends, spending, hosting extension, migration or protected merge. See docs/phase18/RELEASE_DECISION.md and docs/phase19/FINAL_VERIFICATION.md.
+
+## Phase17 — prerequisite audit and first local P0 increment, 11 October2026
+
+Separate `codex/phase17-production-pilot` branches preserve Phase15–16 work in both repositories. Phase16 is not complete. New widget clear/retention removes agent/tool/approval text copies while preserving bookings and other tenant/conversation data;18widget tests pass. Versioned offline evaluation corpus15/15PASS; source238files/0failures. No live provider action, cloud provisioning, production deployment or main push/merge. **PILOT_BLOCKED** pending public staging/browser, complete authorized Google/mail/reminder lifecycle, recovery and external-customer acceptance. See `docs/phase17/READINESS_AUDIT.md` and `IMPLEMENTATION_PLAN.md`. Historical sections below retain their checkpoint dates and are not current deployment assertions.
+
+## Phase15 — local P0 increment, 11 October2026
+
+Separate feature branches preserve main. Approved three-experience navigation and existing Inbox queue/assignment/revision/audited retained notes are implemented; API/unit verification passes. Concierge diagnostics recognize live calendar tool coverage and persisted appointment states. Full backend309 tests/86.112s; frontend29 tests; source boundary227 files/zero failures. Approved BG reschedule/cancel and English create/cancel have real provider readbacks and replay protection; reminder jobs cancelled correctly and live operations restored off. Owner confirmed BG inbox receipt. Initial browser inspection was rejected; owner subsequently approved scoped synthetic checks, which verified Inbox controls, human provenance and all eight widths without horizontal overflow.
+
+**BLOCKED; Phase15 not complete.** Public HTTPS staging requested within revised €2/week ceiling; package and owner-only Google identity adapter are tested, but cloud-platform scope approval/DNS/client callback gates remain. No paid host exists. Human English inbox and actual reminder acceptance, browser/a11y/performance and acoustic voice gates remain open. P1 health/outcome/quality and P2 presets are planned, not implemented. No Phase15 push/merge/public deployment. See docs/product reports.
+
+
 ## Phase 14 Ontelyx AI Concierge — 2026-10-11
 
 Action-first BG/EN shared widget, mobile safe-area/full-height/scroll-back foundations, environment-specific HTTPS/private-endpoint guards, admin Google OAuth configuration and encrypted account-bound Calendar/Gmail adapters are implemented on separate codex/phase14-concierge branches. Existing receptionist/executor/tool registry performs typed consent-controlled actions; no independent bot or proprietary runtime is introduced. Live FreeBusy/event API adapters, verified email/management capabilities, localized jobs/reminders, request intake, audit/quota/retention and privacy links have offline contracts.
@@ -140,3 +167,12 @@ Preserved frontend verification: typecheck, zero-warning lint, nine tests and bu
 **DEMO_BLOCKED — preparation only.** Phase 8B has not passed the mandatory human/speech acceptance gate. No release candidate is certified and no new Phase 9 live rehearsal, reset, public release or real notification was performed.
 
 243 backend tests passed in 55.353 seconds. Fresh frontend nine tests, lint, typecheck and build pass. Read-only health/inventory, fixed dated plan, bilingual presentation/recovery/checklist documents and isolated reset safeguards are prepared. The reset preserves seeded fixtures, rejects active/foreign/unmarked tenants and requires explicit CLI/PowerShell confirmation; live data was not reset. No RC, commit/tag, public release, deployment, new live rehearsal or real send was performed. See docs/demo/PHASE9_READINESS.md for exact blockers and evidence.
+# Phase 16 discovery — 11 October 2026
+
+Phase 16 is in discovery, not implemented or launch-ready. Separate local branches preserve Phase 15 work in both repositories. Fresh baseline: 309 backend, 29 frontend and 78 website tests pass; both builds and source boundary checks pass. See `docs/phase16/BASELINE_AND_GAP_MATRIX.md` and `EXECUTION_PLAN.md` for exact commands, measured API baseline, inherited acceptance limitations and proposed scope requiring review. No cloud host, public deployment, live send, merge or push performed. Phase 15 P1/P2 and real provider/device/voice acceptance remain open.
+
+## Latest Phase 16 implementation checkpoint
+
+The owner approved local workstreams and the isolated synthetic staging host/setup. Business navigation/Team reuse, progress/readiness freshness, Inbox metadata and filters, Leads & Requests, exact Usage Center/alerts/forecasts, mock audited financial corrections, Health Center, reviewed structured Quality Coach, consented first-party funnel and internal operations targets are implemented on the feature branch. Schema5 is reused.328 backend/31 frontend tests pass; source236 files/zero failures; redacted source2.61MB/no leaks; builds/lint/typecheck pass.
+
+Actual HTTPS domain proof, FAQ-only widget publication and Google owner sign-in succeed on the new isolated e2-micro host. BG/EN approved FAQ protocol/replay/clear and private staff boundaries pass. Original Calendar/Gmail tokens/customer database/models were not transferred. Current budget estimate€1.9577/week; compute stops14 October2026,20:57 Europe/Sofia. Full browser/device, public live Calendar/reminder, voice, real billing, observed SLO/recovery and cohort acceptance remain open; full Phase16 release remains BLOCKED. See `docs/phase16/RELEASE_DECISION.md`. No Phase16 main push/merge or production Ontelyx deployment.

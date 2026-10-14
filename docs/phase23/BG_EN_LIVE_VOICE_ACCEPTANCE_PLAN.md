@@ -1,0 +1,9 @@
+# Prepared BG/EN live acceptance — NOT EXECUTED
+
+Use named approved callers/business/tenant only after prerequisites and exact pilot signoff. No enrollment or recordings here. Run BG and EN independently: greeting,approved FAQ/service,missing/misheard name/date/time,booking readback/explicit confirmation,rejection/ambiguity,stale availability,repeat confirmation,reschedule/cancel ownership,language switch,noise/accent,long pause,barge-in,disconnect,unsupported request and human handoff.
+
+Before pilot freeze scenario/audio/reference/model versions,normalization rules,expected critical fields,sample size,repeat order and thresholds. Proposed hard safety conditions:0unauthorized/duplicate/cross-tenant writes,0actions on ambiguous/negative consent,100%correct selected critical details before consequential action and truthful provider state. Human listening/intelligibility/naturalness scale and supported-task completion target require owner review. WER/first-audio/p95 latency/resource thresholds remain UNSET until authorized local baseline and pre-pilot approval; therefore no GO or live test now.
+
+Record per-language denominators and every failure,WER/critical-detail accuracy,completion,first audio,end-of-turn/response latency,interruption outcomes,caller ratings and provider/dashboard receipt IDs. Packet/WAV existence is not heard/understood proof. Three consecutive correct calls are a demo check,not population accuracy/statistical95%reliability. Never revise thresholds using pilot results to turn FAIL into PASS.
+
+Do not use unauthorized speaker recordings/cloning. Disclosure and raw audio/transcript retention require approval/legal review; default none. Scheduling/live Google/native mail and cleanup have separate exact scopes. Stop immediately for privacy/identity/consent/duplicate/misdelivery failure; retain content-minimized evidence and disable capability through approved operator controls.

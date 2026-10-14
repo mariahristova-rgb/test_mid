@@ -1,0 +1,11 @@
+# Prepared Qwen real-model acceptance
+
+NOT EXECUTED in Phase20. Existing QwenProvider/QwenSettings and scripts/benchmark_cpu_llm.py are inspected, not invoked. The benchmark reads the existing local inference secret and makes real model requests; it requires separate execution authorization. No key/artifact contents read, weights downloaded or new provider introduced.
+
+Approval scope to request: existing cached Qwen3-4B Q4_K_M CPU runtime only, one concurrent worker,4096context,0GPU layers,non-thinking,128max output tokens,60s timeout; synthetic public BG/EN prompts, maximum120requests including warmup, no Calendar/Gmail/tool mutation or model/server reconfiguration. No paid managed provider. Electricity/resource consumption is not assumed free or measured.
+
+Reuse semantic_os/config/phase17_evaluations.json version1.2.0 as case taxonomy/expected invariants. Its current executor uses mock unit fixtures and cannot be relabeled REAL_MODEL. An approved real-model run must route actual Qwen into the existing provider interface while retaining isolated fake tenant/store/calendar/mail. Use approved public knowledge only; case IDs cover intent/tool schema, clarification, consent refusal, ownership, locale switching, context continuity, unknown/confidential topics and injection. Cases needing another harness adaptation require review before implementation; no parallel framework.
+
+Protocol: record model artifact digest/runtime settings, approved case set, warm/cold distinction and timestamps; run declared repetitions with identical prompts/fixtures; judge exact structured arguments and no unauthorized writes. Human-review grounded prose/unknown-topic refusal. Record completion with denominators, tool selection/hallucination/unsupported-action counts, timeout/retry counts, context truncation, actual input/output token receipts and latency distributions. Missing usage is unavailable; do not infer tokens from characters. Compute cost/task only from separately measured/approved cost allocation.
+
+Failure→review→reproducible regression→promotion uses existing Quality workflow. No95%production reliability claim from small synthetic samples. Voice remains a separate human-heard/acoustic-consent gate.

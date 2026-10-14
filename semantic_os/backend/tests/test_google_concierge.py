@@ -5,6 +5,7 @@ from datetime import datetime,timedelta,timezone,date
 from urllib.parse import parse_qs,urlsplit
 from cryptography.fernet import Fernet
 import httpx
+from concurrent.futures import ThreadPoolExecutor
 from semantic_os.backend.assistant.store import Store
 from semantic_os.backend.assistant.security import TenantSecretStore
 from semantic_os.backend.assistant.google_workspace import GoogleWorkspace,GoogleClientConfig,SCOPES,ACCOUNT
@@ -89,6 +90,41 @@ class GoogleConciergeTests(unittest.TestCase):
         with self.assertRaises(DomainError):self.connect()
         self.assertNotEqual(self.workspace.row('demo','calendar')['state'],'connected')
 
+    def test_refresh_cannot_restore_tokens_after_disconnect(self):
+        self.connect();self.now+=timedelta(hours=2)
+        original=self.workspace.transport
+        def interrupted(request):
+            if request.url.path.endswith('/token'):
+                self.workspace.transport=original
+                self.workspace.revoke(self.actor,'calendar')
+                return httpx.Response(200,json={'access_token':'late-access','refresh_token':'late-refresh','expires_in':3600})
+            return self.transport(request)
+        self.workspace.transport=httpx.MockTransport(interrupted)
+        with self.assertRaises(DomainError):self.workspace.token('demo','calendar')
+        self.assertEqual(self.workspace.row('demo','calendar')['state'],'revoked')
+        self.assertEqual(json.loads(self.secrets.get('demo','google:calendar:tokens')), {})
+
+    def test_refresh_rotation_is_encrypted_and_tenant_scoped(self):
+        self.connect();self.now+=timedelta(hours=2)
+        self.workspace.transport=httpx.MockTransport(lambda request:httpx.Response(200,json={'access_token':'rotated-access','refresh_token':'rotated-refresh','expires_in':3600}))
+        self.assertEqual(self.workspace.token('demo','calendar'),'rotated-access')
+        self.assertEqual(json.loads(self.secrets.get('demo','google:calendar:tokens'))['refresh_token'],'rotated-refresh')
+        self.assertNotIn('rotated-refresh',json.dumps(self.store.list('secrets','demo')))
+        self.assertIsNone(self.workspace.row('other','calendar'))
+        with self.assertRaises(DomainError):self.workspace.token('other','calendar')
+
+    def test_expired_oauth_and_missing_scopes_fail_closed(self):
+        cfg=GoogleClientConfig(kind='calendar',client_id='calendar-fixture.apps.googleusercontent.com',client_secret='fake',redirect_uri='http://127.0.0.1:3017/backend/api/google/oauth/callback')
+        self.workspace.configure(self.actor,cfg)
+        url,binding=self.workspace.start(self.actor,'calendar');state=parse_qs(urlsplit(url).query)['state'][0]
+        self.now+=timedelta(minutes=11)
+        with self.assertRaises(DomainError):self.workspace.callback(state,'code',{'calendar':binding})
+        self.assertFalse(self.requests)
+        url,binding=self.workspace.start(self.actor,'calendar');state=parse_qs(urlsplit(url).query)['state'][0]
+        self.workspace.transport=httpx.MockTransport(lambda request:httpx.Response(200,json={'access_token':'fake','refresh_token':'fake','scope':'openid email'}))
+        with self.assertRaises(DomainError):self.workspace.callback(state,'code',{'calendar':binding})
+        self.assertEqual(self.workspace.row('demo','calendar')['state'],'disconnected')
+
     def test_live_operations_blocked_without_owner_permission(self):
         self.connect();self.connect('gmail');policy=self.concierge.policy('demo');policy.operations_authorized=False;self.concierge.configure(self.actor,policy)
         with self.assertRaises(DomainError):self.concierge.ready('demo',True)
@@ -172,3 +208,167 @@ class GoogleConciergeTests(unittest.TestCase):
         row=self.store.get('operations_events','demo',outcome['data']['request_id']);self.assertTrue(row['redacted']);self.assertEqual(row['topic'],'')
         self.assertEqual(self.store.list('tool_executions','demo')[-1]['arguments'],{'redacted':True})
         self.assertEqual(self.store.list('jobs','demo')[-1]['status'],'cancelled')
+
+    def test_create_mismatched_provider_times_cannot_confirm_locally(self):
+        def mismatched(request):
+            response=self.transport(request)
+            if request.url.path.endswith('/events') and request.method=='POST':
+                event=response.json();event['start']={'dateTime':'2026-10-12T17:00:00+03:00'}
+                return httpx.Response(200,json=event)
+            return response
+        self.workspace.transport=httpx.MockTransport(mismatched)
+        with self.assertRaises(DomainError) as error:self.book('mismatched-create')
+        self.assertEqual(error.exception.code,'delivery_unknown')
+        self.assertEqual(self.store.count('appointments','demo'),0)
+        self.assertEqual(len(self.events),1)
+
+    def test_reschedule_mismatched_provider_times_preserves_local_booking(self):
+        result,_=self.book();booking=self.store.get('operations_events','demo',result['data']['booking_id'])
+        token=self.concierge.management_token('demo',booking)
+        def mismatched(request):
+            response=self.transport(request)
+            if request.method=='PATCH':
+                event=response.json();event['end']={'dateTime':'2026-10-13T17:30:00+03:00'}
+                return httpx.Response(200,json=event)
+            return response
+        self.workspace.transport=httpx.MockTransport(mismatched)
+        with self.assertRaises(DomainError) as error:
+            self.concierge.manage(self.actor,self.conversation,{'action':'reschedule','management_token':token,'starts_at':'2026-10-13T16:00:00+03:00','consent':True})
+        self.assertEqual(error.exception.code,'delivery_unknown')
+        self.assertEqual(self.store.get('operations_events','demo',booking['id']),booking)
+
+    def test_bilingual_full_lifecycle_reminder_and_replays(self):
+        for locale in ('bg-BG','en-US'):
+            with self.subTest(locale=locale):
+                self.now=datetime(2026,10,12,6,tzinfo=timezone.utc)
+                self.conversation=self.store.update('conversations','demo',self.conversation['id'],{'active_locale':locale})
+                self.connect();self.assertIn('2026-10-12T15:00:00+03:00',self.concierge.slots('demo',date(2026,10,12))['slots'])
+                outcome,args=self.book(key='lifecycle-'+locale)
+                repeated=self.engine.tools.execute(self.actor,self.assistant,self.conversation,'ConciergeBooking',args,key='lifecycle-'+locale,correlation_id='replay',approved=True)
+                self.assertEqual(outcome,repeated)
+                booking=self.store.get('operations_events','demo',outcome['data']['booking_id'])
+                self.assertEqual(booking['locale'],locale)
+                self.concierge.worker();self.concierge.worker()
+                self.now=datetime(2026,10,12,11,tzinfo=timezone.utc)
+                before=self.sent;self.concierge.worker();self.concierge.worker();self.assertEqual(self.sent,before+1)
+                jobs=[j for j in self.store.list('jobs','demo') if j.get('booking_id')==booking['id']]
+                self.assertTrue(all(j['status']=='sent' for j in jobs))
+                self.assertTrue(any(j['subject']==('Напомняне за демонстрация' if locale=='bg-BG' else 'Demo reminder') for j in jobs))
+                token=self.concierge.management_token('demo',booking)
+                change={'action':'reschedule','management_token':token,'starts_at':'2026-10-13T16:00:00+03:00','consent':True}
+                changed=self.engine.tools.execute(self.actor,self.assistant,self.conversation,'ConciergeManage',change,key='move-'+locale,correlation_id='offline',approved=True)
+                self.assertEqual(changed,self.engine.tools.execute(self.actor,self.assistant,self.conversation,'ConciergeManage',change,key='move-'+locale,correlation_id='replay',approved=True))
+                updated=self.store.get('operations_events','demo',booking['id'])
+                self.assertEqual(self.events[booking['event_id']]['start']['dateTime'],updated['starts_at'])
+                cancel={'action':'cancel','management_token':self.concierge.management_token('demo',updated),'consent':True}
+                cancelled=self.engine.tools.execute(self.actor,self.assistant,self.conversation,'ConciergeManage',cancel,key='cancel-'+locale,correlation_id='offline',approved=True)
+                self.assertEqual(cancelled,self.engine.tools.execute(self.actor,self.assistant,self.conversation,'ConciergeManage',cancel,key='cancel-'+locale,correlation_id='replay',approved=True))
+                self.assertEqual(self.events[booking['event_id']]['status'],'cancelled')
+                appointment=self.store.find('appointments','demo','concierge:'+booking['id'])
+                self.assertEqual(appointment['status'],'cancelled')
+                self.assertFalse(any(j['status']=='pending' for j in self.store.list('jobs','demo') if j.get('booking_id')==booking['id']))
+
+    def test_uncertain_calendar_commit_reconciles_without_second_post(self):
+        posts=[]
+        def uncertain(request):
+            response=self.transport(request)
+            if request.url.path.endswith('/events') and request.method=='POST':
+                posts.append(request.url.path);raise httpx.ReadTimeout('synthetic committed timeout',request=request)
+            return response
+        self.workspace.transport=httpx.MockTransport(uncertain)
+        outcome,args=self.book('uncertain-observed')
+        repeated=self.engine.tools.execute(self.actor,self.assistant,self.conversation,'ConciergeBooking',args,key='uncertain-observed',correlation_id='offline',approved=True)
+        self.assertEqual(repeated,outcome);self.assertEqual(len(posts),1)
+        self.assertEqual(len(self.events),1);self.assertEqual(self.store.count('appointments','demo'),1)
+
+    def test_unobservable_calendar_write_cannot_be_replayed(self):
+        posts=[]
+        def uncertain(request):
+            if request.url.path.endswith('/events') and request.method=='POST':
+                posts.append(request.url.path);raise httpx.ReadTimeout('synthetic unknown timeout',request=request)
+            return self.transport(request)
+        self.workspace.transport=httpx.MockTransport(uncertain)
+        self.connect();verification=self.verified_email()
+        args={'starts_at':'2026-10-12T15:00:00+03:00','name':'Synthetic','email':'visitor@example.com','topic':'Demo','verification_id':verification,'consent':True}
+        for _ in range(2):
+            with self.assertRaises(DomainError) as error:
+                self.engine.tools.execute(self.actor,self.assistant,self.conversation,'ConciergeBooking',args,key='unknown',correlation_id='offline',approved=True)
+            self.assertEqual(error.exception.code,'delivery_unknown')
+        self.assertEqual(len(posts),1);self.assertEqual(self.store.count('appointments','demo'),0)
+        self.assertEqual(self.concierge.rows('demo','concierge_intent')[-1]['status'],'unknown')
+        traces=self.store.list('tool_executions','demo',self.conversation['id'])
+        self.assertEqual(len(traces),1)
+        self.assertEqual(traces[0]['outcome']['code'],'delivery_unknown')
+        self.assertEqual(traces[0]['arguments'],{})
+
+    def test_refused_consent_and_revoked_google_cannot_write(self):
+        self.connect();verification=self.verified_email()
+        args={'starts_at':'2026-10-12T15:00:00+03:00','name':'Synthetic','email':'visitor@example.com','topic':'Demo','verification_id':verification,'consent':False}
+        with self.assertRaises(DomainError):
+            self.engine.tools.execute(self.actor,self.assistant,self.conversation,'ConciergeBooking',args,key='refused',correlation_id='offline',approved=True)
+        self.workspace.revoke(self.actor,'calendar');args['consent']=True
+        with self.assertRaises(DomainError):
+            self.engine.tools.execute(self.actor,self.assistant,self.conversation,'ConciergeBooking',args,key='revoked',correlation_id='offline',approved=True)
+        self.assertEqual(self.events,{});self.assertEqual(self.store.count('appointments','demo'),0)
+
+    def test_information_email_requires_verified_owner_and_queues_once(self):
+        for locale in ('bg-BG','en-US'):
+            with self.subTest(locale=locale):
+                self.conversation=self.store.update('conversations','demo',self.conversation['id'],{'active_locale':locale})
+                verification=self.verified_email()
+                args={'action':'information','name':'Synthetic visitor','email':'visitor@example.com','verification_id':verification,'topic':'<script>unapproved content</script>','consent':True,'marketing_consent':False}
+                with self.assertRaises(DomainError):
+                    self.engine.tools.execute(self.actor,self.assistant,self.conversation,'ConciergeRequest',{**args,'email':'stranger@example.com'},key='wrong-info-'+locale,correlation_id='offline',approved=True)
+                outcome=self.engine.tools.execute(self.actor,self.assistant,self.conversation,'ConciergeRequest',args,key='info-'+locale,correlation_id='offline',approved=True)
+                self.assertEqual(outcome,self.engine.tools.execute(self.actor,self.assistant,self.conversation,'ConciergeRequest',args,key='info-'+locale,correlation_id='offline',approved=True))
+                subject='Информация за Ontelyx' if locale=='bg-BG' else 'Ontelyx information'
+                jobs=[j for j in self.store.list('jobs','demo') if j['subject']==subject]
+                self.assertEqual(len(jobs),1);self.assertEqual(jobs[0]['recipient'],'visitor@example.com')
+                body=self.secrets.get('demo','concierge:mail:'+jobs[0]['id'])
+                self.assertIn('https://www.ontelyx.tech/platform',body);self.assertNotIn('<script>',body)
+                before=self.sent;self.concierge.worker();self.concierge.worker();self.assertEqual(self.sent,before+1)
+                self.assertEqual(self.store.get('jobs','demo',jobs[0]['id'])['status'],'sent')
+
+    def test_concurrent_booking_intents_serialize_without_duplicates(self):
+        self.connect();verification=self.verified_email()
+        args={'starts_at':'2026-10-12T15:00:00+03:00','name':'Synthetic','email':'visitor@example.com','topic':'Demo','verification_id':verification,'consent':True}
+        def run(key):
+            try:return self.engine.tools.execute(self.actor,self.assistant,self.conversation,'ConciergeBooking',args,key=key,correlation_id='concurrent-offline',approved=True)
+            except DomainError as error:return error.code
+        with ThreadPoolExecutor(max_workers=4) as pool:results=list(pool.map(run,['same-key']*4))
+        self.assertTrue(all(result==results[0] for result in results));self.assertIsInstance(results[0],dict)
+        self.assertEqual(len(self.events),1);self.assertEqual(self.store.count('appointments','demo'),1)
+        args['starts_at']='2026-10-12T17:00:00+03:00'
+        with ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(run,['different-one','different-two']))
+        self.assertEqual(sum(isinstance(result,dict) for result in results),1)
+        self.assertIn('slot_unavailable',results)
+        self.assertEqual(len(self.events),2);self.assertEqual(self.store.count('appointments','demo'),2)
+
+    def test_worker_reconstruction_and_disable_do_not_replay_unknown_mail(self):
+        self.connect('gmail')
+        job=self.concierge.queue_email('demo',self.conversation['id'],'visitor@example.com','Synthetic accepted test','Synthetic body','restart-unknown')
+        def uncertain(request):
+            if request.url.path.endswith('/messages/send'):
+                self.sent+=1;raise httpx.ReadTimeout('synthetic timeout',request=request)
+            return self.transport(request)
+        self.workspace.transport=httpx.MockTransport(uncertain)
+        self.concierge.worker();self.assertEqual(self.sent,1)
+
+        self.concierge=Concierge(self.store,self.engine,self.workspace,self.secrets,public_origin='http://127.0.0.1:3020')
+        self.concierge.worker();self.assertEqual(self.sent,1)
+        self.assertEqual(self.store.get('jobs','demo',job['id'])['status'],'delivery_unknown')
+        blocked=self.concierge.queue_email('demo',self.conversation['id'],'visitor@example.com','Synthetic paused test','Synthetic body','disabled-mail')
+        policy=self.concierge.policy('demo');policy.operations_authorized=False;self.concierge.configure(self.actor,policy)
+        self.concierge.worker();self.assertEqual(self.sent,1)
+        self.assertEqual(self.store.get('jobs','demo',blocked['id'])['status'],'pending')
+        policy.operations_authorized=True;self.concierge.configure(self.actor,policy);self.workspace.revoke(self.actor,'gmail')
+        self.concierge.worker();self.assertEqual(self.sent,1)
+
+    def test_interrupted_sending_job_is_not_automatically_reclaimed(self):
+        self.connect('gmail')
+        job=self.concierge.queue_email('demo',self.conversation['id'],'visitor@example.com','Synthetic interrupted test','Synthetic body','interrupted')
+        self.store.update('jobs','demo',job['id'],{'status':'sending','attempts':1})
+        restarted=Concierge(self.store,self.engine,self.workspace,self.secrets,public_origin='http://127.0.0.1:3020')
+        restarted.worker();restarted.deliver(job)
+        self.assertEqual(self.sent,0)
+        self.assertEqual(self.store.get('jobs','demo',job['id'])['status'],'sending')

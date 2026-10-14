@@ -16,7 +16,9 @@
   const mount = () => {
     if(disposed) return;
     host = document.createElement('div');
-    const root = host.attachShadow({ mode: 'closed' });
+    // CSS isolation is retained; visitor credentials stay in the cross-origin iframe.
+    // An open public container supports host diagnostics and browser accessibility tests.
+    const root = host.attachShadow({ mode: 'open' });
     const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = base + '/widget/assets/loader.css';
     const launcher = document.createElement('button'); launcher.type = 'button'; launcher.textContent = title;
     launcher.setAttribute('aria-expanded', 'false');

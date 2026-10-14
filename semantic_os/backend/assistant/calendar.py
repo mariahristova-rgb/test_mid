@@ -23,6 +23,10 @@ class MockCalendarProvider:
         if policy:
             local = start.astimezone(ZoneInfo(tenant['timezone']))
             finish = end.astimezone(ZoneInfo(tenant['timezone']))
+            if local.date().isoformat() in policy.get('holidays',[]):return []
+            for period in policy.get('unavailable_periods',[]):
+                if start<datetime.fromisoformat(period['ends_at'].replace('Z','+00:00')) and datetime.fromisoformat(period['starts_at'].replace('Z','+00:00'))<end:
+                    return []
             if (local.weekday() not in policy['weekdays'] or local.date() != finish.date()
                     or local.strftime('%H:%M') < policy['opens'] or finish.strftime('%H:%M') > policy['closes']
                     or minutes != policy['duration_minutes'] or local.minute % policy['slot_minutes'] or local.second or local.microsecond):

@@ -121,6 +121,24 @@ class VoiceAcceptance(unittest.TestCase):
             self.assertTrue(all(x['content'] == '' for x in messages))
         self.assertEqual(self.store.count('appointments', 'demo'), 2)
 
+    def test_bilingual_playback_interruption_preserves_committed_booking(self):
+        for locale,texts in [('bg-BG',('Искам час за утре в 15:00.','Казвам се Иван Иванов.','Да, потвърждавам.')),
+                             ('en-US',('Book an appointment tomorrow at 16:00.','My name is John Smith.','Yes, confirm.'))]:
+            call=self.call(locale)
+            for index,text in enumerate(texts):
+                response=self.event(call,'transcript',text=text,utterance_id=locale+'-interrupt-'+str(index))
+                self.assertEqual(response.status_code,200,response.text)
+            appointments=[row for row in self.store.list('appointments','demo') if row['conversation_id']==call['conversation_id']]
+            self.assertEqual(len(appointments),1)
+            self.assertEqual(self.event(call,'speak',text=response.json()['last_response']).status_code,200)
+            self.assertEqual(self.event(call,'barge_in').status_code,200)
+            self.assertEqual(self.event(call,'transcript',text=texts[-1],utterance_id=locale+'-interrupt-2').status_code,200)
+            self.assertEqual(self.store.get('appointments','demo',appointments[0]['id']),appointments[0])
+            executions=[row for row in self.store.list('tool_executions','demo',call['conversation_id']) if row['tool']=='CreateAppointment']
+            self.assertEqual(len(executions),1)
+            self.assertEqual(self.event(call,'terminate').status_code,200)
+            self.assertEqual(self.store.get('appointments','demo',appointments[0]['id']),appointments[0])
+
     def test_partial_and_corrected_finals_do_not_repeat_tools(self):
         call = self.call('bg-BG')
         self.event(call, 'transcript', text='Искам да запиша час за утре в 15:00.', utterance_id='u1', final=False)

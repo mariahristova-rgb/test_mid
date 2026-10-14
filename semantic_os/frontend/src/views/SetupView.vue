@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { validateSetupForm } from '../services/setupValidation.mjs';
+import { scheduleLocal, scheduleInstant } from '../services/businessSchedule.mjs';
 import { computed, onMounted, ref, watch, nextTick, onUnmounted } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import { request, ApiError } from '../services/api';
@@ -14,16 +16,23 @@ const route = useRoute(), router = useRouter();
 const access = ref<any>({}), drafts = ref<any[]>([]), assistants = ref<any[]>([]), draft = ref<any>(null), readiness = ref<any>(null), receipts = ref<any[]>([]);
 const busy = ref(false), error = ref(''), notice = ref(''), confirmed = ref(false), abandon = ref(false), selected = ref('');
 const baseline = ref('');
+const setupForm = ref<HTMLFormElement | null>(null);
+const errorPanel = ref<HTMLElement | null>(null);
+function validateForm() {
+  return validateSetupForm(setupForm.value, () => { error.value = t('setupValidationHelp'); });
+}
 const recovery = ref('');
+const reloadConfirmed = ref(false);
 const locale = ref<'bg-BG'|'en-US'>('bg-BG'), scenario = ref('booking');
 const steps = ['useCaseStep','businessStep','languageStep','toolsStep','channelsStep','testingStep','reviewStep'];
-const scenarios = ['booking','short_confirmation','rejection','ambiguous','occupied','language_switch','handoff','interruption','faq','greeting'];
+const scenarios = ['booking','short_confirmation','rejection','ambiguous','occupied','language_switch','handoff','interruption','faq','greeting','reschedule','cancellation','out_of_hours','closed_day','unsupported','provider_failure','provider_uncertain'];
 const testing = computed(() => route.meta.page === 'testing');
 const canConfigure = computed(() => access.value.user?.role === 'admin');
 const canExecute = computed(() => ['admin','operator'].includes(access.value.user?.role));
 const editable = computed(() => draft.value?.status === 'draft' && canConfigure.value);
 const dirty = computed(() => draft.value && JSON.stringify(draft.value) !== baseline.value);
 const latest = computed(() => receipts.value.at(-1));
+function runValidated(action: () => Promise<unknown>) { if(validateForm()) void run(action); }
 async function run(action: () => Promise<unknown>) {
   if (busy.value) return; busy.value = true; error.value = ''; notice.value = ''; recovery.value = '';
   try { await action(); } catch(e) {
@@ -31,7 +40,7 @@ async function run(action: () => Promise<unknown>) {
     else if(e instanceof ApiError && e.status === 409) {error.value=t('draftConflictHelp'); recovery.value='revision';}
     else error.value = e instanceof Error && e.message ? e.message : t('error');
   }
-  finally { busy.value = false; }
+  finally { busy.value = false; if(error.value) { await nextTick(); errorPanel.value?.focus(); } }
 }
 function payload() {
   return { revision: draft.value.revision || 0, assistant_id: draft.value.target_assistant_id || null,
@@ -49,7 +58,9 @@ async function load() {
 async function open(id: string) {
   const found = drafts.value.find(d => d.id === id);
   if (!found) throw new Error(t('not_found'));
-  draft.value = JSON.parse(JSON.stringify(found)); baseline.value = JSON.stringify(draft.value); confirmed.value = false;
+  draft.value = JSON.parse(JSON.stringify(found));
+  draft.value.business = { description:'',contact_email:'',contact_phone:'',service_price:'',price_currency:'EUR',holidays:found.calendar_base?.holidays || [],unavailable_periods:found.calendar_base?.unavailable_periods || [],...draft.value.business };
+  baseline.value = JSON.stringify(draft.value); confirmed.value = false;
   selected.value = id;
   await evidence();
 }
@@ -57,7 +68,7 @@ async function evidence() {
   if (!draft.value?.id) return;
   [readiness.value, receipts.value] = await Promise.all([request(`/api/ux/drafts/${draft.value.id}/readiness`),request(`/api/ux/drafts/${draft.value.id}/tests`)]);
 }
-async function reloadSaved() { const identity = draft.value.id; drafts.value = await request('/api/ux/drafts'); await open(identity); }
+async function reloadSaved() { if(dirty.value && !reloadConfirmed.value) { error.value=t('reloadDiscardHelp'); return; } reloadConfirmed.value=false; const identity = draft.value.id; drafts.value = await request('/api/ux/drafts'); await open(identity); }
 function newDraft(id?: string) {
   const original = assistants.value.find(a => a.id === id);
   const initial = original || assistants.value[0];
@@ -72,16 +83,19 @@ function newDraft(id?: string) {
   }
   const tenant = access.value.tenant, policy = tenant.calendar_policy || {};
   draft.value = { revision:0, status:'draft', target_assistant_id:id || null, use_case:'receptionist', step:1, config:source,
-    business:{name:tenant.name,website:tenant.website || '',industry:tenant.industry || '',timezone:tenant.timezone, weekdays:policy.weekdays || [0,1,2,3,4],opens:policy.opens || '09:00',closes:policy.closes || '18:00',service:policy.service_id || t('consultationService'),duration_minutes:source.booking_duration_minutes} };
+    business:{name:tenant.name,website:tenant.website || '',industry:tenant.industry || '',timezone:tenant.timezone, weekdays:policy.weekdays || [0,1,2,3,4],opens:policy.opens || '09:00',closes:policy.closes || '18:00',service:policy.service_id || t('consultationService'),duration_minutes:source.booking_duration_minutes,
+      description:tenant.description || '',contact_email:tenant.contact_email || '',contact_phone:tenant.contact_phone || '',service_price:tenant.service_price || '',price_currency:tenant.price_currency || 'EUR',holidays:JSON.parse(JSON.stringify(policy.holidays || [])),unavailable_periods:JSON.parse(JSON.stringify(policy.unavailable_periods || []))} };
   baseline.value = ''; readiness.value = null; receipts.value = []; confirmed.value = false;
 }
 async function save() {
   const saved = await request(draft.value.id ? `/api/ux/drafts/${draft.value.id}` : '/api/ux/drafts',draft.value.id ? 'PUT' : 'POST',payload());
-  draft.value = saved; baseline.value = JSON.stringify(saved); selected.value = saved.id;
+  reloadConfirmed.value=false; draft.value = saved; baseline.value = JSON.stringify(saved); selected.value = saved.id;
   drafts.value = await request('/api/ux/drafts'); await evidence(); notice.value = t('saved');
 }
 async function move(step: number) {
-  draft.value.step = step; await save(); await nextTick(); document.getElementById('setup-step')?.focus();
+  const previous = draft.value.step;
+  draft.value.step = step;
+  try { await save(); } catch(e) { draft.value.step = previous; throw e; } await nextTick(); document.getElementById('setup-step')?.focus();
 }
 async function testOne(chosen = scenario.value, language = locale.value) {
   if (dirty.value && canConfigure.value) await save();
@@ -95,6 +109,10 @@ async function suite() {
   for (const language of ['bg-BG','en-US'] as const) for (const chosen of required) await testOne(chosen,language);
 }
 function addFaq() { draft.value.config.faq_entries.push({question_bg:'',question_en:'',answer_bg:'',answer_en:''}); }
+function setPeriod(period:any,key:string,value:string) {
+  try { period[key]=scheduleInstant(value,draft.value.business.timezone);error.value=''; }
+  catch { period[key]='';error.value=t('p21InvalidLocalTime'); }
+}
 async function publish() {
   await request(`/api/ux/drafts/${draft.value.id}/publish`,'POST',{revision:draft.value.revision,confirmed:confirmed.value});
   abandon.value = true; await router.push('/assistants');
@@ -120,15 +138,23 @@ watch(() => route.meta.page, () => { if(!draft.value) void run(load); });
 </p>
   <p v-if="busy" role="status">
 {{ t('busy') }}
-</p><p v-if="error" class="error" role="alert">
+</p><p
+v-if="error"
+id="setup-error"
+ref="errorPanel"
+class="error"
+role="alert"
+tabindex="-1"
+>
 {{ error }}
 </p><p v-if="notice" role="status">
 {{ notice }}
 </p>
   <div v-if="recovery" class="controls">
+<label v-if="recovery === 'revision' && dirty" class="check"><input v-model="reloadConfirmed" type="checkbox">{{ t('reloadDiscardHelp') }}</label>
 <button :disabled="busy" @click="run(evidence)">
 {{ t('refreshTestResults') }}
-</button><button v-if="recovery === 'revision'" :disabled="busy" @click="run(reloadSaved)">
+</button><button v-if="recovery === 'revision'" :disabled="busy || (!!dirty && !reloadConfirmed)" @click="run(reloadSaved)">
 {{ t('reloadSavedDraft') }}
 </button>
 </div>
@@ -161,6 +187,9 @@ watch(() => route.meta.page, () => { if(!draft.value) void run(load); });
 {{ t('unsavedChanges') }}
 </p>
     <article v-if="!testing">
+      <p role="status">
+{{ t('setupProgress') }} {{ number(draft.step + 1) }} / {{ number(steps.length) }} · {{ t('setupProgressHelp') }}
+</p>
       <ol class="steps">
 <li v-for="(key,index) in customerStages" :key="key" :aria-current="customerStage(draft.step) === index ? 'step' : undefined">
 {{ t(key) }}
@@ -170,7 +199,7 @@ watch(() => route.meta.page, () => { if(!draft.value) void run(load); });
       <h2 id="setup-step" tabindex="-1">
 {{ t(steps[draft.step]) }}
 </h2>
-      <form @submit.prevent="run(() => move(adjacentStep(draft.step,1)))">
+      <form ref="setupForm" novalidate :aria-describedby="error ? 'setup-error' : undefined" @submit.prevent="runValidated(() => move(adjacentStep(draft.step,1)))">
 <fieldset :disabled="busy || !editable">
 <legend class="visually-hidden">
 {{ t(steps[draft.step]) }}
@@ -190,11 +219,18 @@ watch(() => route.meta.page, () => { if(!draft.value) void run(load); });
 {{ t('addFaq') }}
 </button>
 </details>
-          <p>{{ t('useCaseHelp') }}</p>
+          <p>{{ t('useCaseHelp') }}</p><p v-if="!draft.config.faq_entries.length">
+{{ t('faqOptionalEmpty') }}
+</p>
         </template>
         <template v-if="draft.step === 1">
+<h3>{{ t('businessDetailsHelp') }}</h3>
           <label>{{ t('organizationName') }}<input v-model="draft.business.name" required maxlength="120"></label>
           <label>{{ t('businessWebsite') }}<input v-model="draft.business.website" type="url" maxlength="500"></label><label>{{ t('businessIndustry') }}<input v-model="draft.business.industry" maxlength="120"></label>
+          <label>{{ t('p21Description') }}<textarea v-model="draft.business.description" maxlength="1000" /></label>
+          <label>{{ t('p21ContactEmail') }}<input v-model="draft.business.contact_email" type="email" maxlength="250"></label>
+          <label>{{ t('p21ContactPhone') }}<input v-model="draft.business.contact_phone" type="tel" maxlength="50"></label>
+          <h3>{{ t('scheduleSetupHelp') }}</h3>
           <label>{{ t('timezone') }}<input v-model="draft.business.timezone" required></label>
           <fieldset>
 <legend>{{ t('workingDays') }}</legend><div class="checks">
@@ -202,7 +238,20 @@ watch(() => route.meta.page, () => { if(!draft.value) void run(load); });
 </div>
 </fieldset>
           <label>{{ t('opens') }}<input v-model="draft.business.opens" type="time" required></label><label>{{ t('closes') }}<input v-model="draft.business.closes" type="time" required></label>
+          <h3>{{ t('serviceSetupHelp') }}</h3>
           <label>{{ t('serviceName') }}<input v-model="draft.business.service" required maxlength="120"></label>
+          <label>{{ t('p21ServicePrice') }}<input v-model="draft.business.service_price" inputmode="decimal" maxlength="12"></label>
+          <label>{{ t('p21Currency') }}<select v-model="draft.business.price_currency"><option v-for="code in ['EUR','BGN','USD']" :key="code" :value="code">{{ code }}</option></select></label><p>{{ t('p21PriceHelp') }}</p>
+          <fieldset>
+<legend>{{ t('p21Holidays') }}</legend><label v-for="(_,index) in draft.business.holidays" :key="index">{{ t('p21ClosedDate') }}<input v-model="draft.business.holidays[index]" type="date" required><button type="button" @click="draft.business.holidays.splice(index,1)">{{ t('p21Remove') }}</button></label><button type="button" :disabled="draft.business.holidays.length>=100" @click="draft.business.holidays.push('')">
+{{ t('p21AddHoliday') }}
+</button>
+</fieldset>
+          <fieldset>
+<legend>{{ t('p21Unavailable') }}</legend><p>{{ t('p21IntervalHelp') }} {{ draft.business.timezone }}</p><label v-for="(period,index) in draft.business.unavailable_periods" :key="index">{{ t('p21StartsAt') }}<input :value="scheduleLocal(period.starts_at,draft.business.timezone)" type="datetime-local" required @input="setPeriod(period,'starts_at',($event.target as HTMLInputElement).value)"><span>{{ t('p21EndsAt') }}</span><input :value="scheduleLocal(period.ends_at,draft.business.timezone)" type="datetime-local" required @input="setPeriod(period,'ends_at',($event.target as HTMLInputElement).value)"><button type="button" @click="draft.business.unavailable_periods.splice(index,1)">{{ t('p21Remove') }}</button></label><button type="button" :disabled="draft.business.unavailable_periods.length>=100" @click="draft.business.unavailable_periods.push({starts_at:'',ends_at:''})">
+{{ t('p21AddPeriod') }}
+</button>
+</fieldset><p>{{ t('p21ScheduleScope') }}</p>
           <label>{{ t('duration') }}<input
 v-model.number="draft.business.duration_minutes"
 type="number"
@@ -224,7 +273,7 @@ required
 {{ t('agents') }}
 </RouterLink>
           <fieldset><legend>{{ t('tools') }}</legend><label v-for="item in access.tools" :key="item.name" class="check"><input v-model="draft.config.allowed_tools" type="checkbox" :value="item.name">{{ t(item.name) }}</label></fieldset>
-          <p>{{ t('permissionIntersection') }}</p>
+          <p>{{ t('permissionIntersection') }}</p><p>{{ t('escalationSetupHelp') }}</p>
         </template>
         <template v-if="draft.step === 4">
           <fieldset><legend>{{ t('channels') }}</legend><label v-for="value in ['web_chat','voice','email','whatsapp','sms']" :key="value" class="check"><input v-model="draft.config.enabled_channels" type="checkbox" :value="value">{{ t(value) }}</label></fieldset>
@@ -237,9 +286,9 @@ required
 <p>{{ t('readinessReview') }}</p>
 </template>
         <div class="controls">
-<button v-if="draft.step !== 1" type="button" @click="run(() => move(adjacentStep(draft.step,-1)))">
+<button v-if="draft.step !== 1" type="button" @click="runValidated(() => move(adjacentStep(draft.step,-1)))">
 {{ t('back') }}
-</button><button type="button" @click="run(save)">
+</button><button type="button" @click="runValidated(save)">
 {{ t('saveDraft') }}
 </button><button v-if="draft.step < 6">
 {{ t('continueSetup') }}
@@ -249,31 +298,43 @@ required
 </form>
     </article>
     <article v-if="draft.status === 'draft' && (testing || draft.id)">
-<h2>{{ t('testing') }}</h2>
+<h2>{{ t('testing') }}</h2><p>{{ t('previewSavedHelp') }}</p><p>{{ t('previewExpectedHelp') }}</p><p v-if="['reschedule','cancellation'].includes(scenario)">
+{{ t('previewManagementScope') }}
+</p><p v-if="['provider_failure','provider_uncertain'].includes(scenario)">
+{{ t('previewFaultScope') }}
+</p>
       <label>{{ t('conversationLanguage') }}<select v-model="locale"><option value="bg-BG">{{ t('bg-BG') }}</option><option value="en-US">{{ t('en-US') }}</option></select></label>
       <label>{{ t('scenario') }}<select v-model="scenario"><option v-for="key in scenarios" :key="key" :value="key">{{ t('scenario_' + key) }}</option></select></label>
       <div class="controls">
-<button :disabled="busy" @click="run(() => testOne())">
+<button :disabled="busy" @click="runValidated(() => testOne())">
 {{ t('runScenario') }}
-</button><button :disabled="busy" @click="run(suite)">
+</button><button :disabled="busy" @click="runValidated(suite)">
 {{ t('runRequiredTests') }}
 </button>
 </div>
     </article>
     <article v-if="latest" aria-live="polite">
 <h2>{{ t(latest.verdict) }} · {{ t('scenario_' + latest.scenario) }}</h2>
-      <p>{{ t('duration') }}: {{ number(latest.duration_ms) }} {{ t('milliseconds') }} · {{ t(latest.locale) }} · {{ t('MOCK_ONLY') }}</p>
+      <p>
+{{ t('simulatedPreview') }} · {{ date(latest.timestamp,latest.timezone || draft.business.timezone) }} · {{ t('revision') }} {{ number(latest.revision) }} · {{ latest.config_hash === draft.config_hash && !dirty ? t('previewCurrent') : t('previewStale') }}
+</p><p>
+{{ t('duration') }}: {{ number(latest.duration_ms) }} {{ t('milliseconds') }} · {{ t(latest.locale) }} · {{ t('MOCK_ONLY') }}
+</p>
         <p v-if="latest.reference_at">
 {{ t('syntheticClock') }}: {{ date(latest.reference_at,latest.timezone) }} · {{ latest.timezone }}
 </p>
       <p>{{ t('expectedBookings') }}: {{ number(latest.expected_booking_count || 0) }} · {{ t('observedBookings') }}: {{ number(latest.booking_count) }}</p>
+      <p>{{ t(['faq'].includes(latest.scenario) ? 'previewFaqConfig' : ['booking','short_confirmation','rejection','ambiguous','occupied','language_switch','reschedule','cancellation','out_of_hours','closed_day','provider_failure','provider_uncertain'].includes(latest.scenario) ? 'previewBookingConfig' : 'previewBehaviorConfig') }}</p>
+      <p v-if="latest.verdict !== 'PASS'">
+{{ t('previewRecoveryHelp') }}
+</p>
       <p v-if="latest.code !== 'completed'">
 {{ t(latest.code) }}
 </p>
       <div class="diagnostic-grid">
 <section>
 <h3>{{ t('history') }}</h3><div v-for="(turn,index) in latest.turns" :key="index" class="bubble">
-<p>{{ turn.input }}</p><p>{{ turn.response }}</p><small>{{ t(turn.locale) }} · {{ t(turn.booking_status || 'notRecorded') }} · {{ number(turn.duration_ms) }} {{ t('milliseconds') }}</small>
+<p>{{ turn.input }}</p><p>{{ turn.response }}</p><small>{{ t(turn.locale) }} · {{ t(turn.booking_status === 'unknown' ? 'previewUnknownStatus' : turn.booking_status === 'failed' ? 'previewFailedStatus' : turn.booking_status || 'notRecorded') }} · {{ number(turn.duration_ms) }} {{ t('milliseconds') }}</small>
 </div>
 </section>
       <section>
@@ -289,7 +350,9 @@ required
 <RouterLink v-if="draft.status === 'published'" to="/widgets">
 {{ t('widgets') }}
 </RouterLink>
-<h2>{{ t('readinessReview') }}</h2><p>{{ t('voice_acceptance_blocked') }}</p>
+<h2>{{ t('readinessReview') }}</h2><p role="status">
+{{ t(draft.status === 'published' ? 'setupActivated' : readiness.required_tests?.length && readiness.required_tests.every((item:any) => item.verdict === 'PASS') && !dirty ? 'setupTested' : 'setupDraft') }}
+</p><p>{{ t('voice_acceptance_blocked') }}</p>
       <ul>
 <li v-for="key in readiness.reasons" :key="key">
 {{ t(key) }}
@@ -298,8 +361,11 @@ required
       <p v-for="item in readiness.channels" :key="item.channel">
 {{ t(item.channel) }} · {{ t(item.status) }}
 </p>
+      <p v-if="dirty" class="banner" role="status">
+{{ t('previewStale') }}
+</p>
       <p v-for="item in readiness.required_tests" :key="item.scenario + item.locale">
-{{ t('scenario_' + item.scenario) }} · {{ t(item.locale) }} · {{ t(item.verdict) }}
+{{ t('scenario_' + item.scenario) }} · {{ t(item.locale) }} · {{ dirty ? t('previewStale') : t(item.verdict) }}
 </p>
       <template v-if="editable">
 <p class="banner">
@@ -315,7 +381,7 @@ required
     </article>
     <details v-if="receipts.length">
 <summary>{{ t('testHistory') }}</summary><p v-for="item in receipts" :key="item.id">
-{{ date(item.timestamp,draft.business.timezone) }} · {{ t('scenario_' + item.scenario) }} · {{ t(item.locale) }} · {{ t(item.verdict) }} · {{ t('revision') }} {{ number(item.revision) }}
+{{ date(item.timestamp,draft.business.timezone) }} · {{ t('scenario_' + item.scenario) }} · {{ t(item.locale) }} · {{ dirty ? t('previewStale') : t(item.verdict) }} · {{ t('revision') }} {{ number(item.revision) }}
 </p>
 </details>
   </template>

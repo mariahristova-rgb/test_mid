@@ -2,6 +2,7 @@
 import json
 import sys
 import time
+from datetime import datetime,timezone
 from phase12_local_journey import ROOT,BASE,WIDGET,request
 
 def main():
@@ -15,6 +16,7 @@ def main():
     public_id=state['public_id']
     request(WIDGET,'/widget/v1/verify-email/'+public_id,visitor,{'verification_id':state['verification_id'],'code':code,'locale':'bg-BG'})
     policy=request(BASE,'/api/concierge/policy',staff)
+    prior_jobs={j['id'] for j in request(BASE,'/api/concierge/email-jobs',staff)}
     payload={'tool':'ConciergeBooking','arguments':{'starts_at':state['starts_at'],'name':'Mariya Manolova','email':state['email'],'topic':'Owner-approved Ontelyx live acceptance demo','company':'','verification_id':state['verification_id'],'consent':True},'event_id':'owner-live-booking-20261014-1500','locale':'bg-BG'}
     try:
         request(BASE,'/api/concierge/policy',staff,{**policy,'operations_authorized':True},method='PUT')
@@ -27,7 +29,8 @@ def main():
         jobs=[]
         for _ in range(15):
             jobs=request(BASE,'/api/concierge/email-jobs',staff)
-            if sum(j['status']=='sent' for j in jobs)>=2:break
+            new_due=[j for j in jobs if j['id'] not in prior_jobs and datetime.fromisoformat(j['due_at'])<=datetime.now(timezone.utc)]
+            if new_due and all(j['status']=='sent' for j in new_due):break
             time.sleep(2)
         report={'date':'2026-10-14','time':'15:00–15:30','timezone':'Europe/Sofia','booking_id':booking_id,'status':result['data']['status'],'dashboard_appointments':len(matching),'duplicate_request_prevented':repeated['duplicate'],'google_event_id':matching[0].get('google_event_id'),'email_jobs':[{'status':j['status'],'due_at':j['due_at'],'error_code':j.get('error_code')} for j in jobs],'inbox_receipt':'OWNER_REVIEW_REQUIRED'}
         (ROOT/'artifacts/phase14/live-booking-result.json').write_text(json.dumps(report,indent=2))

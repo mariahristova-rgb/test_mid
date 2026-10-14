@@ -17,12 +17,26 @@ from .orchestration import Orchestrator
 from .providers import ProviderRegistry
 from .store import Store, now, uid
 from .voice import TERMINAL
+from .calendar import MockCalendarProvider
+from .language import parse_date, tr
 
-SCENARIOS = ('booking', 'short_confirmation', 'rejection', 'ambiguous', 'occupied', 'language_switch', 'handoff', 'interruption','faq','greeting')
+SCENARIOS = ('booking', 'short_confirmation', 'rejection', 'ambiguous', 'occupied', 'language_switch', 'handoff', 'interruption','faq','greeting','reschedule','cancellation','out_of_hours','closed_day','unsupported','provider_failure','provider_uncertain')
+BUSINESS_TENANT_FIELDS=('name','timezone','calendar_policy','description','contact_email','contact_phone','service_price','price_currency')
 
 
 def digest(value):
     return sha256(json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(',', ':')).encode()).hexdigest()
+
+
+class UnavailablePeriod(Contract):
+    starts_at: datetime
+    ends_at: datetime
+
+    @model_validator(mode='after')
+    def interval(self):
+        if self.starts_at.tzinfo is None or self.ends_at.tzinfo is None or self.ends_at<=self.starts_at:
+            raise ValueError('aware increasing interval required')
+        return self
 
 
 class Business(Contract):
@@ -35,6 +49,35 @@ class Business(Contract):
     closes: str = '18:00'
     service: str = Field(default='Consultation', min_length=1, max_length=120)
     duration_minutes: int = Field(default=30, ge=5, le=480)
+    description: str = Field(default='',max_length=1000)
+    contact_email: str = Field(default='',max_length=250)
+    contact_phone: str = Field(default='',max_length=50)
+    service_price: str = Field(default='',pattern=r'^(?:|(?:0|[1-9]\d{0,8})(?:\.\d{1,2})?)$')
+    price_currency: Literal['EUR','BGN','USD'] = 'EUR'
+    holidays: list[str] = Field(default_factory=list,max_length=100)
+    unavailable_periods: list[UnavailablePeriod] = Field(default_factory=list,max_length=100)
+
+    @field_validator('service_price',mode='before')
+    @classmethod
+    def decimal_price(cls,value):
+        return value.strip().replace(',','.') if isinstance(value,str) else value
+
+    @field_validator('contact_email')
+    @classmethod
+    def email(cls,value):
+        if not value:return value
+        from .messaging_adapters import mailbox
+        try:return mailbox(value)
+        except DomainError:raise ValueError('invalid contact email') from None
+
+    @field_validator('holidays')
+    @classmethod
+    def holiday_dates(cls,value):
+        from datetime import date
+        if len(set(value))!=len(value):raise ValueError('duplicate holiday')
+        for day in value:
+            if date.fromisoformat(day).isoformat()!=day:raise ValueError('ISO date required')
+        return value
 
     @field_validator('timezone')
     @classmethod
@@ -65,7 +108,7 @@ class DraftInput(Contract):
 
 class RunInput(Contract):
     revision: int = Field(ge=1)
-    scenario: Literal['booking', 'short_confirmation', 'rejection', 'ambiguous', 'occupied', 'language_switch', 'handoff', 'interruption','faq','greeting']
+    scenario: Literal['booking', 'short_confirmation', 'rejection', 'ambiguous', 'occupied', 'language_switch', 'handoff', 'interruption','faq','greeting','reschedule','cancellation','out_of_hours','closed_day','unsupported','provider_failure','provider_uncertain']
     locale: Locale
 
 
@@ -105,14 +148,14 @@ class UXService:
             if previous and previous.get('target_assistant_id') != payload.assistant_id: raise DomainError('conflict', 409)
             data = {'kind': 'ux_draft', 'status': 'draft', 'revision': payload.revision + 1,
                 'target_assistant_id': payload.assistant_id, 'base_hash': previous['base_hash'] if previous else digest(assistant),
-                'config': config, 'business': payload.business.model_dump(), 'step': payload.step,
+                'config': config, 'business': payload.business.model_dump(mode='json'), 'step': payload.step,
                 'use_case': payload.use_case, 'timestamp': now()}
             # Agent permission changes invalidate receipts without overwriting shared agents.
             data['agents'] = [{k: row[k] for k in ('id', 'enabled', 'instructions', 'allowed_tools', 'supported_locales')}
                 for row in self.store.list('agents', principal.tenant_id)]
             tenant = self.store.tenant(principal.tenant_id)
             data['calendar_base'] = tenant.get('calendar_policy', {})
-            data['tenant_base_hash'] = digest({key:tenant.get(key) for key in ('name','timezone','calendar_policy')})
+            data['tenant_base_hash'] = digest({key:tenant.get(key) for key in BUSINESS_TENANT_FIELDS})
             data['config_hash'] = digest({key: data[key] for key in ('config', 'business', 'agents', 'use_case','calendar_base')})
             result = self.store.update('operations_events', principal.tenant_id, identity, data) if previous else self.store.add('operations_events', principal.tenant_id, data)
             self.store.audit(principal, 'setup:saved', resource_id=result['id'])
@@ -146,59 +189,170 @@ class UXService:
             tenant.update(name=business['name'], timezone=business['timezone'], calendar_policy={
                 'weekdays': business['weekdays'], 'opens': business['opens'], 'closes': business['closes'],
                 'slot_minutes': draft['calendar_base'].get('slot_minutes', 1), 'duration_minutes': business['duration_minutes'],
-                'resources': draft['calendar_base'].get('resources', [{'id': 'synthetic-resource'}]), 'service_id': business['service']})
+                'resources': draft['calendar_base'].get('resources', [{'id': 'synthetic-resource'}]), 'service_id': business['service'],
+                'holidays':business.get('holidays',draft['calendar_base'].get('holidays',[])),
+                'unavailable_periods':business.get('unavailable_periods',draft['calendar_base'].get('unavailable_periods',[]))})
             sandbox.update_tenant('demo', tenant)
             config = {**draft['config'], 'llm_provider': 'mock', 'voice_provider': 'mock', 'status': 'active', 'enabled_channels': ['web_chat']}
             sandbox.update('assistants', 'demo', 'default', config)
             for agent in draft['agents']:
                 sandbox.update('agents', 'demo', agent['id'], {k:v for k,v in agent.items() if k != 'id'})
             clock = datetime(2030, 10, 8, 9, tzinfo=timezone.utc)
-            engine = Orchestrator(sandbox, ProviderRegistry(), clock=lambda: clock)
+            zone = ZoneInfo(business['timezone'])
+            selected = None
+            if payload.scenario not in ('faq', 'greeting', 'handoff', 'unsupported', 'out_of_hours', 'closed_day'):
+                calendar = MockCalendarProvider(sandbox)
+                # Bounded synthetic search; real availability and DST parsing remain authoritative.
+                opening = sum(int(v)*m for v,m in zip(business['opens'].split(':'),(60,1)))
+                closing = sum(int(v)*m for v,m in zip(business['closes'].split(':'),(60,1)))
+                for offset in range(1, 15):
+                    day = clock.astimezone(zone).date()+timedelta(days=offset)
+                    if day.weekday() not in business['weekdays']: continue
+                    candidates = list(range(opening, closing-business['duration_minutes']+1))
+                    if 900 in candidates: candidates.remove(900); candidates.insert(0,900)
+                    for minute in candidates:
+                        try:
+                            start = parse_date(f'{day}T{minute//60:02d}:{minute%60:02d}', 'en-US', business['timezone'])
+                            finish = parse_date((start+timedelta(minutes=business['duration_minutes'])).replace(tzinfo=None).isoformat(), 'en-US', business['timezone'])
+                        except DomainError: continue
+                        if (finish.astimezone(timezone.utc)-start.astimezone(timezone.utc)).total_seconds() != business['duration_minutes']*60: continue
+                        if calendar.available('demo', start.isoformat(), business['duration_minutes']):
+                            selected = start; break
+                    if selected: break
+                if selected is None:
+                    return {'verdict':'BLOCKED','code':'preview_no_slot','turns':[],'tools':[],'agents':[],
+                            'booking_count':0,'reference_at':clock.isoformat(),'timezone':business['timezone']}
+                # Tomorrow refers to the selected day in the declared tenant-local synthetic clock.
+                clock = datetime.combine(selected.date()-timedelta(days=1), datetime.min.time(), zone).astimezone(timezone.utc)
+            sample_time = selected.strftime('%H:%M') if selected else '15:00'
+            registry = ProviderRegistry()
+            fault = {'attempts':0, 'simulated_remote_commits':0}
+            if payload.scenario in ('provider_failure','provider_uncertain'):
+                class FaultCalendar(MockCalendarProvider):
+                    def create(self, *args, **kwargs):
+                        fault['attempts'] += 1
+                        # Independent fake remote state models an unknown acknowledgement.
+                        if payload.scenario == 'provider_uncertain': fault['simulated_remote_commits'] += 1
+                        raise DomainError('delivery_unknown' if payload.scenario == 'provider_uncertain' else 'provider_error', 502)
+                registry.calendar = FaultCalendar(sandbox)
+            engine = Orchestrator(sandbox, registry, clock=lambda: clock)
             from .messaging import MessagingGateway
             from .security import TenantSecretStore
             MessagingGateway(sandbox, TenantSecretStore(sandbox), engine)
             actor = sandbox.principal('demo-admin', 'demo')
             conversation = engine.conversation(actor, 'default')
             bg = payload.locale == 'bg-BG'
-            inputs = [('Здравейте, искам да запиша час за утре в 15:00.' if bg else 'Hello, I would like to book an appointment for tomorrow at 15:00.'),
+            management_tool = {'reschedule':'RescheduleAppointment','cancellation':'CancelAppointment'}.get(payload.scenario)
+            if management_tool:
+                try: engine.tools.authorize(actor, sandbox.get('assistants','demo','default'), management_tool)
+                except DomainError:
+                    return {'verdict':'BLOCKED','code':'tool_denied','turns':[],'tools':[],'agents':[],'booking_count':0,
+                            'reference_at':clock.isoformat(),'timezone':business['timezone']}
+            inputs = [(f'Здравейте, искам да запиша час за утре в {sample_time}.' if bg else f'Hello, I would like to book an appointment for tomorrow at {sample_time}.'),
                 ('Казвам се Иван Иванов.' if bg else 'My name is John Smith.'), ('Да, потвърждавам.' if bg else 'Yes, confirm.')]
             if payload.scenario == 'short_confirmation': inputs[-1] = 'Да.' if bg else 'Yes.'
             if payload.scenario == 'rejection': inputs[-1] = 'Не.' if bg else 'No.'
             if payload.scenario == 'ambiguous': inputs[-1] = 'Да, потвърждавам?' if bg else 'Yes, confirm?'
             if payload.scenario == 'language_switch': inputs.insert(2, 'Switch to English.' if bg else 'Премини на български.'); inputs[-1] = 'Yes, confirm.' if bg else 'Да, потвърждавам.'
             if payload.scenario == 'handoff': inputs = ['Искам да говоря с човек.' if bg else 'I want to speak to a human.']
+            if payload.scenario == 'unsupported':
+                inputs = ['Каква е цената на несъществуващия продукт ZXQ-999?' if bg else 'What is the price of the nonexistent product ZXQ-999?']
+            if payload.scenario in ('out_of_hours','closed_day'):
+                day = clock.astimezone(zone).date()+timedelta(days=1)
+                negative_time = '23:59'
+                if payload.scenario == 'closed_day':
+                    closed = next((day+timedelta(days=i) for i in range(14)
+                                   if (day+timedelta(days=i)).weekday() not in business['weekdays'] or
+                                   (day+timedelta(days=i)).isoformat() in tenant['calendar_policy'].get('holidays',[])),None)
+                    if closed is None:
+                        return {'verdict':'BLOCKED','code':'preview_no_closed_day','turns':[],'tools':[],'agents':[],
+                                'booking_count':0,'reference_at':clock.isoformat(),'timezone':business['timezone']}
+                    day = closed; negative_time = business['opens']
+                try: negative = parse_date(f'{day}T{negative_time}', 'en-US', business['timezone'])
+                except DomainError:
+                    return {'verdict':'BLOCKED','code':'timezone_required','turns':[],'tools':[],'agents':[],'booking_count':0}
+                inputs = [f'Искам да запиша час за {negative.isoformat()}.' if bg else f'I would like to book an appointment for {negative.isoformat()}.']
             if payload.scenario=='greeting':inputs=['Здравейте.' if bg else 'Hello.']
             if payload.scenario=='faq':
                 if not config['faq_entries']:return {'verdict':'BLOCKED','code':'faq_missing','turns':[],'tools':[],'agents':[],'booking_count':0}
                 inputs=[config['faq_entries'][0]['question_bg' if bg else 'question_en']]
             if payload.scenario == 'occupied':
-                zone=ZoneInfo(business['timezone'])
-                day=clock.astimezone(zone).date()+timedelta(days=1)
-                starts = datetime(day.year,day.month,day.day,15,tzinfo=zone).isoformat()
+                starts = selected.isoformat()
                 sandbox.add('appointments', 'demo', {'starts_at': starts, 'duration_minutes': business['duration_minutes'], 'status': 'confirmed', 'synthetic': True})
                 inputs = inputs[:1]
             turns, code = [], 'completed'
             for text in inputs:
                 turn_start = monotonic()
                 try:
-                    result = engine.inbound(actor, conversation['id'], Incoming(content=text, event_id=uid(),locale=payload.locale if payload.scenario in ('faq','greeting') else None))
+                    result = engine.inbound(actor, conversation['id'], Incoming(content=text, event_id=uid(),locale=payload.locale if payload.scenario in ('faq','greeting','reschedule','cancellation','out_of_hours','closed_day','unsupported','provider_failure','provider_uncertain') else None))
                     turns.append({'input': text, 'response': result['response'], 'locale': result['locale'],
                         'booking_status': result.get('booking_status'), 'duration_ms': round((monotonic()-turn_start)*1000, 3)})
                 except DomainError as error:
                     code = error.code
+                    if payload.scenario in ('provider_failure','provider_uncertain'):
+                        expected_fault = 'delivery_unknown' if payload.scenario == 'provider_uncertain' else 'provider_error'
+                        fault_observed = code == expected_fault and fault['attempts'] == 1
+                        turns.append({'input':text,'response':tr(payload.locale, ('preview_uncertain_response' if payload.scenario == 'provider_uncertain' else 'preview_failure_response') if fault_observed else code),
+                                      'locale':payload.locale,'booking_status':('unknown' if payload.scenario == 'provider_uncertain' else 'failed') if fault_observed else None,
+                                      'duration_ms':round((monotonic()-turn_start)*1000,3)})
                     break
+            lifecycle_checks = {}
+            if management_tool and code == 'completed':
+                owned = sandbox.list('appointments','demo')
+                if len(owned) != 1 or owned[0].get('conversation_id') != conversation['id']:
+                    code = 'preview_booking_missing'
+                else:
+                    original = owned[0]
+                    arguments = {'appointment_id':original['id']}
+                    if payload.scenario == 'reschedule':
+                        calendar = registry.calendar
+                        candidates = []
+                        for offset in range(14):
+                            day = selected.date()+timedelta(days=offset)
+                            try: candidates = calendar.day_slots('demo',day.isoformat(),business['duration_minutes'],business['timezone'],selected+timedelta(minutes=business['duration_minutes']-1))
+                            except DomainError: continue
+                            if candidates: break
+                        if not candidates: code = 'preview_no_slot'
+                        else:
+                            arguments.update(starts_at=candidates[0],duration_minutes=business['duration_minutes'],contact_name=original['contact_name'])
+                    if code == 'completed':
+                        request_text = ('Искам да преместя записания час.' if bg else 'I want to reschedule my appointment.') if payload.scenario == 'reschedule' else ('Искам да отменя записания час.' if bg else 'I want to cancel my appointment.')
+                        try:
+                            lifecycle_start = monotonic()
+                            proposed = engine.inbound(actor,conversation['id'],Incoming(content=request_text,event_id=uid(),locale=payload.locale,tool=management_tool,arguments=arguments))
+                            lifecycle_checks['unchanged_before_confirmation'] = sandbox.get('appointments','demo',original['id']) == original
+                            turns.append({'input':request_text,'response':proposed['response'],'locale':proposed['locale'],'booking_status':'awaiting_confirmation','duration_ms':round((monotonic()-lifecycle_start)*1000,3)})
+                            lifecycle_start = monotonic()
+                            confirmed = engine.approve(actor,proposed['approval']['id'])
+                            lifecycle_checks['approval_replay'] = engine.approve(actor,proposed['approval']['id']) == confirmed
+                            actual = sandbox.get('appointments','demo',original['id'])
+                            lifecycle_checks['owned_record'] = actual['conversation_id'] == conversation['id']
+                            lifecycle_checks['lifecycle_outcome'] = (actual['starts_at'] == arguments['starts_at'] and actual['status'] == 'confirmed') if payload.scenario == 'reschedule' else actual['status'] == 'cancelled'
+                            turns.append({'input':'Да, потвърждавам.' if bg else 'Yes, confirm.','response':confirmed['response'],'locale':confirmed['locale'],'booking_status':'completed' if payload.scenario == 'reschedule' else 'cancelled','duration_ms':round((monotonic()-lifecycle_start)*1000,3)})
+                        except DomainError as error: code=error.code
             bookings = [row for row in sandbox.list('appointments', 'demo') if not row.get('synthetic')]
             state = sandbox.get('conversations', 'demo', conversation['id'])
-            wanted = 0 if payload.scenario in ('rejection', 'ambiguous', 'occupied', 'handoff','faq','greeting') else 1
+            wanted = 0 if payload.scenario in ('rejection', 'ambiguous', 'occupied', 'handoff','faq','greeting','out_of_hours','closed_day','unsupported','provider_failure','provider_uncertain') else 1
             last = turns[-1] if turns else {}
-            checks = {'booking_count': len(bookings) == wanted, 'no_error': code == 'completed'}
+            expected_code = {'provider_failure':'provider_error','provider_uncertain':'delivery_unknown'}.get(payload.scenario,'completed')
+            checks = {'booking_count': len(bookings) == wanted, 'no_error':code == expected_code, 'expected_outcome':code == expected_code, **lifecycle_checks}
+            if payload.scenario in ('provider_failure','provider_uncertain'):
+                checks.update(provider_attempted_once=fault['attempts']==1,
+                              no_automatic_retry=fault['attempts']==1,
+                              simulated_remote_state=fault['simulated_remote_commits']==(1 if payload.scenario=='provider_uncertain' else 0))
+            if management_tool: checks['lifecycle_verified'] = bool(lifecycle_checks) and all(lifecycle_checks.values())
+            if payload.scenario == 'unsupported':
+                checks['no_tools'] = not sandbox.list('tool_executions','demo')
+                safe_reply = ('Мога да помогна с одобрена информация за Ontelyx. Изберете демонстрация или бизнес запитване.' if bg else 'I can help with approved Ontelyx information. Choose a demo or a business inquiry.') if config.get('public_knowledge_only') else tr(payload.locale,'hello')
+                checks['safe_fallback'] = last.get('response') == safe_reply
+            if payload.scenario in ('out_of_hours','closed_day'): checks['unavailable'] = last.get('booking_status') == 'unavailable'
             if payload.scenario == 'ambiguous': checks['confirmation_pending'] = last.get('booking_status') == 'awaiting_confirmation'
             if payload.scenario == 'rejection': checks['rejected'] = last.get('booking_status') == 'cancelled'
             if payload.scenario == 'occupied': checks['unavailable'] = last.get('booking_status') == 'unavailable'
             if payload.scenario == 'handoff': checks['paused'] = bool(state.get('human_escalation'))
             if payload.scenario=='faq':checks['faq_answer']=last.get('response')==config['faq_entries'][0]['answer_bg' if bg else 'answer_en']
             if payload.scenario == 'language_switch': checks['switched'] = last.get('locale') == ('en-US' if bg else 'bg-BG')
-            return {'verdict': 'PASS' if all(checks.values()) else 'FAIL', 'code': code, 'checks': checks, 'turns': turns,
+            return {'verdict': ('BLOCKED' if code=='preview_no_slot' else 'PASS' if all(checks.values()) else 'FAIL'), 'code': code, 'checks': checks, 'turns': turns,
                 'booking_count': len(bookings), 'expected_booking_count': wanted,
                 'reference_at': clock.isoformat(), 'timezone': business['timezone'],
                 'tools': [{'tool': row['tool'], 'code': row['outcome']['code'], 'correlation_id': row['correlation_id']} for row in sandbox.list('tool_executions', 'demo')],
@@ -208,7 +362,11 @@ class UXService:
     def readiness(self, principal, draft):
         current_agents = [{k: row[k] for k in ('id', 'enabled', 'instructions', 'allowed_tools', 'supported_locales')} for row in self.store.list('agents', principal.tenant_id)]
         receipts = [row for row in self.rows(principal.tenant_id, 'ux_test') if row['draft_id'] == draft['id'] and row['config_hash'] == draft['config_hash']]
-        latest = {(row['scenario'],row['locale']): row for row in receipts}
+        cutoff = datetime.now(timezone.utc)-timedelta(days=7)
+        def fresh(row):
+            try:return cutoff<=datetime.fromisoformat(row['timestamp'])<=datetime.now(timezone.utc)+timedelta(seconds=30)
+            except (KeyError,ValueError,TypeError):return False
+        latest = {(row['scenario'],row['locale']): row for row in receipts if fresh(row)}
         scenarios=['booking','rejection','ambiguous'] if {'CheckAvailability','CreateAppointment'}<=set(draft['config']['allowed_tools']) else ['greeting']
         if draft['config']['faq_entries']:scenarios.append('faq')
         required = [(scenario, locale) for scenario in scenarios for locale in ('bg-BG','en-US')]
@@ -219,8 +377,10 @@ class UXService:
         if draft['config']['status'] != 'active': reasons.append('assistant_disabled')
         if current_agents != draft['agents']: reasons.append('agent_config_changed')
         tenant = self.store.tenant(principal.tenant_id)
-        if digest({key:tenant.get(key) for key in ('name','timezone','calendar_policy')}) != draft['tenant_base_hash']: reasons.append('business_config_changed')
+        if draft['tenant_base_hash'] not in {digest({key:tenant.get(key) for key in fields}) for fields in (('name','timezone','calendar_policy'),BUSINESS_TENANT_FIELDS)}: reasons.append('business_config_changed')
         if not tests: reasons.append('required_tests_missing')
+        if not {'bg-BG','en-US'}<=set(draft['config']['supported_locales']):reasons.append('language_coverage_missing')
+        if receipts and not any(fresh(row) for row in receipts):reasons.append('test_evidence_expired')
         if targets != ['web_chat']: reasons.append('external_activation_blocked')
         if 'voice' in targets: reasons.append('voice_acceptance_blocked')
         if draft['config']['llm_provider'] != 'mock': reasons.append('mock_test_not_live_proof')
@@ -238,7 +398,7 @@ class UXService:
             if any(row.get('last_error') for row in rows): return 'ERROR'
             if not rows: return 'NOT_CONFIGURED'
             return 'MOCK_ONLY' if all(row.get('provider') == 'mock' for row in rows) else 'CONFIGURED'
-        return {'can_publish': not reasons, 'reasons': reasons, 'scope': 'web_chat_mock_calendar', 'voice_live_verified': False,
+        return {'can_publish': not reasons, 'reasons': reasons, 'scope': 'web_chat_mock_calendar', 'voice_live_verified': False,'evidence_max_age_days':7,
             'required_tests': [{'scenario': key[0], 'locale': key[1], 'verdict': latest.get(key, {}).get('verdict', 'NOT_RUN')} for key in required],
             'channels': [{'channel': channel, 'status': channel_status(channel)} for channel in targets]}
 
@@ -267,7 +427,11 @@ class UXService:
             tenant.update(name=business['name'],website=business.get('website',''),industry=business.get('industry',''),timezone=business['timezone'], calendar_policy={**old_policy,
                 'weekdays': business['weekdays'], 'opens': business['opens'], 'closes': business['closes'],
                 'duration_minutes': business['duration_minutes'], 'slot_minutes': old_policy.get('slot_minutes', 1),
-                'resources': old_policy.get('resources', [{'id': 'mock-resource'}]), 'service_id': business['service']})
+                'resources': old_policy.get('resources', [{'id': 'mock-resource'}]), 'service_id': business['service'],
+                'holidays':business.get('holidays',old_policy.get('holidays',[])),
+                'unavailable_periods':business.get('unavailable_periods',old_policy.get('unavailable_periods',[]))})
+            for key in ('description','contact_email','contact_phone','service_price','price_currency'):
+                if key in business:tenant[key]=business[key]
             self.store.update_tenant(principal.tenant_id, tenant)
             self.store.update('operations_events', principal.tenant_id, identity, {'status': 'published', 'published_assistant_id': result['id'],
                 'published_business_hash':digest({key:tenant.get(key) for key in ('timezone','calendar_policy')})})
@@ -315,14 +479,14 @@ def register_ux(app, store, providers, actor, valid_config):
         state = conversation.get('booking_state') or {}
         stages = []
         for key, recorded in [('agent_handoff',any(row['kind']=='agent_handoff' for row in timeline)),
-            ('availability',any(row.get('tool')=='CheckAvailability' for row in timeline)),
+            ('availability',any(row.get('tool') in ('CheckAvailability','ConciergeAvailability') for row in timeline)),
             ('confirmation_pending',bool(state.get('approval_id'))), ('booking_persisted',bool(bookings))]:
             stages.append({'stage':key,'coverage':'recorded' if recorded else 'not_recorded'})
         for key in ('audio_received','vad_final','stt_final','locale_selected','tts_completed','output_packet_sent','session_closed'):
             stages.append({'stage':key,'coverage':'not_applicable' if conversation['channel'] != 'voice' else 'recorded' if any(row['stage']==key for row in traces) else 'not_recorded'})
         return {'conversation_id': identity, 'channel': conversation['channel'], 'locale': conversation.get('active_locale'),
             'human_escalation': bool(conversation.get('human_escalation')), 'status': conversation['status'],
-            'booking_status': state.get('status'), 'appointments': bookings,
+            'booking_status': state.get('status') or (bookings[-1]['status'] if bookings else None), 'appointments': bookings,
             'calls': [{key: row.get(key) for key in ('id','status','started_at','ended_at','error_code')} for row in calls],
             'timeline': timeline, 'voice_trace': traces, 'message_metadata': messages, 'stage_coverage':stages,
             'transcripts': 'not_exposed', 'trace_scope': 'bounded_process_memory',

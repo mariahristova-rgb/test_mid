@@ -1,0 +1,7 @@
+# FAQ knowledge UX
+
+14 October 2026. Existinguse-case-stepdetailseditor reused:paired BG/ENquestion/answer,add/remove,required/maxlengthfields,servervalidation andsave. Newoptionalempty-statehelp; previewreceipt identifiesapprovedFAQconfiguration ratherthanunverifiedpublicsource. No crawling,paidknowledgeingestion ornewdatabase.
+
+Actualbrowser: createonepairedsyntheticFAQ;save;runrequiredBG/ENsuite;bothFAQcasesPASS andEnglishreplymatches “We offer a synthetic consultation.” ExistingbackendFAQtestsinfullsuitePASS; malformedconfigurationvalidationremainsserverauthoritative. FAQeditingcompleteflow/admincontrols are not publiccustomeraccess.
+
+Duplicate/conflictingFAQfeedback remainsa documentedgap; no uniqueness rule or claimof semanticconflictanalysisadded without reproducible approvedserverchange. Add/edit ofoneentrytested;deleteandduplicate/conflictbrowserrecoveryNOTTESTED. Existingexact-matchFAQarchitecture is not an indexedknowledgeplatform. OptionalFAQabsence doesnotblockbooking-onlyassistant. No privatebusinessdocumentssent orcross-tenantknowledgecopied.

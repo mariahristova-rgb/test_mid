@@ -45,6 +45,8 @@ window.addEventListener('message', async event => {
     try { const saved = JSON.parse(localStorage.getItem('testmid-language-' + id) || 'null'); if (saved?.consent && ['bg-BG','en-US'].includes(saved.locale)) { language(saved.locale); explicitLocale=true; byId('remember').checked = true; } } catch { /* Storage may be unavailable. */ }
     const session = await api('redeem', { ticket: data.ticket, parent_origin: parentOrigin, locale });
     token = session.session_token; privacyToken = token; privacyNotices=session.privacy_notices || {[locale]:session.privacy_notice}; language(locale);
+    byId('analytics-control').hidden=!session.analytics_enabled;
+    if(!session.native_booking_enabled && !session.concierge_enabled){byId('technical-notice').setAttribute('data-label','faqOnly');byId('technical-notice').textContent=translated('faqOnly');}
     if(session.concierge_enabled){
       const module=await import('./concierge.js');concierge=module.startConcierge({api,locale:()=>locale,bubble,send,id});
       byId('welcome').hidden=false;byId('technical-notice').hidden=true;concierge.language();
@@ -80,6 +82,13 @@ document.addEventListener('keydown', event => { if (event.key === 'Escape') clos
 byId('locale').addEventListener('change', () => { language(byId('locale').value); explicitLocale=true; if (byId('remember').checked) savePreference(); });
 function savePreference() { try { if(byId('remember').checked) {explicitLocale=true;localStorage.setItem('testmid-language-' + id, JSON.stringify({consent:true,locale}));} else localStorage.removeItem('testmid-language-' + id); } catch { /* No storage is required for chat. */ } }
 byId('remember').addEventListener('change', savePreference);
+byId('analytics-consent').addEventListener('change',async()=>{
+  if(!token)return;
+  const box=byId('analytics-consent');box.disabled=true;
+  try{await api('analytics-consent',{allowed:box.checked});}
+  catch{byId('error').textContent=translated('analyticsError');}
+  finally{box.disabled=false;}
+});
 byId('clear').addEventListener('click', async () => {
   if (!byId('clear-confirm').checked) { byId('error').textContent = translated('consent'); return; }
   if (busy || !privacyToken) return; busy = true; controls();

@@ -292,7 +292,31 @@ class BillingService:
         return {'state': 'MOCK', 'mock_payments_enabled': self.mock_enabled, 'subscription': self.entitlements.subscription(principal.tenant_id),
             'customer': self.store.find('billing_customers', principal.tenant_id, 'current'),
             'invoices': self.store.list('billing_invoices', principal.tenant_id), 'usage': self.entitlements.summary(principal.tenant_id),
-            'notifications': self.store.list('onboarding_events', principal.tenant_id), 'real_charges_enabled': False}
+            'notifications': self.store.list('onboarding_events', principal.tenant_id),
+            'adjustments':[r for r in self.store.list('operations_events',principal.tenant_id) if r.get('kind')=='billing_adjustment'], 'real_charges_enabled': False}
+
+    def adjust_invoice(self,principal,identity,payload):
+        principal.require('configure')
+        with self.store.transaction():
+            invoice=self.store.get('billing_invoices',principal.tenant_id,identity)
+            if not self.mock_enabled or invoice.get('provider')!='mock':raise DomainError('unconfigured',503)
+            data={'invoice_id':identity,**payload.model_dump(mode='json',exclude={'confirmed'})}
+            fingerprint=sha256(json.dumps(data,sort_keys=True).encode()).hexdigest()
+            key=event_key('invoice-adjustment',payload.event_id)
+            previous=self.store.find('operations_events',principal.tenant_id,key)
+            if previous:
+                if previous.get('fingerprint')!=fingerprint:raise DomainError('conflict',409)
+                return {**previous,'duplicate':True}
+            if invoice.get('status')!='paid':raise DomainError('invalid_transition',409)
+            rows=[r for r in self.store.list('operations_events',principal.tenant_id) if r.get('kind')=='billing_adjustment' and r.get('invoice_id')==identity]
+            if len(rows)>=100:raise DomainError('limit_reached',429)
+            amount=int(payload.amount_minor_text)
+            if amount+sum(int(r['amount_minor_text']) for r in rows)>invoice['amount_minor']:raise DomainError('invalid_input',422)
+            result=self.store.add('operations_events',principal.tenant_id,{'kind':'billing_adjustment','adjustment_kind':data.pop('kind'),**data,
+                'fingerprint':fingerprint,'currency':invoice['currency'],'actor_id':principal.user_id,'timestamp':self.clock().isoformat(),
+                'state':'MOCK_ONLY','provider_refund_sent':False},external_key=key)
+            self.store.audit(principal,'billing:adjustment_recorded',resource_id=result['id'])
+            return {**result,'duplicate':False}
 
     def usage_invoice(self, principal, period):
         principal.require('configure')

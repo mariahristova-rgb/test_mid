@@ -8,3 +8,11 @@ export function workspaceReads(page) {
   };
   return ['bootstrap', ...(pages[page] || [])];
 }
+export function inboxToolNames(descriptors, allowedTools) {
+  const supported = ['CheckAvailability','CreateAppointment','RescheduleAppointment','CancelAppointment','SendMessage','CreateFollowUpTask','EscalateToHuman'];
+  return descriptors.map(item=>item.name).filter(name=>supported.includes(name) && allowedTools.includes(name));
+}
+export function messageSpeaker(message) {
+  if(message.direction==='inbound')return 'user';
+  return message.metadata?.kind==='human'?'human':'assistant';
+}

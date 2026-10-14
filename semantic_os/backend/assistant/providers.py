@@ -277,11 +277,13 @@ class ProviderRegistry:
                 store.entitlements.check(principal.tenant_id, 'llm_input_tokens', observed['llm_input_tokens']+maximum_input)
                 store.entitlements.check(principal.tenant_id, 'llm_output_tokens', observed['llm_output_tokens']+body['max_tokens'])
         def measured(receipt):
+            from decimal import Decimal, ROUND_CEILING
             reported = receipt['usage_reported']
             for category, key in (('llm_input_tokens','prompt_tokens'),('llm_output_tokens','completion_tokens')):
                 if reported: observed[category] += receipt[key]
             record = {**context, **receipt, 'kind': 'llm_inference', 'provider': 'qwen',
                 'llm_input_tokens': receipt['prompt_tokens'], 'llm_output_tokens': receipt['completion_tokens'],
+                'llm_milliseconds':int(Decimal(str(receipt['elapsed_ms'])).to_integral_value(rounding=ROUND_CEILING)),
                 'token_usage_status': 'reported' if reported else 'unreported', 'timestamp': now(), 'billing_precharged': True}
             def persist():
                 if not store.find('usage_records', principal.tenant_id, 'llm:' + receipt['request_id']):

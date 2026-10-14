@@ -1,18 +1,25 @@
 <script setup lang="ts">
-import { computed,onMounted,ref } from 'vue';
+import { computed,onMounted,onUnmounted,ref } from 'vue';
+import { onBeforeRouteLeave } from 'vue-router';
 import { request } from '../services/api';
 import { t,uiLocale,date } from '../services/i18n';
 const access=ref<any>({}),assistants=ref<any[]>([]),integrations=ref<any[]>([]),drafts=ref<any[]>([]),current=ref<any>(null),installation=ref<any>(null),proof=ref<any>(null);
 const busy=ref(false),error=ref(''),notice=ref(''),website=ref(''),draftId=ref(''),versionId=ref(''),confirmed=ref(false),originToVerify=ref('');
 const allowed=computed(()=>access.value.user?.role==='admin');
+const baseline=ref('');
+const editorState=()=>JSON.stringify({settings:current.value?.settings,website:website.value});
+const dirty=computed(()=>!!current.value && editorState()!==baseline.value);
+onBeforeRouteLeave(()=>{if(dirty.value){notice.value=t('p16Unsaved');return false;}return true;});
+function beforeUnload(event:BeforeUnloadEvent){if(dirty.value){event.preventDefault();event.returnValue='';}}
+onMounted(()=>window.addEventListener('beforeunload',beforeUnload));onUnmounted(()=>window.removeEventListener('beforeunload',beforeUnload));
 async function run(action:()=>Promise<unknown>) {if(busy.value)return;busy.value=true;error.value='';notice.value='';try{await action();}catch(e){error.value=e instanceof Error?e.message:t('error');}finally{busy.value=false;}}
 async function load(){[access.value,assistants.value]=await Promise.all([request('/api/bootstrap'),request('/api/assistants')]);if(allowed.value)[integrations.value,drafts.value]=await Promise.all([request('/api/widgets'),request('/api/ux/drafts')]);}
 function create(){current.value={settings:{assistant_id:assistants.value[0]?.id || '',origins:[],color:'#1d4ed8',logo_url:'',greetings:{'bg-BG':t('widgetGreetingBg'),'en-US':t('widgetGreetingEn')},privacy_notices:{'bg-BG':t('widgetPrivacyBg'),'en-US':t('widgetPrivacyEn')},faq_approved:false,booking_enabled:true,retention_days:Math.min(7,access.value.tenant.retention_days),daily_sessions:100,daily_messages:1000}};website.value='';installation.value=null;proof.value=null;confirmed.value=false;}
-async function open(row:any){current.value=JSON.parse(JSON.stringify(row));website.value=row.settings.origins.join('\n');originToVerify.value=row.settings.origins[0];confirmed.value=false;proof.value=null;installation.value=await request(`/api/widgets/${row.id}/installation`);}
+async function open(row:any){current.value=JSON.parse(JSON.stringify(row));website.value=row.settings.origins.join('\n');originToVerify.value=row.settings.origins[0];confirmed.value=false;proof.value=null;installation.value=await request(`/api/widgets/${row.id}/installation`);baseline.value=editorState();}
 async function save(){current.value.settings.origins=website.value.split(/\s+/).filter(Boolean);const result=await request(current.value.id?`/api/widgets/${current.value.id}`:'/api/widgets',current.value.id?'PUT':'POST',current.value.settings);await load();await open(result);notice.value=t('saved');}
 async function challenge(){proof.value=await request(`/api/widgets/${current.value.id}/challenge`,'POST',{origin:originToVerify.value});installation.value=await request(`/api/widgets/${current.value.id}/installation`);}
 async function verify(){const row=await request(`/api/widgets/${current.value.id}/verify`,'POST',{origin:originToVerify.value});await open(row);notice.value=t('widgetDomainVerified');}
-async function publish(){const row=await request(`/api/widgets/${current.value.id}/publish`,'POST',{draft_id:draftId.value,confirmed:confirmed.value});await load();await open(row);notice.value=t('widgetPublished');}
+async function publish(){if(dirty.value)throw new Error(t('p16Unsaved'));const row=await request(`/api/widgets/${current.value.id}/publish`,'POST',{draft_id:draftId.value,confirmed:confirmed.value});await load();await open(row);notice.value=t('widgetPublished');}
 async function action(kind:string){const row=await request(`/api/widgets/${current.value.id}/${kind}`,'POST',{confirmed:confirmed.value,version_id:versionId.value || null});await load();await open(row);notice.value=t('saved');}
 async function copy(value:string){await navigator.clipboard.writeText(value);notice.value=t('widgetCopied');}
 onMounted(()=>void run(load));
@@ -33,14 +40,19 @@ onMounted(()=>void run(load));
 </p><p v-if="notice" role="status">
 {{ notice }}
 </p>
+<p v-if="dirty" role="status">
+{{ t('p16Unsaved') }}
+</p><button v-if="dirty" :disabled="busy" @click="current=null;baseline='';website=''">
+{{ t('discardLocalChanges') }}
+</button>
   <p v-if="access.user && !allowed">
 {{ t('forbidden') }}
 </p>
   <template v-if="allowed">
     <article>
-<h2>{{ t('widgetIntegrations') }}</h2><button :disabled="busy" @click="create">
+<h2>{{ t('widgetIntegrations') }}</h2><button :disabled="busy || dirty" @click="create">
 {{ t('widgetNew') }}
-</button><button v-for="item in integrations" :key="item.id" :disabled="busy" @click="run(()=>open(item))">
+</button><button v-for="item in integrations" :key="item.id" :disabled="busy || dirty" @click="run(()=>open(item))">
 {{ item.public_id }} · {{ t(item.state) }}
 </button>
 </article>
@@ -58,6 +70,7 @@ onMounted(()=>void run(load));
         <label>{{ t('retentionDays') }}<input v-model.number="current.settings.retention_days" type="number" min="1" :max="Math.min(30,access.tenant.retention_days)" required></label>
         <label>{{ t('widgetDailySessions') }}<input v-model.number="current.settings.daily_sessions" type="number" min="1" max="500" required></label><label>{{ t('widgetDailyMessages') }}<input v-model.number="current.settings.daily_messages" type="number" min="10" max="3000" required></label>
         <p>{{ t('widgetSaveRevokes') }}</p><button>{{ t('save') }}</button>
+        <label class="check"><input v-model="current.settings.analytics_enabled" type="checkbox">{{ t('p16EnableAnalytics') }}</label><p>{{ t('p16AnalyticsOwnerNotice') }}</p>
       </fieldset>
 </form>
 </article>

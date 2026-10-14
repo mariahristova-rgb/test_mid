@@ -157,6 +157,18 @@ def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None
         configure_speech(providers)
     demo_enabled = demo_enabled if demo_enabled is not None else os.getenv('ASSISTANT_DEMO', 'false').lower() == 'true'
     from .self_hosted import deployment_secret
+    owner_credentials=None
+    owner_login_enabled=os.getenv('ASSISTANT_GOOGLE_LOGIN_ENABLED')=='true'
+    if owner_login_enabled:
+        if demo_enabled or os.getenv('AUTH0_DOMAIN'):raise RuntimeError('Choose one verified identity provider; Google owner login cannot use demo authentication')
+        if os.getenv('ASSISTANT_GOOGLE_LOGIN_GCP_PROJECT'):
+            from .google_secret_manager import owner_oauth_credentials
+            owner_credentials=owner_oauth_credentials(os.environ['ASSISTANT_GOOGLE_LOGIN_GCP_PROJECT'],os.getenv('ASSISTANT_GOOGLE_LOGIN_BUNDLE','primary'))
+        else:owner_credentials=(deployment_secret('ASSISTANT_GOOGLE_LOGIN_CLIENT_ID'),deployment_secret('ASSISTANT_GOOGLE_LOGIN_CLIENT_SECRET'))
+        if not owner_credentials[1]:raise RuntimeError('Owner OAuth client secret is required')
+        if verifier is None:
+            from .google_owner_login import GoogleOwnerVerifier
+            verifier=GoogleOwnerVerifier(owner_credentials[0])
     demo_token = demo_token if demo_token is not None else deployment_secret('ASSISTANT_DEMO_TOKEN')
     if verifier is None and os.getenv('AUTH0_DOMAIN') and os.getenv('AUTH0_AUDIENCE'):
         from ..api.auth0_auth import Auth0Verifier
@@ -199,6 +211,9 @@ def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None
                     await voice_runtime.threaded(voice.expire_idle_calls)
                     await voice_runtime.threaded(app.state.widget.purge)
                     await asyncio.to_thread(app.state.concierge.worker)
+                    await asyncio.to_thread(app.state.inbox_queue.purge)
+                    await asyncio.to_thread(app.state.customer_workspace.purge)
+                    if app.state.owner_login:await asyncio.to_thread(app.state.owner_login.purge)
                     if os.getenv('ASSISTANT_MESSAGING_WORKER_ENABLED') == 'true':
                         await voice_runtime.threaded(messaging.worker_tick)
                     if os.getenv('ASSISTANT_BACKUP_ENABLED') == 'true' and monotonic() - last_backup >= int(os.getenv('ASSISTANT_BACKUP_INTERVAL_SECONDS', '86400')):
@@ -336,7 +351,7 @@ def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None
                                           request.client.host if request.client else '')
         principal.require('read')
         request.state.principal = principal
-        recovery = request.url.path.startswith(('/api/billing', '/api/saas/onboarding', '/api/saas/access', '/api/usage', '/api/operations', '/api/privacy', '/api/profile'))
+        recovery = request.url.path.startswith(('/api/billing', '/api/saas/onboarding', '/api/saas/access', '/api/usage', '/api/workspace/progress', '/api/workspace/usage', '/api/workspace/operations-targets', '/api/operations', '/api/privacy', '/api/profile'))
         billing.entitlements.access(principal.tenant_id, recovery=recovery)
         return principal
 
@@ -427,6 +442,13 @@ def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None
         demo_targets=json.loads(os.getenv('WIDGET_DEMO_SITE_TARGETS','{}')) if demo_enabled and not strict else None)
     from .concierge_api import register_concierge
     register_concierge(app,actor)
+    app.state.owner_login=None
+    if owner_login_enabled:
+        from .google_owner_login import GoogleOwnerLogin,register_google_owner_login
+        app.state.owner_login=GoogleOwnerLogin(store,secrets,orchestrator.clock,verifier,owner_credentials[1],os.environ['ASSISTANT_GOOGLE_LOGIN_TENANT'],os.environ['ASSISTANT_GOOGLE_LOGIN_REDIRECT_URI'])
+        register_google_owner_login(app,app.state.owner_login)
+    from .inbox_queue import register_inbox_queue
+    register_inbox_queue(app,store,actor)
 
     @app.post('/api/assistants', status_code=201)
     def add_assistant(config: AssistantConfig, principal: Principal = Depends(actor)):
@@ -811,4 +833,6 @@ def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None
     from .connectors import ConnectorService, register_connectors
     app.state.connectors=ConnectorService(store,secrets,enabled=connector_fixtures and demo_enabled and not strict,clock=orchestrator.clock)
     register_connectors(app,app.state.connectors,actor)
+    from .customer_workspace import register_customer_workspace
+    register_customer_workspace(app,store,actor,billing,clock)
     return app

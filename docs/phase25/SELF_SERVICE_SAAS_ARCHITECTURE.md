@@ -1,0 +1,15 @@
+# Self-service connector architecture — proposal
+
+No runtime contract is introduced by this document.
+
+Reuse `google_workspace.py`, `tools.py`, existing calendar/booking services, Store, security/secret storage, operations events, `billing.py`, `entitlements.py` and `saas_domain.py`. Keep current Vue/FastAPI and tenant context. Do not create a second ledger, queue, OAuth framework or generic HTTP execution tool.
+
+Proposed version 1 capability descriptor: provider identifier, contract version, supported action identifiers, account types, required scopes per action, resource constraints and implementation status. Connection projection: tenant-scoped connection identifier, provider, state, permitted resource IDs, selected actions, configuration revision and redacted last failure receipt. Tokens and OAuth codes never enter the projection. Capability availability and connection state are separate: a planned adapter cannot become AVAILABLE from a simulated CONNECTED label.
+
+Operations are narrow: discover resources, read availability, create/update/cancel owned booking; CRM read/create approved contact fields and optional separately permitted association/note. Unsupported operations fail closed. Request context contains authenticated tenant/user, connection/resource, consent/ownership proof, configuration revision, correlation and idempotency key. Providers retain their own account, scope, timezone and uncertain-write semantics. The existing booking approval boundary precedes mutation; unknown writes require reconciliation, never blind replay.
+
+OAuth design reuses server-side binding, one-use state, exact redirect validation, expiration and encrypted secret storage. Add provider-specific PKCE where supported, verified account/resource identity and minimum action scopes. Refresh rotation updates encrypted material atomically. Reauthorization and disconnect revoke or disable further use, including pending work; retain redacted audit receipts. Existing owner pinning remains until a separately reviewed customer-account contract is authorized. No frontend secrets or arbitrary provider URLs.
+
+Tenant isolation is enforced on every connection lookup, resource/mapping mutation, tool invocation, job and receipt. Tenant IDs come from authenticated principal, never a trusted request override. Entitlements gate actions server-side using existing PlanEntitlementService; new categories require reviewed additive contract changes. Starter/Growth/Business/Enterprise are proposed packages with no approved numeric limits or prices. Separate SaaS usage, voice/telephony costs and custom integration fees.
+
+Operator UX reuses existing Health/Operations views for redacted failure, retry/reconciliation state and disable controls. Owner UX progresses business selection → configuration → resource/action selection → synthetic test → readiness → activation request. A synthetic pass never grants live activation. Calendar provider remains scheduling source of truth; CRM failure must not create a second booking or claim completed synchronization.
