@@ -3,6 +3,13 @@ import { computed, onMounted, ref, watch, nextTick, onUnmounted } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import { request, ApiError } from '../services/api';
 import { t, uiLocale, date, number } from '../services/i18n';
+import {stageTargets,customerStage,adjacentStep,parseFaqImport} from '../services/setup-journey.mjs';
+const customerStages=['journeyBusiness','journeyKnowledge','journeyActions','journeyTest','journeyPublish'];
+async function importFaq(event:Event){
+  const input=event.target as HTMLInputElement,file=input.files?.[0];if(!file)return;
+  try{if(file.size>100000)throw Error();const entries=parseFaqImport(await file.text(),draft.value.config.faq_entries.length);draft.value.config.faq_entries.push(...entries);notice.value=t('faqImportReview');}
+  catch{error.value=t('faqImportInvalid');}finally{input.value='';}
+}
 const route = useRoute(), router = useRouter();
 const access = ref<any>({}), drafts = ref<any[]>([]), assistants = ref<any[]>([]), draft = ref<any>(null), readiness = ref<any>(null), receipts = ref<any[]>([]);
 const busy = ref(false), error = ref(''), notice = ref(''), confirmed = ref(false), abandon = ref(false), selected = ref('');
@@ -34,6 +41,7 @@ async function load() {
   access.value = await request('/api/bootstrap'); assistants.value = await request('/api/assistants');
   if (!canExecute.value) return;
   drafts.value = await request('/api/ux/drafts');
+  if(route.query.new==='true' && canConfigure.value)newDraft();
   if (route.query.draft) await open(String(route.query.draft));
   else if(route.query.assistant && canConfigure.value) newDraft(String(route.query.assistant));
   if(scenarios.includes(String(route.query.scenario))) scenario.value = String(route.query.scenario);
@@ -63,7 +71,7 @@ function newDraft(id?: string) {
     source.voice_settings = { ...source.voice_settings, telephony_provider:'mock', stt_provider:'mock', tts_provider:'mock', voices:{'bg-BG':'mock-bg','en-US':'mock-en'},recording:false,transcript_storage:false };
   }
   const tenant = access.value.tenant, policy = tenant.calendar_policy || {};
-  draft.value = { revision:0, status:'draft', target_assistant_id:id || null, use_case:'receptionist', step:0, config:source,
+  draft.value = { revision:0, status:'draft', target_assistant_id:id || null, use_case:'receptionist', step:1, config:source,
     business:{name:tenant.name,website:tenant.website || '',industry:tenant.industry || '',timezone:tenant.timezone, weekdays:policy.weekdays || [0,1,2,3,4],opens:policy.opens || '09:00',closes:policy.closes || '18:00',service:policy.service_id || t('consultationService'),duration_minutes:source.booking_duration_minutes} };
   baseline.value = ''; readiness.value = null; receipts.value = []; confirmed.value = false;
 }
@@ -129,13 +137,18 @@ watch(() => route.meta.page, () => { if(!draft.value) void run(load); });
 </p>
   <article v-if="canExecute">
 <h2>{{ t('resumeSetup') }}</h2>
-    <label>{{ t('savedDraft') }}<select v-model="selected" :disabled="busy || !!dirty"><option value="">{{ t('selectDraft') }}</option><option v-for="item in drafts" :key="item.id" :value="item.id">{{ item.config.name }} · {{ t(item.status) }}</option></select></label>
-    <button :disabled="busy || !selected || !!dirty" @click="run(() => open(selected))">
+<p v-if="!drafts.length">
+{{ t('noSavedDraftsHelp') }}
+</p>
+<div class="page-actions">
+    <label v-if="drafts.length">{{ t('savedDraft') }}<select v-model="selected" :disabled="busy || !!dirty"><option value="">{{ t('selectDraft') }}</option><option v-for="item in drafts" :key="item.id" :value="item.id">{{ item.config.name }} · {{ t(item.status) }}</option></select></label>
+    <button v-if="drafts.length" :disabled="busy || !selected || !!dirty" @click="run(() => open(selected))">
 {{ t('open') }}
 </button>
-    <button v-if="canConfigure" :disabled="busy || !!dirty" @click="newDraft()">
+    <button v-if="canConfigure" class="button-primary" :disabled="busy || !!dirty" @click="newDraft()">
 {{ t('newAssistantName') }}
 </button>
+</div>
     <button v-if="dirty" :disabled="busy" @click="abandon = true; draft = null; baseline = ''; abandon = false">
 {{ t('discardLocalChanges') }}
 </button>
@@ -149,19 +162,22 @@ watch(() => route.meta.page, () => { if(!draft.value) void run(load); });
 </p>
     <article v-if="!testing">
       <ol class="steps">
-<li v-for="(key,index) in steps" :key="key" :aria-current="draft.step === index ? 'step' : undefined">
+<li v-for="(key,index) in customerStages" :key="key" :aria-current="customerStage(draft.step) === index ? 'step' : undefined">
 {{ t(key) }}
 </li>
 </ol>
+<p>{{ t('journeyGateNotice') }}</p>
       <h2 id="setup-step" tabindex="-1">
 {{ t(steps[draft.step]) }}
 </h2>
-      <form @submit.prevent="run(() => move(Math.min(6,draft.step + 1)))">
+      <form @submit.prevent="run(() => move(adjacentStep(draft.step,1)))">
 <fieldset :disabled="busy || !editable">
 <legend class="visually-hidden">
 {{ t(steps[draft.step]) }}
 </legend>
         <template v-if="draft.step === 0">
+<p>{{ t('knowledgeSupportedNotice') }}</p>
+<label>{{ t('importApprovedFaq') }}<input type="file" accept="application/json,.json" @change="importFaq"></label>
 <label>{{ t('useCaseStep') }}<select v-model="draft.use_case" @change="draft.config.instructions = t('template_' + draft.use_case)"><option v-for="value in ['receptionist','support','sales','general']" :key="value" :value="value">{{ t('useCase_' + value) }}</option></select></label>
           <label>{{ t('name') }}<input v-model="draft.config.name" required maxlength="120"></label>
           <label>{{ t('instructions') }}<textarea v-model="draft.config.instructions" maxlength="8000" /></label>
@@ -221,7 +237,7 @@ required
 <p>{{ t('readinessReview') }}</p>
 </template>
         <div class="controls">
-<button v-if="draft.step > 0" type="button" @click="run(() => move(draft.step - 1))">
+<button v-if="draft.step !== 1" type="button" @click="run(() => move(adjacentStep(draft.step,-1)))">
 {{ t('back') }}
 </button><button type="button" @click="run(save)">
 {{ t('saveDraft') }}

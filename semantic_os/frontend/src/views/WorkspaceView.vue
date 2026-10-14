@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import { request } from '../services/api';
 import { t, date, number, uiLocale, type Locale } from '../services/i18n';
 import EmptyState from '../components/EmptyState.vue';
+import BusinessIntegrations from '../components/BusinessIntegrations.vue';
 import MessagingConnections from '../components/MessagingConnections.vue';
 import { connectVoice, sendSyntheticAudio } from '../services/voiceStream';
 import { workspaceReads } from '../services/workspace.mjs';
@@ -13,6 +14,7 @@ const route = useRoute();
 const page = computed(() => String(route.meta.page || 'dashboard'));
 const channels = ['voice', 'email', 'whatsapp', 'sms', 'web_chat'];
 const data = ref<any>({}), assistants = ref<any[]>([]), agents = ref<any[]>([]), conversations = ref<any[]>([]), contacts = ref<any[]>([]), appointments = ref<any[]>([]), calls = ref<any[]>([]), approvals = ref<any[]>([]), connections = ref<any[]>([]), followUps = ref<any[]>([]), audit = ref<any[]>([]);
+const auditHidden=ref(false);
 const messages = ref<any[]>([]), current = ref(''), assistantId = ref('default'), contactId = ref('');
 const selectedConversation = ref<any>(null);
 const locale = ref<Locale>('bg-BG'), channel = ref('web_chat'), text = ref(''), error = ref(''), notice = ref(''), busy = ref(false);
@@ -209,25 +211,28 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
 </article>
 </div>
     <article>
-<h2>{{ t('readinessReview') }}</h2><p>{{ t('voice_acceptance_blocked') }}</p><p>{{ t('countsNotSuccessRates') }}</p><RouterLink to="/testing">
+<h2>{{ t('readinessReview') }}</h2><p>{{ t('dashboardTestHelp') }}</p><RouterLink class="button-link button-primary" to="/testing">
 {{ t('testAssistant') }}
 </RouterLink>
 </article>
-    <article><h2>{{ t('languageSupport') }}</h2><p>{{ t('speechNotice') }}</p><p>{{ t('timezone') }}: {{ tz }}</p></article>
   </template>
   <template v-if="page === 'assistants'">
+<div class="page-actions">
     <RouterLink v-if="canConfigure" class="action-link" to="/setup">
 {{ t('guidedSetup') }}
 </RouterLink>
-    <button v-if="canConfigure" :disabled="busy" @click="run(addAssistant)">
+    <RouterLink v-if="canConfigure" class="button-link button-secondary" :to="{path:'/setup',query:{new:'true'}}">
 {{ t('new') }}
-</button>
+</RouterLink>
+</div>
     <article v-for="a in assistants" :key="a.id">
-<h2>{{ a.name }}</h2><p>{{ t(a.status) }} · {{ t(a.llm_provider === 'mock' ? 'MOCK_ONLY' : 'CONFIGURED') }}</p><RouterLink :to="{path:'/setup',query:{assistant:a.id}}">
+<h2>{{ a.name }}</h2><p>{{ t(a.status) }} · {{ t(a.llm_provider === 'mock' ? 'MOCK_ONLY' : 'CONFIGURED') }}</p><div class="page-actions">
+<RouterLink class="button-link button-primary" :to="{path:'/setup',query:{assistant:a.id}}">
 {{ t('editDraft') }}
-</RouterLink> · <RouterLink to="/testing">
+</RouterLink><RouterLink class="button-link button-secondary" :to="{path:'/testing',query:{assistant:a.id}}">
 {{ t('testAssistant') }}
 </RouterLink>
+</div>
 <AssistantStudio :assistant="a" :can-configure="canConfigure" :timezone="tz" />
 <details>
 <summary>{{ t('advancedDirectEditing') }}</summary><p class="banner">
@@ -328,7 +333,7 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
 <button v-if="m.delivery_status === 'draft' && canExecute" :disabled="busy" @click="run(() => approveDraft(m.id))">
 {{ t('approveDraft') }}
 </button>
-</div><EmptyState v-if="!messages.length" :title="t('empty')" />
+</div><EmptyState v-if="!messages.length" :title="t(current?'emptyMessageHistory':'selectConversationHelp')" />
 </div>
     <form v-if="canExecute && !paused && !closed" @submit.prevent="run(send)">
 <fieldset :disabled="busy">
@@ -432,7 +437,8 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
 <ConversationDebugger v-if="diagnosticConversation && canExecute" :conversation-id="diagnosticConversation" :timezone="tz" />
 </template>
   <template v-if="page === 'channels' || page === 'integrations'">
-<div class="cards">
+  <BusinessIntegrations v-if="page==='integrations'" :can-configure="canConfigure" />
+<div v-if="page==='channels'" class="cards">
 <article v-for="provider in data.providers" :key="provider.kind">
 <h2>{{ t(provider.kind) }}</h2><span class="badge">{{ t(providerStatus(provider)) }}</span><p>{{ t('bg-BG') }} / {{ t('en-US') }}</p><p>{{ t('providerStatusScope') }}</p>
 </article>
@@ -482,7 +488,9 @@ const argumentLabels: Record<string, string> = { starts_at: 'date', duration_min
 {{ c.name }} · {{ t(c.preferred_locale) }} · {{ c.address }}
 </p>
 </article><article v-if="canConfigure">
-<h2>{{ t('audit') }}</h2><p v-for="a in audit" :key="a.id">
+<h2>{{ t('audit') }}</h2><p>{{ t('auditDisplayOnly') }}</p><button @click="auditHidden=!auditHidden">
+{{ t(auditHidden?'showActionHistory':'clearActionHistoryView') }}
+</button><p v-for="a in (auditHidden?[]:audit)" :key="a.id">
 {{ date(a.timestamp, tz) }} · {{ t(a.action.startsWith('tool:') ? a.action.slice(5) : a.action) }} · {{ t(a.status) }}
 </p>
 </article>

@@ -3,10 +3,16 @@ import { onMounted, ref, watch, nextTick, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { primaryPages, advancedPages } from './router';
 import { t, uiLocale } from './services/i18n';
+import {languageSaver,reconciledLocale} from './services/profile-language.mjs';
 import { connect, connectDemo, localDemoLogin, signedIn, signOut, signIn, initialize, authConfigured, tenantId, request } from './services/api';
 const token = ref(''), username = ref('demo'), error = ref(''), busy = ref(false);
 const route = useRoute();
 const access = ref<any>({});
+const localeError=ref('');
+let localeRevision=0,profileLoadEpoch=0;
+const persistLanguage=languageSaver((locale:string)=>request('/api/profile','PUT',{ui_locale:locale}),
+  (context:string)=>signedIn.value && context===tenantId.value,(code:string|null)=>{localeError.value=code||'';});
+async function saveLocale(){localeError.value='';if(signedIn.value)await persistLanguage(tenantId.value,uiLocale.value);}
 let accessEpoch = 0;
 const visiblePrimary = computed(() => primaryPages.filter(page => !['testing','operations'].includes(page) || ['admin','operator'].includes(access.value.user?.role)));
 const visibleAdvanced = computed(() => advancedPages.filter(page => page === 'administration' ? access.value.platform_admin : ['setup','widgets','google','onboarding','billing'].includes(page) ? access.value.user?.role === 'admin' : true));
@@ -14,15 +20,31 @@ watch([signedIn,tenantId], async () => { const epoch = ++accessEpoch; access.val
 watch(() => route.path, async () => { await nextTick(); document.getElementById('main-content')?.focus(); });
 onMounted(async () => { try { await initialize(); } catch { error.value = t('authError'); } });
 async function login() { busy.value = true; error.value = ''; try { if (localDemoLogin) await connectDemo(username.value, token.value); else await connect(token.value); token.value = ''; } catch { error.value = t('authError'); } finally { busy.value = false; } }
-watch(uiLocale, async value => { if (signedIn.value) { try { await request('/api/profile', 'PUT', { ui_locale: value }); } catch { error.value = t('error'); } } });
+watch(uiLocale,()=>{localeRevision++;void saveLocale();});
+watch([signedIn,tenantId],async()=>{
+  const epoch=++profileLoadEpoch,revision=localeRevision,tenant=tenantId.value;
+  if(!signedIn.value)return;
+  try{
+    const profile=await request('/api/profile');
+    if(epoch!==profileLoadEpoch || tenant!==tenantId.value || !signedIn.value)return;
+    uiLocale.value=reconciledLocale(profile,uiLocale.value,revision!==localeRevision) as 'bg-BG'|'en-US';
+  }catch{if(epoch===profileLoadEpoch)localeError.value='localeSyncFailed';}
+},{immediate:true});
 </script>
 <template>
   <a class="skip-link" href="#main-content">{{ t('skipToContent') }}</a>
   <header class="topbar">
-<strong>{{ t('brand') }}</strong><label>{{ t('language') }}<select v-model="uiLocale" :aria-label="t('language')"><option value="bg-BG">{{ t('bg-BG') }}</option><option value="en-US">{{ t('en-US') }}</option></select></label><button v-if="signedIn" @click="signOut">
+<strong>{{ t('brand') }}</strong><div class="header-actions">
+<label class="locale-control"><span class="visually-hidden">{{ t('language') }}</span><select v-model="uiLocale" :aria-label="t('language')"><option value="bg-BG">{{ t('localeShortBg') }}</option><option value="en-US">{{ t('localeShortEn') }}</option></select></label><button v-if="signedIn" @click="signOut">
 {{ t('signOut') }}
 </button>
+</div>
 </header>
+<div v-if="localeError" class="locale-sync-error" role="alert">
+<p>{{ t(localeError) }}</p><button @click="saveLocale">
+{{ t('retryLocaleSync') }}
+</button>
+</div>
   <div v-if="signedIn" class="app-layout">
 <nav :aria-label="t('brand')">
 <RouterLink v-for="page in visiblePrimary" :key="page" :to="'/' + page">

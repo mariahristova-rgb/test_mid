@@ -13,9 +13,11 @@ const registration = ref({ name: '', email: '', default_locale: uiLocale.value, 
 const tenantSelection = ref(tenantId.value), credentialName = ref(''), credentialValue = ref('');
 const eventId = crypto.randomUUID();
 const canConfigure = computed(() => access.value.role === 'admin');
+const cancelConfirmed=ref(false);
 const timezone = computed(() => access.value.timezone || registration.value.timezone);
 function money(value: string | number, currency: string) { return formatMinor(value, currency, uiLocale.value); }
 async function run(action: () => Promise<unknown>) {
+  if(busy.value)return;
   busy.value = true; error.value = ''; notice.value = '';
   try { await action(); } catch (e) { error.value = e instanceof Error ? e.message : t('error'); }
   finally { busy.value = false; }
@@ -109,17 +111,19 @@ async function rotateCredential() {
       </template>
       <template v-else>
 <p>{{ t('emailVerified') }}</p><label>{{ t('subscriptionPlan') }}<select v-model="selectedPlan" :aria-label="t('subscriptionPlan')"><option v-for="plan in plans" :key="plan.id" :value="plan.id">{{ uiLocale === 'bg-BG' ? plan.name_bg : plan.name_en }}</option></select></label>
-        <button :disabled="busy" @click="run(() => select('trial'))">
+<div class="page-actions">
+        <button class="button-primary" :disabled="busy || state.status==='active'" @click="run(() => select('trial'))">
 {{ t('startTrial') }}
-</button><RouterLink to="/billing">
+</button><RouterLink class="button-link button-secondary" to="/billing">
 {{ t('billing') }}
-</RouterLink><RouterLink to="/assistants">
+</RouterLink><RouterLink class="button-link button-secondary" to="/assistants">
 {{ t('assistants') }}
-</RouterLink><RouterLink to="/channels">
+</RouterLink><RouterLink class="button-link button-secondary" to="/channels">
 {{ t('channels') }}
-</RouterLink><RouterLink to="/setup">
+</RouterLink><RouterLink class="button-link button-secondary" to="/setup">
 {{ t('guidedSetup') }}
 </RouterLink>
+</div>
       </template>
     </article>
   </template>
@@ -138,14 +142,19 @@ async function rotateCredential() {
       <label>{{ t('subscriptionPlan') }}<select v-model="selectedPlan" :aria-label="t('subscriptionPlan')"><option v-for="plan in plans" :key="plan.id" :value="plan.id">{{ uiLocale === 'bg-BG' ? plan.name_bg : plan.name_en }} · {{ money(plan.monthly_minor_text, plan.currency) }}</option></select></label>
       <label>{{ t('billingInterval') }}<select v-model="interval"><option value="monthly">{{ t('monthly') }}</option><option value="annual">{{ t('annual') }}</option></select></label>
       <div class="controls">
-<button :disabled="busy" @click="run(() => select('checkout'))">
+<button class="button-primary" :disabled="busy" @click="run(() => select(state.subscription?'change':'checkout'))">
+{{ t(state.subscription?'changePlan':'prepareCheckout') }}
+</button><button v-if="state.subscription" class="button-secondary" :disabled="busy" @click="run(() => select('checkout'))">
 {{ t('prepareCheckout') }}
-</button><button :disabled="busy" @click="run(() => select('change'))">
-{{ t('changePlan') }}
-</button><button :disabled="busy" @click="run(async () => { await request('/api/billing/cancel', 'POST', { confirmed: true }); await load(); })">
-{{ t('cancelSubscription') }}
 </button>
 </div>
+<details v-if="state.subscription">
+<summary>{{ t('cancelSubscription') }}</summary>
+<label class="check"><input v-model="cancelConfirmed" type="checkbox">{{ t('confirmSubscriptionCancel') }}</label>
+<button class="button-destructive" :disabled="busy || !cancelConfirmed" @click="run(async () => { await request('/api/billing/cancel', 'POST', { confirmed: true }); cancelConfirmed=false; await load(); })">
+{{ t('cancelSubscription') }}
+</button>
+</details>
       <p>{{ t('planChangePolicy') }}</p>
     </article>
     <article v-if="canConfigure">
@@ -154,7 +163,7 @@ async function rotateCredential() {
 <thead><tr><th>{{ t('invoiceDate') }}</th><th>{{ t('amount') }}</th><th>{{ t('status') }}</th><th>{{ t('action') }}</th></tr></thead><tbody>
       <tr v-for="invoice in state.invoices || []" :key="invoice.id">
 <td>{{ date(invoice.created_at, timezone) }}</td><td>{{ money(invoice.amount_minor_text || invoice.amount_minor, invoice.currency) }}</td><td>{{ t(invoice.status) }}</td><td>
-<button v-if="invoice.status !== 'paid'" :disabled="busy" @click="run(() => pay(invoice.id))">
+<button v-if="state.mock_payments_enabled && invoice.provider==='mock' && invoice.status !== 'paid'" :disabled="busy" @click="run(() => pay(invoice.id))">
 {{ t('simulatePayment') }}
 </button>
 </td>
@@ -177,9 +186,9 @@ async function rotateCredential() {
 </p>
       <div class="table-wrap">
 <table>
-<thead><tr><th>{{ t('usageCategory') }}</th><th>{{ t('quantity') }}</th><th>{{ t('reservedQuantity') }}</th><th>{{ t('planLimit') }}</th><th>{{ t('policy') }}</th></tr></thead><tbody>
+<thead><tr><th>{{ t('usageCategory') }}</th><th>{{ t('quantity') }}</th><th>{{ t('reservedQuantity') }}</th><th>{{ t('planLimit') }}</th><th>{{ t('remainingAllowance') }}</th><th>{{ t('policy') }}</th></tr></thead><tbody>
         <tr v-for="(value, category) in (page === 'usage' ? state : state.usage)?.usage || {}" :key="category">
-<td>{{ t(String(category)) }}</td><td>{{ number((value as any).quantity) }}</td><td>{{ number((value as any).reserved_quantity || 0) }}</td><td>{{ (value as any).limit ? number((value as any).limit.maximum) : t('notConfigured') }}</td><td>{{ t((value as any).limit?.mode || 'notConfigured') }}</td>
+<td>{{ t(String(category)) }}</td><td>{{ number((value as any).quantity) }}</td><td>{{ number((value as any).reserved_quantity || 0) }}</td><td>{{ (value as any).limit ? number((value as any).limit.maximum) : t('notConfigured') }}</td><td>{{ (value as any).limit ? number(Math.max(0,(value as any).limit.maximum-(value as any).quantity-((value as any).reserved_quantity||0))) : t('notConfigured') }}</td><td>{{ t((value as any).limit?.mode || 'notConfigured') }} · {{ t((value as any).limit?.overage_policy || 'notConfigured') }}</td>
 </tr>
       </tbody>
 </table>
@@ -210,8 +219,8 @@ async function rotateCredential() {
 </p>
 </article>
     <article v-if="canConfigure">
-<h2>{{ t('credentialManagement') }}</h2><form @submit.prevent="run(rotateCredential)">
-<label>{{ t('credentialName') }}<input v-model="credentialName" required></label><label>{{ t('credentialValue') }}<input v-model="credentialValue" type="password" minlength="16" required autocomplete="new-password"></label><button :disabled="busy">
+<h2>{{ t('credentialManagement') }}</h2><form class="credential-form" @submit.prevent="run(rotateCredential)">
+<label>{{ t('credentialName') }}<input v-model="credentialName" required></label><label>{{ t('credentialValue') }}<input v-model="credentialValue" type="password" minlength="16" required autocomplete="new-password"></label><button class="button-primary" :disabled="busy">
 {{ t('rotateCredential') }}
 </button>
 </form>
@@ -220,9 +229,11 @@ async function rotateCredential() {
 {{ t('revoke') }}
 </button>
 </p>
-      <button :disabled="busy" @click="run(exportTenant)">
+<div class="credential-export">
+      <button class="button-secondary" :disabled="busy" @click="run(exportTenant)">
 {{ t('exportTenant') }}
 </button>
+</div>
     </article>
   </template>
   <template v-if="page === 'administration'">

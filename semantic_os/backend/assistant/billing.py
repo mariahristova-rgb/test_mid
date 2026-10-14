@@ -25,7 +25,7 @@ class BillingService:
     def __init__(self, store, secret_store, clock, *, demo=False):
         self.store, self.secrets, self.clock = store, secret_store, clock
         self.provider = MockPaymentProvider()
-        self.mock_enabled = demo or os.getenv('ASSISTANT_ALLOW_MOCK_BILLING') == 'true'
+        self.mock_enabled = (demo or os.getenv('ASSISTANT_ALLOW_MOCK_BILLING') == 'true') and os.getenv('ASSISTANT_ENV','development') not in ('production','staging')
         self.verification_mock = demo and os.getenv('ASSISTANT_ENV', 'development') not in ('production', 'staging')
         self.entitlements = PlanEntitlementService(store, self, clock)
         store.entitlements = self.entitlements
@@ -289,7 +289,7 @@ class BillingService:
 
     def overview(self, principal):
         self.refresh(principal.tenant_id)
-        return {'state': 'MOCK', 'subscription': self.entitlements.subscription(principal.tenant_id),
+        return {'state': 'MOCK', 'mock_payments_enabled': self.mock_enabled, 'subscription': self.entitlements.subscription(principal.tenant_id),
             'customer': self.store.find('billing_customers', principal.tenant_id, 'current'),
             'invoices': self.store.list('billing_invoices', principal.tenant_id), 'usage': self.entitlements.summary(principal.tenant_id),
             'notifications': self.store.list('onboarding_events', principal.tenant_id), 'real_charges_enabled': False}
