@@ -24,3 +24,6 @@ Remote run 38588097299: backend/frontend/evaluations/build/migrations, pip-audit
 Frontend accessibility follow-up: node --test semantic_os/frontend/tests/setup-validation.test.mjs: initial 2 PASS/1 FAIL, corrected 3 PASS. npm test: 46 PASS; npm run typecheck/lint/build repeated after correction. Source check: 262 files, zero failures; whitespace PASS. Backend/website unchanged since their recorded full regressions.
 
 Remote follow-up run 38605476843: functional, dependency, migration checks PASS. Gitleaks read permission fixed; scan then failed with ambiguous revision because checkout omitted history. Partial scan reported no leaks but is NOT acceptance. Checkout fetch-depth is now 0; complete scan must pass.
+
+## Accepted automated CI receipt
+GitHub run 38605944967 at source commit 09dbde11fd5efed3f63865e12ed0b68716e132fa completed SUCCESS, including backend/frontend/evaluation suites, audits, schema/demo checks and complete Gitleaks scan. URL: https://github.com/mariahristova-rgb/test_mid/actions/runs/38605944967 . This evidence-only update does not change runtime source.
