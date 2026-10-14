@@ -42,13 +42,6 @@ class PlanEntitlementService:
             raise DomainError('subscription_required', 402)
 
     def period(self, at=None): return (at or self.clock()).astimezone(timezone.utc).strftime('%Y-%m')
-    def check_connector(self,tenant,provider,*,creating=False):
-        self.access(tenant);plan=self.plan(tenant)
-        if not plan:return
-        if plan.get('connector_providers') is not None and provider not in plan['connector_providers']:raise DomainError('upgrade_required',402)
-        maximum=plan.get('connector_limit')
-        if creating and maximum is not None and sum(row.get('kind')=='connector_fixture' for row in self.store.list('operations_events',tenant))>=maximum:raise DomainError('upgrade_required',402)
-
     def plan(self, tenant):
         subscription = self.subscription(tenant)
         return subscription['plan_snapshot'] if subscription else None
@@ -80,7 +73,7 @@ class PlanEntitlementService:
         if providers is not None and provider not in providers:raise DomainError('upgrade_required',402)
         maximum=plan.get('connector_limit')
         if creating and maximum is not None:
-            configured=sum(row.get('kind')=='connector_fixture' for row in self.store.list('operations_events',tenant))
+            configured=sum(row.get('kind') in ('connector_fixture','customer_connection') for row in self.store.list('operations_events',tenant))
             if configured>=maximum:raise DomainError('upgrade_required',402)
 
     def remaining(self, tenant, category):

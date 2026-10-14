@@ -1,0 +1,2 @@
+# Next gate
+Do not begin Phase26C or public rollout. Finish outstanding Phase26B booking-registry bridge, capability-limited production adapters, connection UI, persistence dry-run and full acceptance. Then obtain recorded real customer test-account consent and approved reversible writes. Keep costs/resources disabled absent specific authorization. Retain manual accessibility failure in every release decision until evidence changes.

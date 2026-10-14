@@ -147,7 +147,7 @@ def ui_locale(request):
     return locale if locale in LOCALES else 'en-US'
 
 
-def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None, encryption_key=None, verifier=None, clock=None, platform_subjects=None, backup_key=None, backup_directory=None, connector_fixtures=False):
+def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None, encryption_key=None, verifier=None, clock=None, platform_subjects=None, backup_key=None, backup_directory=None, connector_fixtures=False, customer_oauth_options=None):
     store = store or Store(os.getenv('ASSISTANT_DATABASE', '.assistant-data/assistant.sqlite3'))
     if providers is None:
         providers = ProviderRegistry()
@@ -833,6 +833,9 @@ def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None
     from .connectors import ConnectorService, register_connectors
     app.state.connectors=ConnectorService(store,secrets,enabled=connector_fixtures and demo_enabled and not strict,clock=orchestrator.clock)
     register_connectors(app,app.state.connectors,actor)
+    from .customer_oauth import CustomerOAuthService, register_customer_oauth
+    app.state.customer_oauth=CustomerOAuthService(store,secrets,clock=orchestrator.clock,**(customer_oauth_options or {}))
+    register_customer_oauth(app,app.state.customer_oauth,actor)
     from .customer_workspace import register_customer_workspace
     register_customer_workspace(app,store,actor,billing,clock)
     return app
