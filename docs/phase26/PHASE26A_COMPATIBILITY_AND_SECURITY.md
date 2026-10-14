@@ -6,4 +6,3 @@ Connector fixtures remain disabled in strict staging/production. Production app 
 Limits: environment-secret scans do not replace Gitleaks; a passing single-process SQLite suite is not multi-instance or PostgreSQL evidence. Remote CI/security advisory checks and human accessibility acceptance remain gates.
 
 Rollback before main integration: leave main at its baseline and select the recorded safety branch in an isolated checkout. After any future authorized merge, use a reviewed revert of that merge (first parent main), never shared-history reset. No data migration was added by reconciliation.
-

@@ -8,4 +8,3 @@ Remote: https://github.com/mariahristova-rgb/test_mid.git.
 Safety refs: codex/safety-phase26a-start and codex/safety-phase26a-main.
 
 Both histories diverged from main. A real two-parent merge retains both histories; seven content conflicts required semantic resolution. No reset, rebase, force push or wholesale file selection was used. Main remains unchanged. The website clone is outside this merge and unchanged.
-

@@ -18,4 +18,3 @@ Executed 2026-10-14. Local synthetic/offline scope only.
 Initial command errors: npm typecheck was initially called from repository root without package.json; corrected working directory passed. Migration initially failed opening sandbox temporary DB; authorized offline retry passed. Backend emits a Starlette/httpx deprecation warning, not a failure. Website tests required authorized process spawning.
 
 Ignored artifacts retain backend log and machine-readable migration/evaluation outputs. Remote CI, dependency advisory checks and Gitleaks receipt remain pending. Browser acceptance is recorded separately and must not be inferred from unit tests.
-
