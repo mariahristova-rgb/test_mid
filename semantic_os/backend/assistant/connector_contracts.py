@@ -5,7 +5,7 @@ from pydantic import Field,field_validator,model_validator
 from .domain import Contract
 from .connector_adapters import ACTION_SCOPES,required_scopes
 
-ConnectionState=Literal['disconnected','connecting','connected','degraded','reauthorization_required','revoked','unsupported']
+ConnectionState=Literal['disconnected','authorization_pending','connected_unverified','verified','connecting','connected','degraded','reauthorization_required','revoked','unsupported']
 
 class PlatformOAuthApplication(Contract):
     provider:Literal['google','outlook','calendly','hubspot']
@@ -45,5 +45,5 @@ class RedactedConnection(Contract):
     failure_code:str|None=None
     @model_validator(mode='after')
     def verified_connection(self):
-        if self.state=='connected' and self.verification!='LIVE_VERIFIED':raise ValueError('Fixture is not a live connection')
+        if self.state in ('connected','verified') and self.verification!='LIVE_VERIFIED':raise ValueError('Fixture is not a live connection')
         return self

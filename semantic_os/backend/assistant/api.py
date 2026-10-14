@@ -147,7 +147,7 @@ def ui_locale(request):
     return locale if locale in LOCALES else 'en-US'
 
 
-def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None, encryption_key=None, verifier=None, clock=None, platform_subjects=None, backup_key=None, backup_directory=None, connector_fixtures=False):
+def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None, encryption_key=None, verifier=None, clock=None, platform_subjects=None, backup_key=None, backup_directory=None, connector_fixtures=False, customer_oauth_options=None, customer_calendar_bindings=None, customer_calendar_live_writes_approved=None):
     store = store or Store(os.getenv('ASSISTANT_DATABASE', '.assistant-data/assistant.sqlite3'))
     if providers is None:
         providers = ProviderRegistry()
@@ -211,6 +211,7 @@ def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None
                     await voice_runtime.threaded(voice.expire_idle_calls)
                     await voice_runtime.threaded(app.state.widget.purge)
                     await asyncio.to_thread(app.state.concierge.worker)
+                    await asyncio.to_thread(app.state.customer_booking.worker)
                     await asyncio.to_thread(app.state.inbox_queue.purge)
                     await asyncio.to_thread(app.state.customer_workspace.purge)
                     if app.state.owner_login:await asyncio.to_thread(app.state.owner_login.purge)
@@ -833,6 +834,20 @@ def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None
     from .connectors import ConnectorService, register_connectors
     app.state.connectors=ConnectorService(store,secrets,enabled=connector_fixtures and demo_enabled and not strict,clock=orchestrator.clock)
     register_connectors(app,app.state.connectors,actor)
+    from .customer_oauth import CustomerOAuthService, register_customer_oauth
+    if customer_oauth_options is None:
+        from .customer_oauth_settings import customer_oauth_environment
+        customer_oauth_options=customer_oauth_environment()
+    app.state.customer_oauth=CustomerOAuthService(store,secrets,clock=orchestrator.clock,**(customer_oauth_options or {}))
+    register_customer_oauth(app,app.state.customer_oauth,actor)
+    from .customer_booking import CustomerBookingBridge, register_customer_booking
+    if customer_calendar_live_writes_approved is None:
+        customer_calendar_live_writes_approved=os.getenv('ASSISTANT_CUSTOMER_CALENDAR_WRITES_APPROVED')=='true'
+    app.state.customer_booking=CustomerBookingBridge(app.state.customer_oauth,orchestrator,customer_calendar_bindings or {},live_writes_approved=customer_calendar_live_writes_approved)
+    register_customer_booking(app,app.state.customer_booking,actor)
+    if customer_calendar_bindings or customer_oauth_options:
+        for tool_name in ('CheckAvailability','CreateAppointment'):
+            orchestrator.tools.extensions[tool_name]=app.state.customer_booking
     from .customer_workspace import register_customer_workspace
     register_customer_workspace(app,store,actor,billing,clock)
     return app

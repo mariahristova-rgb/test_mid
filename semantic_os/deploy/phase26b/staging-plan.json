@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "scope": "OFFLINE_REVIEW_ONLY",
+  "deployment_allowed": false,
+  "new_spending_authorized": false,
+  "runtime_postgres_accepted": false,
+  "model_artifacts_accepted": false,
+  "region": "REVIEW_REQUIRED",
+  "resources": {
+    "api": {
+      "type": "CloudRunV2Service",
+      "ingress": "INGRESS_TRAFFIC_INTERNAL_ONLY",
+      "template": {
+        "serviceAccount": "REVIEWED_API_SERVICE_ACCOUNT",
+        "scaling": {
+          "minInstanceCount": 0,
+          "maxInstanceCount": 1
+        },
+        "maxInstanceRequestConcurrency": 1,
+        "containers": [
+          {
+            "image": "PINNED_API_IMAGE_DIGEST_REQUIRED",
+            "resources": {
+              "limits": {
+                "cpu": "2",
+                "memory": "2Gi"
+              }
+            },
+            "volumeMounts": [
+              {
+                "name": "cloudsql",
+                "mountPath": "/cloudsql"
+              }
+            ]
+          }
+        ],
+        "volumes": [
+          {
+            "name": "cloudsql",
+            "cloudSqlInstance": {
+              "instances": [
+                "REVIEWED_CLOUD_SQL_CONNECTION_NAME"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "inference": {
+      "type": "CloudRunV2Service",
+      "ingress": "INGRESS_TRAFFIC_INTERNAL_ONLY",
+      "template": {
+        "serviceAccount": "REVIEWED_MODEL_SERVICE_ACCOUNT",
+        "scaling": {
+          "minInstanceCount": 0,
+          "maxInstanceCount": 1
+        },
+        "maxInstanceRequestConcurrency": 1,
+        "nodeSelector": {
+          "run.googleapis.com/accelerator": "nvidia-l4"
+        },
+        "containers": [
+          {
+            "image": "PINNED_INFERENCE_IMAGE_DIGEST_REQUIRED",
+            "resources": {
+              "limits": {
+                "cpu": "4",
+                "memory": "16Gi",
+                "nvidia.com/gpu": "1"
+              }
+            },
+            "args": [
+              "--model",
+              "/models/Qwen3-8B-AWQ",
+              "--quantization",
+              "awq",
+              "--max-model-len",
+              "4096",
+              "--max-num-seqs",
+              "4",
+              "--gpu-memory-utilization",
+              "0.8"
+            ]
+          }
+        ]
+      }
+    },
+    "database": {
+      "type": "CloudSQLPostgreSQL",
+      "databaseVersion": "POSTGRES_17",
+      "public_ip": false,
+      "iam_authentication": true,
+      "backup_required": true,
+      "migration_accepted": false
+    },
+    "files": {
+      "type": "CloudStorage",
+      "uniform_bucket_level_access": true,
+      "public_access_prevention": "enforced",
+      "tenant_prefix": "tenant/{authenticated_tenant_id}/",
+      "lifecycle_policy": "OWNER_REVIEW_REQUIRED",
+      "signed_access_only": true
+    }
+  },
+  "iam_requirements": [
+    "API service account: only required Secret Manager secret versions, Cloud SQL Client/IAM login and tenant-file object access",
+    "Model service account: read-only approved model artifacts",
+    "API service account alone may invoke private inference service",
+    "No allUsers bindings or public object ACLs"
+  ],
+  "required_receipts": [
+    "runtime PostgreSQL contract/queue/lock/ledger/migration acceptance",
+    "owner cost/SKU/region approval",
+    "exact image/model/tokenizer/config digest manifest",
+    "private network and authenticated customer UI acceptance",
+    "approved provider apps and customer test account consent",
+    "live booking/uncertainty/disconnect and cleanup acceptance",
+    "manual accessibility and load/cost measurements"
+  ]
+}

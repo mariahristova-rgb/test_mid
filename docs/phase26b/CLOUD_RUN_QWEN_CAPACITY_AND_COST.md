@@ -1,0 +1,6 @@
+# Offline staging and inference plan
+semantic_os/deploy/phase26b/staging-plan.json is a review-only infrastructure template, not a deployed environment. scripts/check_phase26b_staging_plan.py validates local admission constraints: no deployment/spend, private inference, bounded instances, Cloud SQL persistence/backup requirements and tenant file isolation. Vendor schema/IaC dry-run was not executed; Terraform is absent. Placeholder images/accounts/region must be resolved and reviewed.
+
+Proposed Qwen3-8B AWQ configuration: L4, 4 CPU, 16 GiB RAM, context 4096, bounded model concurrency and memory utilization; model/tokenizer revision and actual GPU benchmark remain unverified. [Cloud Run GPU requirements](https://docs.cloud.google.com/run/docs/configuring/services/gpu).
+
+Sensitivity assumes 50 conversations/day/customer, six turns, 800 input/200 output tokens and two model calls per turn, at 10/25/50/100 tenants. These are assumptions, not measured traffic or capacity. GPU throughput, cold/warm start, p50/p95, fairness and monetary cost are NOT MEASURED. No invented price or release threshold. New cloud cost incurred: none. Paid staging/model execution is blocked pending concrete configuration and financial approval.

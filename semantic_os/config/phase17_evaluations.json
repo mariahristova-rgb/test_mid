@@ -1,71 +1,408 @@
 {
-  "version": "1.8.0",
+  "version": "1.10.0",
   "scope": "OFFLINE_CONTRACT_ONLY",
   "cases": [
-    {"id":"connector-durable-restore","category":"recovery","test":"test_connectors.ConnectorTests.test_connection_and_quote_restore_with_existing_store"},
-    {"id":"connector-provider-actions-locales","category":"provider","test":"test_connectors.ConnectorTests.test_provider_oauth_discovery_and_all_supported_actions_bilingual"},
-    {"id":"connector-oauth-binding","category":"security","test":"test_connectors.ConnectorTests.test_oauth_state_tenant_user_expiry_replay_and_disconnect"},
-    {"id":"connector-provider-unknown","category":"recovery","test":"test_connectors.ConnectorTests.test_scopes_refresh_rotation_and_unknown_provider_write_no_replay"},
-    {"id":"connector-provider-permissions","category":"security","test":"test_connectors.ConnectorTests.test_provider_permission_mapping_personal_outlook_and_stale_etag"},
-    {"id":"connector-calendly-signature","category":"security","test":"test_connectors.ConnectorTests.test_calendly_signed_webhook_replay_stale_wrong_resource"},
-    {"id":"connector-entitlement-quote","category":"tool","test":"test_connectors.ConnectorTests.test_entitlements_and_quote_workflow_do_not_charge"},
-    {"id":"connector-wire-crm-duplicates","category":"provider","test":"test_connectors.ConnectorTests.test_provider_wire_contracts_and_crm_duplicate_contact"},
-    {"id":"connector-invalid-oauth-grant","category":"security","test":"test_connectors.ConnectorTests.test_missing_oauth_scopes_account_mismatch_and_live_transport_refused"},
-    {"id":"connector-fixture-locales","category":"locale","test":"test_connectors.ConnectorTests.test_bilingual_all_provider_lifecycle_encryption_and_zero_effects"},
-    {"id":"connector-isolation-unknown","category":"security","test":"test_connectors.ConnectorTests.test_tenant_role_revision_and_unknown_outcome_invariants"},
-    {"id":"connector-create-replay","category":"recovery","test":"test_connectors.ConnectorTests.test_create_replay_and_mutation_revision_prevent_duplicates"},
-    {"id":"connector-api-compatibility","category":"security","test":"test_connectors.ConnectorTests.test_reviewed_api_contract_and_legacy_google_compatibility"},
-    {"id":"refresh-disconnect-wins","category":"security","test":"test_google_concierge.GoogleConciergeTests.test_refresh_cannot_restore_tokens_after_disconnect"},
-    {"id":"refresh-rotation-isolation","category":"security","test":"test_google_concierge.GoogleConciergeTests.test_refresh_rotation_is_encrypted_and_tenant_scoped"},
-    {"id":"oauth-expiry-scope","category":"security","test":"test_google_concierge.GoogleConciergeTests.test_expired_oauth_and_missing_scopes_fail_closed"},
-    {"id":"bg-booking","category":"consent","test":"test_assistant.AssistantAcceptance.test_bulgarian_full_handoff_and_approval"},
-    {"id":"en-booking","category":"consent","test":"test_assistant.AssistantAcceptance.test_english_full_handoff"},
-    {"id":"duplicate-confirmation","category":"tool","test":"test_assistant.AssistantAcceptance.test_duplicate_confirmation_exactly_once"},
-    {"id":"injection","category":"security","test":"test_assistant.AssistantAcceptance.test_prompt_injection_never_executes"},
-    {"id":"tenant-isolation","category":"security","test":"test_assistant.AssistantAcceptance.test_cross_tenant_auth_and_reads"},
-    {"id":"locale-switch","category":"locale","test":"test_assistant.PureContracts.test_language_precedence_uncertainty_and_explicit_switch"},
-    {"id":"availability-dst","category":"tool","test":"test_google_concierge.GoogleConciergeTests.test_live_freebusy_cutoff_buffers_and_timezone"},
-    {"id":"ownership-lifecycle","category":"security","test":"test_google_concierge.GoogleConciergeTests.test_email_proof_and_owned_management"},
-    {"id":"gmail-uncertainty","category":"provider","test":"test_google_concierge.GoogleConciergeTests.test_uncertain_gmail_send_is_never_replayed"},
-    {"id":"expired-ownership","category":"security","test":"test_google_concierge.GoogleConciergeTests.test_refresh_revocation_and_expired_ownership"},
-    {"id":"reminder-clock","category":"provider","test":"test_google_concierge.GoogleConciergeTests.test_reminder_runs_once_and_never_after_start"},
-    {"id":"business-feature","category":"tool","test":"test_concierge_api.ConciergeAPITests.test_business_and_feature_reuse_two_agents_and_persist_once"},
-    {"id":"no-fake-calendar","category":"provider","test":"test_concierge_api.ConciergeAPITests.test_text_booking_does_not_fall_back_to_fake_calendar"},
-    {"id":"human-reviewed-promotion","category":"knowledge","test":"test_customer_workspace.CustomerWorkspaceTests.test_quality_review_is_tenant_bound_audited_and_cannot_mutate_assistant"},
-    {"id":"privacy-trace-erasure","category":"security","test":"test_widget.WidgetTests.test_clear_and_retention_redact_traces_only_for_owned_conversation"},
-    {"id":"approved-faq","category":"knowledge","test":"test_widget.WidgetTests.test_approved_faq_detection_and_plain_text_xss"},
-    {"id":"bilingual-lifecycle","category":"recovery","test":"test_google_concierge.GoogleConciergeTests.test_bilingual_full_lifecycle_reminder_and_replays"},
-    {"id":"calendar-readback-recovery","category":"recovery","test":"test_google_concierge.GoogleConciergeTests.test_uncertain_calendar_commit_reconciles_without_second_post"},
-    {"id":"calendar-unobservable","category":"recovery","test":"test_google_concierge.GoogleConciergeTests.test_unobservable_calendar_write_cannot_be_replayed"},
-    {"id":"calendar-create-mismatch","category":"provider","test":"test_google_concierge.GoogleConciergeTests.test_create_mismatched_provider_times_cannot_confirm_locally"},
-    {"id":"calendar-reschedule-mismatch","category":"provider","test":"test_google_concierge.GoogleConciergeTests.test_reschedule_mismatched_provider_times_preserves_local_booking"},
-    {"id":"consent-revocation","category":"consent","test":"test_google_concierge.GoogleConciergeTests.test_refused_consent_and_revoked_google_cannot_write"},
-    {"id":"session-disable-rollback","category":"recovery","test":"test_widget.WidgetTests.test_session_expiry_unpublish_and_revocation"},
-    {"id":"clear-after-revocation","category":"security","test":"test_widget.WidgetTests.test_deletion_remains_available_after_revocation"},
-    {"id":"analytics-withdrawal","category":"consent","test":"test_widget.WidgetTests.test_analytics_withdrawal_survives_session_expiry_and_erasure_purges_evidence"},
-    {"id":"information-owner-email","category":"security","test":"test_google_concierge.GoogleConciergeTests.test_information_email_requires_verified_owner_and_queues_once"},
-    {"id":"grounded-faq-handoff","category":"knowledge","test":"test_assistant.AssistantAcceptance.test_faq_configuration_and_escalation_policy"},
-    {"id":"context-faq-details","category":"knowledge","test":"test_booking_workflow.BookingAcceptance.test_faq_during_details_collection_does_not_become_a_name"},
-    {"id":"sqlite-reconnect","category":"recovery","test":"test_booking_workflow.BookingAcceptance.test_conversation_restores_after_database_reopen"},
-    {"id":"safe-backup-restore","category":"recovery","test":"test_saas.SaaSAcceptance.test_backup_restore_preserves_tenant_usage_and_encrypted_credentials"},
-    {"id":"privacy-booking-memory","category":"security","test":"test_widget.WidgetTests.test_clear_and_retention_remove_uncommitted_booking_memory"},
-    {"id":"concurrent-calendar-intents","category":"recovery","test":"test_google_concierge.GoogleConciergeTests.test_concurrent_booking_intents_serialize_without_duplicates"},
-    {"id":"redacted-operator-failures","category":"recovery","test":"test_customer_workspace.CustomerWorkspaceTests.test_concierge_unknown_and_blocked_jobs_are_visible_without_private_content"},
-    {"id":"worker-disable-reconstruction","category":"recovery","test":"test_google_concierge.GoogleConciergeTests.test_worker_reconstruction_and_disable_do_not_replay_unknown_mail"},
-    {"id":"interrupted-worker","category":"recovery","test":"test_google_concierge.GoogleConciergeTests.test_interrupted_sending_job_is_not_automatically_reclaimed"},
-    {"id":"booking-disable-rollback","category":"recovery","test":"test_widget.WidgetTests.test_disable_rollback_requires_fresh_session_and_preserves_booking"},
-    {"id":"business-defaults-validation","category":"security","test":"test_ux.UXTests.test_optional_business_defaults_and_invalid_fields"},
-    {"id":"business-owner-setup","category":"ux","test":"test_ux.UXTests.test_business_setup_resume_publish_and_mock_schedule_isolation"},
-    {"id":"business-closed-date","category":"tool","test":"test_ux.UXTests.test_closed_dates_are_enforced_inside_disposable_simulation"},
-    {"id":"business-concurrent-change","category":"security","test":"test_ux.UXTests.test_concurrent_business_profile_change_invalidates_new_draft"},
-    {"id":"voice-committed-interruption","category":"recovery","test":"test_voice_integration.VoiceAcceptance.test_bilingual_playback_interruption_preserves_committed_booking"},
-    {"id": "preview-valid-slot", "category": "ux", "test": "test_ux.UXTests.test_representative_preview_hours_and_no_slot"},
-    {"id": "preview-legacy-closures", "category": "ux", "test": "test_ux.UXTests.test_preview_unavailable_periods_and_legacy_draft"},
-    {"id": "preview-dst-refusal", "category": "locale", "test": "test_ux.UXTests.test_preview_dst_and_real_closed_day_refusal"},
-    {"id":"preview-replay-isolation","category":"security","test":"test_ux.UXTests.test_preview_replay_is_idempotent_and_tenant_isolated"},
-    {"id":"preview-narrow-split-closed","category":"ux","test":"test_ux.UXTests.test_preview_narrow_split_weekdays_and_fully_closed_window"},
-    {"id":"preview-lifecycle-faults","category":"recovery","test":"test_ux.UXTests.test_lifecycle_and_provider_preview_bilingual_isolated"},
-    {"id":"preview-lifecycle-permissions","category":"security","test":"test_ux.UXTests.test_lifecycle_preview_permissions_and_missing_preconditions"}
+    {
+      "id": "connector-durable-restore",
+      "category": "recovery",
+      "test": "test_connectors.ConnectorTests.test_connection_and_quote_restore_with_existing_store"
+    },
+    {
+      "id": "connector-provider-actions-locales",
+      "category": "provider",
+      "test": "test_connectors.ConnectorTests.test_provider_oauth_discovery_and_all_supported_actions_bilingual"
+    },
+    {
+      "id": "connector-oauth-binding",
+      "category": "security",
+      "test": "test_connectors.ConnectorTests.test_oauth_state_tenant_user_expiry_replay_and_disconnect"
+    },
+    {
+      "id": "connector-provider-unknown",
+      "category": "recovery",
+      "test": "test_connectors.ConnectorTests.test_scopes_refresh_rotation_and_unknown_provider_write_no_replay"
+    },
+    {
+      "id": "connector-provider-permissions",
+      "category": "security",
+      "test": "test_connectors.ConnectorTests.test_provider_permission_mapping_personal_outlook_and_stale_etag"
+    },
+    {
+      "id": "connector-calendly-signature",
+      "category": "security",
+      "test": "test_connectors.ConnectorTests.test_calendly_signed_webhook_replay_stale_wrong_resource"
+    },
+    {
+      "id": "connector-entitlement-quote",
+      "category": "tool",
+      "test": "test_connectors.ConnectorTests.test_entitlements_and_quote_workflow_do_not_charge"
+    },
+    {
+      "id": "connector-wire-crm-duplicates",
+      "category": "provider",
+      "test": "test_connectors.ConnectorTests.test_provider_wire_contracts_and_crm_duplicate_contact"
+    },
+    {
+      "id": "connector-invalid-oauth-grant",
+      "category": "security",
+      "test": "test_connectors.ConnectorTests.test_missing_oauth_scopes_account_mismatch_and_live_transport_refused"
+    },
+    {
+      "id": "connector-fixture-locales",
+      "category": "locale",
+      "test": "test_connectors.ConnectorTests.test_bilingual_all_provider_lifecycle_encryption_and_zero_effects"
+    },
+    {
+      "id": "connector-isolation-unknown",
+      "category": "security",
+      "test": "test_connectors.ConnectorTests.test_tenant_role_revision_and_unknown_outcome_invariants"
+    },
+    {
+      "id": "connector-create-replay",
+      "category": "recovery",
+      "test": "test_connectors.ConnectorTests.test_create_replay_and_mutation_revision_prevent_duplicates"
+    },
+    {
+      "id": "connector-api-compatibility",
+      "category": "security",
+      "test": "test_connectors.ConnectorTests.test_reviewed_api_contract_and_legacy_google_compatibility"
+    },
+    {
+      "id": "refresh-disconnect-wins",
+      "category": "security",
+      "test": "test_google_concierge.GoogleConciergeTests.test_refresh_cannot_restore_tokens_after_disconnect"
+    },
+    {
+      "id": "refresh-rotation-isolation",
+      "category": "security",
+      "test": "test_google_concierge.GoogleConciergeTests.test_refresh_rotation_is_encrypted_and_tenant_scoped"
+    },
+    {
+      "id": "oauth-expiry-scope",
+      "category": "security",
+      "test": "test_google_concierge.GoogleConciergeTests.test_expired_oauth_and_missing_scopes_fail_closed"
+    },
+    {
+      "id": "bg-booking",
+      "category": "consent",
+      "test": "test_assistant.AssistantAcceptance.test_bulgarian_full_handoff_and_approval"
+    },
+    {
+      "id": "en-booking",
+      "category": "consent",
+      "test": "test_assistant.AssistantAcceptance.test_english_full_handoff"
+    },
+    {
+      "id": "duplicate-confirmation",
+      "category": "tool",
+      "test": "test_assistant.AssistantAcceptance.test_duplicate_confirmation_exactly_once"
+    },
+    {
+      "id": "injection",
+      "category": "security",
+      "test": "test_assistant.AssistantAcceptance.test_prompt_injection_never_executes"
+    },
+    {
+      "id": "tenant-isolation",
+      "category": "security",
+      "test": "test_assistant.AssistantAcceptance.test_cross_tenant_auth_and_reads"
+    },
+    {
+      "id": "locale-switch",
+      "category": "locale",
+      "test": "test_assistant.PureContracts.test_language_precedence_uncertainty_and_explicit_switch"
+    },
+    {
+      "id": "availability-dst",
+      "category": "tool",
+      "test": "test_google_concierge.GoogleConciergeTests.test_live_freebusy_cutoff_buffers_and_timezone"
+    },
+    {
+      "id": "ownership-lifecycle",
+      "category": "security",
+      "test": "test_google_concierge.GoogleConciergeTests.test_email_proof_and_owned_management"
+    },
+    {
+      "id": "gmail-uncertainty",
+      "category": "provider",
+      "test": "test_google_concierge.GoogleConciergeTests.test_uncertain_gmail_send_is_never_replayed"
+    },
+    {
+      "id": "expired-ownership",
+      "category": "security",
+      "test": "test_google_concierge.GoogleConciergeTests.test_refresh_revocation_and_expired_ownership"
+    },
+    {
+      "id": "reminder-clock",
+      "category": "provider",
+      "test": "test_google_concierge.GoogleConciergeTests.test_reminder_runs_once_and_never_after_start"
+    },
+    {
+      "id": "business-feature",
+      "category": "tool",
+      "test": "test_concierge_api.ConciergeAPITests.test_business_and_feature_reuse_two_agents_and_persist_once"
+    },
+    {
+      "id": "no-fake-calendar",
+      "category": "provider",
+      "test": "test_concierge_api.ConciergeAPITests.test_text_booking_does_not_fall_back_to_fake_calendar"
+    },
+    {
+      "id": "human-reviewed-promotion",
+      "category": "knowledge",
+      "test": "test_customer_workspace.CustomerWorkspaceTests.test_quality_review_is_tenant_bound_audited_and_cannot_mutate_assistant"
+    },
+    {
+      "id": "privacy-trace-erasure",
+      "category": "security",
+      "test": "test_widget.WidgetTests.test_clear_and_retention_redact_traces_only_for_owned_conversation"
+    },
+    {
+      "id": "approved-faq",
+      "category": "knowledge",
+      "test": "test_widget.WidgetTests.test_approved_faq_detection_and_plain_text_xss"
+    },
+    {
+      "id": "bilingual-lifecycle",
+      "category": "recovery",
+      "test": "test_google_concierge.GoogleConciergeTests.test_bilingual_full_lifecycle_reminder_and_replays"
+    },
+    {
+      "id": "calendar-readback-recovery",
+      "category": "recovery",
+      "test": "test_google_concierge.GoogleConciergeTests.test_uncertain_calendar_commit_reconciles_without_second_post"
+    },
+    {
+      "id": "calendar-unobservable",
+      "category": "recovery",
+      "test": "test_google_concierge.GoogleConciergeTests.test_unobservable_calendar_write_cannot_be_replayed"
+    },
+    {
+      "id": "calendar-create-mismatch",
+      "category": "provider",
+      "test": "test_google_concierge.GoogleConciergeTests.test_create_mismatched_provider_times_cannot_confirm_locally"
+    },
+    {
+      "id": "calendar-reschedule-mismatch",
+      "category": "provider",
+      "test": "test_google_concierge.GoogleConciergeTests.test_reschedule_mismatched_provider_times_preserves_local_booking"
+    },
+    {
+      "id": "consent-revocation",
+      "category": "consent",
+      "test": "test_google_concierge.GoogleConciergeTests.test_refused_consent_and_revoked_google_cannot_write"
+    },
+    {
+      "id": "session-disable-rollback",
+      "category": "recovery",
+      "test": "test_widget.WidgetTests.test_session_expiry_unpublish_and_revocation"
+    },
+    {
+      "id": "clear-after-revocation",
+      "category": "security",
+      "test": "test_widget.WidgetTests.test_deletion_remains_available_after_revocation"
+    },
+    {
+      "id": "analytics-withdrawal",
+      "category": "consent",
+      "test": "test_widget.WidgetTests.test_analytics_withdrawal_survives_session_expiry_and_erasure_purges_evidence"
+    },
+    {
+      "id": "information-owner-email",
+      "category": "security",
+      "test": "test_google_concierge.GoogleConciergeTests.test_information_email_requires_verified_owner_and_queues_once"
+    },
+    {
+      "id": "grounded-faq-handoff",
+      "category": "knowledge",
+      "test": "test_assistant.AssistantAcceptance.test_faq_configuration_and_escalation_policy"
+    },
+    {
+      "id": "context-faq-details",
+      "category": "knowledge",
+      "test": "test_booking_workflow.BookingAcceptance.test_faq_during_details_collection_does_not_become_a_name"
+    },
+    {
+      "id": "sqlite-reconnect",
+      "category": "recovery",
+      "test": "test_booking_workflow.BookingAcceptance.test_conversation_restores_after_database_reopen"
+    },
+    {
+      "id": "safe-backup-restore",
+      "category": "recovery",
+      "test": "test_saas.SaaSAcceptance.test_backup_restore_preserves_tenant_usage_and_encrypted_credentials"
+    },
+    {
+      "id": "privacy-booking-memory",
+      "category": "security",
+      "test": "test_widget.WidgetTests.test_clear_and_retention_remove_uncommitted_booking_memory"
+    },
+    {
+      "id": "concurrent-calendar-intents",
+      "category": "recovery",
+      "test": "test_google_concierge.GoogleConciergeTests.test_concurrent_booking_intents_serialize_without_duplicates"
+    },
+    {
+      "id": "redacted-operator-failures",
+      "category": "recovery",
+      "test": "test_customer_workspace.CustomerWorkspaceTests.test_concierge_unknown_and_blocked_jobs_are_visible_without_private_content"
+    },
+    {
+      "id": "worker-disable-reconstruction",
+      "category": "recovery",
+      "test": "test_google_concierge.GoogleConciergeTests.test_worker_reconstruction_and_disable_do_not_replay_unknown_mail"
+    },
+    {
+      "id": "interrupted-worker",
+      "category": "recovery",
+      "test": "test_google_concierge.GoogleConciergeTests.test_interrupted_sending_job_is_not_automatically_reclaimed"
+    },
+    {
+      "id": "booking-disable-rollback",
+      "category": "recovery",
+      "test": "test_widget.WidgetTests.test_disable_rollback_requires_fresh_session_and_preserves_booking"
+    },
+    {
+      "id": "business-defaults-validation",
+      "category": "security",
+      "test": "test_ux.UXTests.test_optional_business_defaults_and_invalid_fields"
+    },
+    {
+      "id": "business-owner-setup",
+      "category": "ux",
+      "test": "test_ux.UXTests.test_business_setup_resume_publish_and_mock_schedule_isolation"
+    },
+    {
+      "id": "business-closed-date",
+      "category": "tool",
+      "test": "test_ux.UXTests.test_closed_dates_are_enforced_inside_disposable_simulation"
+    },
+    {
+      "id": "business-concurrent-change",
+      "category": "security",
+      "test": "test_ux.UXTests.test_concurrent_business_profile_change_invalidates_new_draft"
+    },
+    {
+      "id": "voice-committed-interruption",
+      "category": "recovery",
+      "test": "test_voice_integration.VoiceAcceptance.test_bilingual_playback_interruption_preserves_committed_booking"
+    },
+    {
+      "id": "preview-valid-slot",
+      "category": "ux",
+      "test": "test_ux.UXTests.test_representative_preview_hours_and_no_slot"
+    },
+    {
+      "id": "preview-legacy-closures",
+      "category": "ux",
+      "test": "test_ux.UXTests.test_preview_unavailable_periods_and_legacy_draft"
+    },
+    {
+      "id": "preview-dst-refusal",
+      "category": "locale",
+      "test": "test_ux.UXTests.test_preview_dst_and_real_closed_day_refusal"
+    },
+    {
+      "id": "preview-replay-isolation",
+      "category": "security",
+      "test": "test_ux.UXTests.test_preview_replay_is_idempotent_and_tenant_isolated"
+    },
+    {
+      "id": "preview-narrow-split-closed",
+      "category": "ux",
+      "test": "test_ux.UXTests.test_preview_narrow_split_weekdays_and_fully_closed_window"
+    },
+    {
+      "id": "preview-lifecycle-faults",
+      "category": "recovery",
+      "test": "test_ux.UXTests.test_lifecycle_and_provider_preview_bilingual_isolated"
+    },
+    {
+      "id": "preview-lifecycle-permissions",
+      "category": "security",
+      "test": "test_ux.UXTests.test_lifecycle_preview_permissions_and_missing_preconditions"
+    },
+    {
+      "id": "customer-oauth-signed-identity",
+      "category": "security",
+      "test": "test_customer_oauth.CustomerOAuthTests.test_signed_google_identity_nonce_audience_and_signature"
+    },
+    {
+      "id": "customer-oauth-callbacks",
+      "category": "security",
+      "test": "test_customer_oauth.CustomerOAuthTests.test_cross_tenant_binding_provider_expiry_and_config_denied"
+    },
+    {
+      "id": "customer-oauth-disconnect-race",
+      "category": "security",
+      "test": "test_customer_oauth.CustomerOAuthTests.test_disconnect_during_exchange_and_refresh_wins"
+    },
+    {
+      "id": "customer-oauth-refresh-scope",
+      "category": "security",
+      "test": "test_customer_oauth.CustomerOAuthTests.test_refresh_claim_and_scope_downgrade"
+    },
+    {
+      "id": "customer-oauth-entitlements",
+      "category": "security",
+      "test": "test_customer_oauth.CustomerOAuthTests.test_customer_connections_share_existing_plan_limit"
+    },
+    {
+      "id": "customer-booking-bg",
+      "category": "locale",
+      "test": "test_customer_booking.CustomerBookingTests.test_bulgarian_two_agent_confirmation_queue_and_provider_booking"
+    },
+    {
+      "id": "customer-booking-en-recovery",
+      "category": "recovery",
+      "test": "test_customer_booking.CustomerBookingTests.test_english_unknown_write_reconciles_without_second_post"
+    },
+    {
+      "id": "customer-booking-disconnect",
+      "category": "consent",
+      "test": "test_customer_booking.CustomerBookingTests.test_disconnect_before_worker_prevents_provider_write"
+    },
+    {
+      "id": "customer-booking-closed-day",
+      "category": "tool",
+      "test": "test_customer_booking.CustomerBookingTests.test_closed_day_never_uses_fixture_slots_as_provider_success"
+    },
+    {
+      "id": "customer-booking-policy",
+      "category": "security",
+      "test": "test_customer_booking.CustomerBookingTests.test_explicit_activation_snapshots_policy_and_refuses_missing_consent"
+    },
+    {
+      "id": "customer-booking-dst",
+      "category": "locale",
+      "test": "test_customer_booking.CustomerBookingTests.test_dst_day_skips_ambiguous_wall_times_without_hiding_valid_slots"
+    },
+    {
+      "id": "provider-outlook-identity",
+      "category": "security",
+      "test": "test_provider_identity.ProviderIdentityTests.test_outlook_signature_nonce_audience_and_tenant_policy"
+    },
+    {
+      "id": "provider-hubspot-identity",
+      "category": "security",
+      "test": "test_provider_identity.ProviderIdentityTests.test_hubspot_active_client_bound_account_and_scopes"
+    },
+    {
+      "id": "provider-refresh-account",
+      "category": "security",
+      "test": "test_provider_identity.ProviderIdentityTests.test_refresh_identity_cannot_change_bound_account"
+    },
+    {
+      "id": "customer-booking-malformed-receipt",
+      "category": "recovery",
+      "test": "test_customer_booking.CustomerBookingTests.test_malformed_write_receipt_stays_uncertain_and_reconciles_without_replay"
+    }
   ],
-  "unverified_layers": ["QWEN_MODEL_SIMULATION", "AUTHORIZED_STAGING_GOOGLE", "ATTENDED_BROWSER", "EXTERNAL_CUSTOMER_PILOT", "HEARD_VOICE"]
+  "unverified_layers": [
+    "QWEN_MODEL_SIMULATION",
+    "AUTHORIZED_STAGING_GOOGLE",
+    "ATTENDED_BROWSER",
+    "EXTERNAL_CUSTOMER_PILOT",
+    "HEARD_VOICE"
+  ]
 }

@@ -15,12 +15,12 @@ class Element extends EventTarget {
   focus(){this.focusCount++;}
 }
 function fixture(handler){
-  const nodes=new Map(),window=new EventTarget(),document=new EventTarget(),calls=[];
+  const nodes=new Map(),window=new EventTarget(),document=new EventTarget(),calls=[],intervals=[];
   const node=id=>{if(!nodes.has(id))nodes.set(id,new Element());return nodes.get(id);};
   const values={'public-id':'wdg_'+'1'.repeat(32),'parent-origin':'https://synthetic.example','initial-locale':'en-US'};
   Object.assign(document,{hidden:false,documentElement:new Element(),querySelector:selector=>({content:values[selector.match(/name="([^"]+)"/)[1]]}),querySelectorAll:()=>[],getElementById:node,createElement:()=>new Element()});
   Object.assign(window,{parent:{sent:[],postMessage(data,target){this.sent.push({data,target});}},innerHeight:640});
-  const context={labels,document,window,navigator:{onLine:true},crypto:{getRandomValues:array=>array.fill(7),randomUUID:()=> 'synthetic-event'},localStorage:{getItem:()=>null,setItem(){},removeItem(){}},setInterval:()=>1,fetch:async(url,options)=>{
+  const context={labels,document,window,navigator:{onLine:true},crypto:{getRandomValues:array=>array.fill(7),randomUUID:()=> 'synthetic-event'},localStorage:{getItem:()=>null,setItem(){},removeItem(){}},setInterval:callback=>{intervals.push(callback);return 1;},fetch:async(url,options)=>{
     const call={url,options,payload:options.body?JSON.parse(options.body):undefined};calls.push(call);
     if(url.includes('/redeem/'))return {ok:true,json:async()=>({session_token:'synthetic-private-capability',greeting:'Hello',native_booking_enabled:true})};
     return handler(call);
@@ -31,7 +31,7 @@ function fixture(handler){
     window.dispatchEvent(event);await settle();
   }
   const submit=async()=>{node('composer').dispatchEvent(new Event('submit',{cancelable:true}));await settle();};
-  return {window,node,calls,admit,submit};
+  return {window,node,calls,admit,submit,tick:async()=>{for(const callback of intervals)callback();await settle();}};
 }
 const settle=()=>new Promise(resolve=>setImmediate(resolve));
 const success=(response='Confirmed')=>({ok:true,json:async()=>({response,locale:'en-US',booking_status:'confirmed',human_requested:false})});
@@ -78,4 +78,14 @@ test('clear needs explicit consent and removes pending retry authority',async()=
   assert.equal(f.node('send').disabled,true);assert.equal(f.node('messages').children.length,0);
   f.node('input').value='After clear';await f.submit();
   assert.equal(f.calls.filter(c=>c.url.includes('/messages/')).length,0);
+});
+
+
+test('queued customer booking polls only its bound confirmation and never repeats a write',async()=>{
+  const f=fixture(call=>call.url.includes('/messages/') ? {ok:true,json:async()=>({response:'Processing',locale:'en-US',tool_result:'appointment_pending',booking_reference:'synthetic-booking',booking_status:'completed',human_requested:false})} : {ok:true,json:async()=>({messages:[{id:'wrong',content:'Other booking',booking_reference:'another-booking'},{id:'confirmation',content:'Appointment confirmed',booking_reference:'synthetic-booking'}]})});
+  await f.admit();f.node('input').value='Confirm';await f.submit();await f.tick();await f.tick();
+  assert.equal(f.calls.filter(c=>c.url.includes('/messages/')).length,1);
+  assert.equal(f.calls.filter(c=>c.url.includes('/history/')).length,1);
+  assert.equal(f.node('messages').children.filter(c=>c.textContent==='Appointment confirmed').length,1);
+  assert.equal(f.node('messages').children.filter(c=>c.textContent==='Other booking').length,0);
 });

@@ -11,13 +11,13 @@ class MockCalendarProvider:
     def __init__(self, store):
         self.store = store
 
-    def available(self, tenant_id, starts_at, minutes, exclude=None):
-        return bool(self.available_resources(tenant_id, starts_at, minutes, exclude))
+    def available(self, tenant_id, starts_at, minutes, exclude=None, *, tenant_override=None):
+        return bool(self.available_resources(tenant_id, starts_at, minutes, exclude, tenant_override=tenant_override))
 
-    def available_resources(self, tenant_id, starts_at, minutes, exclude=None):
+    def available_resources(self, tenant_id, starts_at, minutes, exclude=None, *, tenant_override=None):
         start = datetime.fromisoformat(starts_at)
         end = start + timedelta(minutes=minutes)
-        tenant = self.store.tenant(tenant_id)
+        tenant = tenant_override or self.store.tenant(tenant_id)
         policy = tenant.get('calendar_policy')
         resources = [None]
         if policy:
@@ -41,18 +41,23 @@ class MockCalendarProvider:
                 resources = [resource for resource in resources if resource != appointment['dentist_id']]
         return resources
 
-    def day_slots(self, tenant_id, day, minutes, timezone, after):
+    def day_slots(self, tenant_id, day, minutes, timezone, after, *, tenant_override=None):
         """Explicit synthetic office-hours fixture, never a production calendar assumption."""
         slots = []
-        policy = self.store.tenant(tenant_id).get('calendar_policy')
+        policy = (tenant_override or self.store.tenant(tenant_id)).get('calendar_policy')
         opening, closing, step = 9*60, 17*60, 30
         if policy:
             opening = sum(int(v)*m for v, m in zip(policy['opens'].split(':'), (60,1)))
             closing = sum(int(v)*m for v, m in zip(policy['closes'].split(':'), (60,1)))
             step = policy['slot_minutes']
         for minute in range(opening, closing - minutes + 1, step):
-            start = parse_date(f'{day}T{minute // 60:02d}:{minute % 60:02d}', 'en-US', timezone)
-            if start > after and self.available(tenant_id, start.isoformat(), minutes): slots.append(start.isoformat())
+            try:
+                start = parse_date(f'{day}T{minute // 60:02d}:{minute % 60:02d}', 'en-US', timezone)
+            except DomainError as error:
+                if error.code == 'timezone_required':
+                    continue  # Do not offer ambiguous/nonexistent DST wall-clock slots.
+                raise
+            if start > after and self.available(tenant_id, start.isoformat(), minutes, tenant_override=tenant_override): slots.append(start.isoformat())
         return slots
 
     def create(self, tenant_id, arguments, conversation, timezone):
