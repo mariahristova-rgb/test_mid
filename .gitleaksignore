@@ -1,0 +1,6 @@
+# Reviewed false positive: Terraform comment value budget/alarms; not a credential.
+# Exact immutable historical fingerprint only; no rules or paths disabled.
+914f59ef9a43b3d961927c80786a0e485984ff73:semantic_os/deploy/phase26c/main.tf:generic-api-key:413
+# Reviewed historical false positive: Python key=key,correlation_id argument syntax.
+# No literal credential; exact legacy unit-test fingerprint only.
+b9662bbb09d14a86de4549c123bbef74add886b9:semantic_os/backend/tests/test_google_concierge.py:generic-api-key:297

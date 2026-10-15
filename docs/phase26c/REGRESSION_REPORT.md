@@ -29,3 +29,9 @@ Fresh browser in Phase26C Synthetic Workspace: empty organization field→Contin
 No real OAuth/provider mutation, customer messages, payment, model execution, cloud deployment, DNS, customer data or protected merge. New cloud spend0. Exact final commit/CI link is recorded in the draft PR; green CI cannot promote external acceptance.
 
 Implementation commits: e56734b (Store/migration),914f59e (gates/IaC/inference),ca113d7 (billing). Final documentation commit records this exact tested source tree. CI additionally runs real disposable PostgreSQL and vendor Terraform validation; final exact-SHA result is attached to the draft PR.
+
+Initial exact-head CI38706572367 passed all runtime/frontend/audit/IaC checks but Gitleaks flagged the literal comment value budget/alarms (main.tf413 at914f59e), not a credential. The current comment was clarified; .gitleaksignore contains only that exact historical fingerprint with rationale. No rule/path was disabled or history rewritten. The PR-range scan result and any full-history scan are reported separately.
+
+A separate explicit --all --full-history Gitleaks scan inspected38 commits/3.80MB and found one older false positive at b9662bbb: test_google_concierge.py297 contains the Python keyword argument sequence key=key,correlation_id, not a literal credential. That exact legacy fingerprint was documented separately. No global allowlist, test removal or history rewrite. Rerun result recorded below.
+
+Explicit local full-history rerun:38 commits/~3.80MB, no leaks found after the two narrowly reviewed code/comment fingerprints; exit0. CI now separately runs the explicit --all --full-history scan after the action PR-range scan, with pinned Gitleaks8.24.3. These are distinct checks; no range-only result is described as a repository-wide scan.

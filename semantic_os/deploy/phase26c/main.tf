@@ -410,8 +410,8 @@ resource "google_cloud_run_v2_service" "api" {
 }
 
 # No allUsers IAM, public GPU, OAuth clients, billing activation or credentials.
-# Application auth, file broker, pinned secret versions, budget/alarms and model
-# manifest must be reviewed before apply_authorized can be set true.
+# Review application authentication, file isolation and alert delivery.
+# Review immutable credential/model versions before authorizing an apply.
 variable "billing_account_id" {
   type    = string
   default = ""
