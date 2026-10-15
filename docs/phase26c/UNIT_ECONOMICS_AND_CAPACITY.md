@@ -1,0 +1,4 @@
+# Unit economics and capacity
+Assumptions, not observed traffic: 50 conversations/customer/day, six assistant responses, 800 input +200 output tokens per response. At10/25/50/100 customers: 500/1250/2500/5000 conversations and3000/7500/15000/30000 responses/day. Single-call input2.4m/6m/12m/24m; output0.6m/1.5m/3m/6m. Two model calls per response doubles these token assumptions; retrieval context and tool results add to input.
+
+Daily average does not determine peak concurrency. Peak-hour concentration, context distribution, tool calls and cold starts require measurement. Cost/conversation and cost/customer are null until real input/output receipts, duration, utilization and fixed SQL/storage cost are measured. Fixed/variable split and GPU prices are in COST_CAP_AND_APPROVAL_REQUEST.md. No release threshold, tenant capacity or margin is invented. Current bounded admission is a safety control, not proof that four generations meet a service target.
