@@ -6,6 +6,17 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: phase26c_fixture
+          POSTGRES_PASSWORD: synthetic-runtime-only
+        ports:
+          - 55426:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d phase26c_fixture"
+          --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
       - uses: actions/checkout@v4
         with:
@@ -21,8 +32,16 @@ jobs:
       - run: pip install -c semantic_os/backend/requirements.lock -r semantic_os/backend/requirements.txt -r semantic_os/backend/requirements-messaging.txt
       - run: pip install -r semantic_os/backend/requirements-dev.txt
       - run: pip-audit -r semantic_os/backend/requirements.lock --no-deps --disable-pip
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.14.9'
+      - run: terraform fmt -check && terraform init -backend=false -input=false && terraform validate
+        working-directory: semantic_os/deploy/phase26c
       - run: python scripts/check_source.py
       - run: python -m unittest discover -s semantic_os/backend/tests -v
+        env:
+          PHASE26C_PG_DISPOSABLE: 'true'
+          PHASE26C_PG_DSN: host=127.0.0.1 port=55426 dbname=phase26c_fixture user=postgres password=synthetic-runtime-only
       - run: python scripts/evaluate_phase17.py
       - run: npm ci --ignore-scripts
         working-directory: semantic_os/frontend

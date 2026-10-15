@@ -210,12 +210,15 @@ class WebChatAdapter(MockChannelAdapter):
 
 
 class ProviderRegistry:
-    def __init__(self):
+    def __init__(self, *, llm_global_limit=4, llm_tenant_limit=1):
         self.llm = MockLLMProvider()
         self.speech = MockSpeechProvider()
         self.telephony = MockTelephonyProvider()
         self.calendar = None  # Bound to tenant-scoped persistence in the composition layer.
         self.qwen_settings, self.qwen_secret, self.qwen_transport = None, '', None
+        if type(llm_global_limit) is not int or type(llm_tenant_limit) is not int or not 1 <= llm_tenant_limit <= llm_global_limit <= 8:
+            raise ValueError('Bounded inference limits required')
+        self.llm_global_limit, self.llm_tenant_limit = llm_global_limit, llm_tenant_limit
         self.active_llms, self.llm_lock = {}, RLock()
         self.local_stt, self.local_tts, self.asterisk = None, None, None
 
@@ -297,6 +300,8 @@ class ProviderRegistry:
         key = (principal.tenant_id, conversation.get('call_session_id') or conversation['id'])
         with self.llm_lock:
             if key in self.active_llms: raise DomainError('conflict', 409)
+            if len(self.active_llms) >= self.llm_global_limit or sum(k[0] == principal.tenant_id for k in self.active_llms) >= self.llm_tenant_limit:
+                raise DomainError('provider_rate_limited', 429)
             self.active_llms[key] = provider
         try: yield provider
         finally:
