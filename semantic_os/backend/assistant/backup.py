@@ -17,6 +17,7 @@ class BackupManager:
         self.retention_days, self.rpo_seconds, self.rto_seconds = retention_days, rpo_seconds, rto_seconds
 
     def create(self):
+        if getattr(self.store, 'backend', 'sqlite') != 'sqlite': raise DomainError('unconfigured', 503)
         if not self.cipher: raise DomainError('unconfigured', 503)
         self.directory.mkdir(parents=True, exist_ok=True)
         snapshot = sqlite3.connect(':memory:')
