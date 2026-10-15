@@ -1,0 +1,6 @@
+# Google booking evidence
+PASS_OFFLINE: existing customer_oauth/customer_booking suites and versioned corpus cover state replay/tenant/provider mismatch, signed identity, scope downgrade, refresh/disconnect race, ownership, DST/closed hours, repeated confirmation, unknown and malformed write receipts, GET reconciliation and bound widget polling.
+
+PASS_LOCAL_RUNTIME: the same two-agent BG/EN creation paths run on real disposable PostgreSQL. Provider traffic is MockTransport. Pending reservation/job is durable before external execution, confirmation/reminder jobs appear only after the provider event receipt, and duplicates do not create another event. Two independent workers are serialized by a database lock and committed lease.
+
+PASS_REAL_PROVIDER: NOT_EXECUTED. No remote Google availability/event/cleanup, email, invitation or real appointment. A proposed reversible acceptance requires explicit test-account/calendar identification, read/create-one/reconcile/cleanup approval, clearly labelled test event, no attendees/sendUpdates=none, event-ID-only redacted receipts, local/remote confirmation and removal receipt. Current bridge event summary is generic Appointment; the approved live test label must be added through a reviewed test-only path before any real test. Never create a separate direct booking implementation.

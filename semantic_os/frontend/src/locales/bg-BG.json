@@ -1031,5 +1031,6 @@
   "customerBookingConsent": "Разрешавам записвания за организацията в избрания календар. Всеки посетител трябва да потвърди.",
   "customerEnableBooking": "Активирай клиентски записвания",
   "customerPrimaryCalendar": "Основен календар",
-  "customerBookingEnabled": "Клиентското записване е включено"
+  "customerBookingEnabled": "Клиентското записване е включено",
+  "selectMockInvoice": "Изберете платена тестова фактура"
 }

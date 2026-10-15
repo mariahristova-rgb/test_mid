@@ -148,7 +148,9 @@ def ui_locale(request):
 
 
 def create_app(*, store=None, providers=None, demo_enabled=None, demo_token=None, encryption_key=None, verifier=None, clock=None, platform_subjects=None, backup_key=None, backup_directory=None, connector_fixtures=False, customer_oauth_options=None, customer_calendar_bindings=None, customer_calendar_live_writes_approved=None):
-    store = store or Store(os.getenv('ASSISTANT_DATABASE', '.assistant-data/assistant.sqlite3'))
+    if store is None:
+        from .postgres_store import configured_store
+        store = configured_store()
     if providers is None:
         providers = ProviderRegistry()
         from .self_hosted import configure_environment

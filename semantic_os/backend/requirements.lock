@@ -40,3 +40,6 @@ uvloop==0.23.0; sys_platform != 'win32'
 watchfiles==1.3.0
 websockets==17.2
 yarl==1.25.1
+psycopg==3.3.6
+psycopg-binary==3.3.6
+psycopg-pool==3.3.3

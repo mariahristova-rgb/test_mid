@@ -1,5 +1,5 @@
 {
-  "version": "1.10.0",
+  "version": "1.11.0",
   "scope": "OFFLINE_CONTRACT_ONLY",
   "cases": [
     {
@@ -396,6 +396,21 @@
       "id": "customer-booking-malformed-receipt",
       "category": "recovery",
       "test": "test_customer_booking.CustomerBookingTests.test_malformed_write_receipt_stays_uncertain_and_reconciles_without_replay"
+    },
+    {
+      "id": "postgres-config-fail-closed",
+      "category": "security",
+      "test": "test_postgres_store.PostgresConfigurationTests.test_strict_missing_or_sqlite_backend_fails_closed"
+    },
+    {
+      "id": "external-acceptance-disabled",
+      "category": "security",
+      "test": "test_external_acceptance.ExternalAcceptanceTests.test_default_disabled_expiry_account_resource_and_action_boundaries"
+    },
+    {
+      "id": "inference-admission",
+      "category": "provider",
+      "test": "test_external_acceptance.ExternalAcceptanceTests.test_inference_tenant_and_global_admission_release_after_error"
     }
   ],
   "unverified_layers": [

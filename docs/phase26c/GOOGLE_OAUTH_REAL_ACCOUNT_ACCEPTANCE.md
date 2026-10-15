@@ -1,0 +1,8 @@
+# Google OAuth real-account gate
+LIVE_PROVIDER_ACCEPTANCE=BLOCKED. No new account consent or credentials were read in Phase26C. Existing owner credentials are not customer consent.
+
+Reviewer checklist: identify platform application owner/client ID, exact HTTPS callback origin/path, isolated test tenant and account, consent-screen test-user eligibility, application verification status, resource ownership and minimal scopes. Choose a dedicated empty acceptance calendar, never the owner's primary/customer calendar. Record approved account/resource hashes, grant capabilities, consent receipt reference, approval ID and expiry. Review cleanup permission and record retention.
+
+external_acceptance.py defaults disabled. Positive execution/approval ID, <=1h approval lifetime, exact tenant/account/resource binding, isolated-calendar consent and one-event maximum are mandatory. The executable harness reuses customer service discovery; write requests are denied and must use the existing visitor approval/job path after separate approval. Synthetic expiry/mismatch/action/default-disable tests pass. Flags do not manufacture human consent or server provider credentials.
+
+Scopes for this implementation: openid/email, calendar.calendarlist.readonly, calendar.freebusy and calendar.events.owned only for approved creation. No Gmail/send, domain delegation, broad Calendar permission or customer-supplied secrets. Actual consent, refresh rotation/revocation/reconnect receipts, calendar discover/select and cleanup require approved test-account access. Owner/action: application owner supplies reviewed app/account/resource/consent; agent runs only specifically authorized reversible steps.

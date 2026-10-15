@@ -1031,5 +1031,6 @@
   "customerBookingConsent": "I authorize this selected calendar for tenant-wide booking. Each visitor must still confirm.",
   "customerEnableBooking": "Enable customer booking",
   "customerPrimaryCalendar": "Primary calendar",
-  "customerBookingEnabled": "Customer booking enabled"
+  "customerBookingEnabled": "Customer booking enabled",
+  "selectMockInvoice": "Choose a paid test invoice"
 }
