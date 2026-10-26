@@ -1,0 +1,713 @@
+{
+  "classification": "synthetic_only",
+  "note": "Individual fault receipts retain the execution SHA; final full discovery log independently reports all 14 including pool/lock checks. No CI/human/provider/cloud PASS.",
+  "receipts": [
+    {
+      "test_id": "test_cross_tenant_global_serialization_measurement",
+      "commit_sha": "88639af439e4244131bd8c0435aa3df84aec7698",
+      "timestamp_utc": "2026-10-26T14:55:59.802833+00:00",
+      "env": "Windows-11-10.0.26300-SP0 / PostgreSQL17 + independent loopback recorder",
+      "fault_point": "same/cross-tenant two-process serialized writes",
+      "before_state": {
+        "job": null,
+        "appointment": null,
+        "other_appointments": 0,
+        "audit_count": 8,
+        "contact_count": 0,
+        "job_ref": null,
+        "external_ref": null,
+        "correlation_ref": null,
+        "booking_ref": null,
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 0,
+          "events": 0
+        }
+      },
+      "observed_effect": {
+        "create_posts": 0,
+        "reconcile_gets": 0,
+        "events": 0
+      },
+      "after_state": {
+        "job": null,
+        "appointment": null,
+        "other_appointments": 0,
+        "audit_count": 8,
+        "contact_count": 0,
+        "job_ref": null,
+        "external_ref": null,
+        "correlation_ref": null,
+        "booking_ref": null,
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 0,
+          "events": 0
+        }
+      },
+      "oracle": [
+        "independent psycopg SQL",
+        "durable provider SQLite/request recorder",
+        "OS subprocess exit"
+      ],
+      "result": "PASS_LOCAL_RUNTIME",
+      "artifact_path": "artifacts\\phase26d\\fault-test_cross_tenant_global_serialization_measurement.json",
+      "measurements": {
+        "same_tenant": {
+          "processes": 2,
+          "committed_operations": 20,
+          "operation_interval_seconds": 0.8296,
+          "process_startup_inclusive_seconds": 6.0893,
+          "operations_per_second": 24.109
+        },
+        "cross_tenant": {
+          "processes": 2,
+          "committed_operations": 20,
+          "operation_interval_seconds": 0.7445,
+          "process_startup_inclusive_seconds": 4.8712,
+          "operations_per_second": 26.862
+        }
+      }
+    },
+    {
+      "test_id": "test_disconnect_after_admission_records_real_receipt_without_replay",
+      "commit_sha": "88639af439e4244131bd8c0435aa3df84aec7698",
+      "timestamp_utc": "2026-10-26T14:56:15.952715+00:00",
+      "env": "Windows-11-10.0.26300-SP0 / PostgreSQL17 + independent loopback recorder",
+      "fault_point": "disconnect after durable admission and accepted external effect",
+      "before_state": {
+        "job": "pending",
+        "appointment": "pending_external",
+        "other_appointments": 0,
+        "audit_count": 22,
+        "contact_count": 0,
+        "job_ref": "375049dfce451452",
+        "external_ref": "963fa7410d5b6652",
+        "correlation_ref": "ae16fd0d1442e220",
+        "booking_ref": "7de133a36beaa907",
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 0,
+          "events": 0
+        }
+      },
+      "observed_effect": {
+        "create_posts": 1,
+        "reconcile_gets": 0,
+        "events": 1
+      },
+      "after_state": {
+        "job": "completed",
+        "appointment": "confirmed",
+        "other_appointments": 0,
+        "audit_count": 32,
+        "contact_count": 0,
+        "job_ref": "375049dfce451452",
+        "external_ref": "963fa7410d5b6652",
+        "correlation_ref": "ae16fd0d1442e220",
+        "booking_ref": "7de133a36beaa907",
+        "provider": {
+          "create_posts": 1,
+          "reconcile_gets": 0,
+          "events": 1
+        }
+      },
+      "oracle": [
+        "independent psycopg SQL",
+        "durable provider SQLite/request recorder",
+        "OS subprocess exit"
+      ],
+      "result": "PASS_LOCAL_RUNTIME",
+      "artifact_path": "artifacts\\phase26d\\fault-test_disconnect_after_admission_records_real_receipt_without_replay.json"
+    },
+    {
+      "test_id": "test_disconnect_after_availability_before_create_denies_post",
+      "commit_sha": "88639af439e4244131bd8c0435aa3df84aec7698",
+      "timestamp_utc": "2026-10-26T14:56:31.125414+00:00",
+      "env": "Windows-11-10.0.26300-SP0 / PostgreSQL17 + independent loopback recorder",
+      "fault_point": "disconnect in separate HTTP thread after FreeBusy before POST",
+      "before_state": {
+        "job": "pending",
+        "appointment": "pending_external",
+        "other_appointments": 0,
+        "audit_count": 22,
+        "contact_count": 0,
+        "job_ref": "f92af8cb3f105ff0",
+        "external_ref": "46c9b7b4b2f79bf5",
+        "correlation_ref": "228c303dabf40630",
+        "booking_ref": "971fbab828949adb",
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 0,
+          "events": 0
+        }
+      },
+      "observed_effect": {
+        "create_posts": 0,
+        "reconcile_gets": 0,
+        "events": 0
+      },
+      "after_state": {
+        "job": "blocked",
+        "appointment": "cancelled",
+        "other_appointments": 0,
+        "audit_count": 29,
+        "contact_count": 0,
+        "job_ref": "f92af8cb3f105ff0",
+        "external_ref": "46c9b7b4b2f79bf5",
+        "correlation_ref": "228c303dabf40630",
+        "booking_ref": "971fbab828949adb",
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 0,
+          "events": 0
+        }
+      },
+      "oracle": [
+        "independent psycopg SQL",
+        "durable provider SQLite/request recorder",
+        "OS subprocess exit"
+      ],
+      "result": "PASS_LOCAL_RUNTIME",
+      "artifact_path": "artifacts\\phase26d\\fault-test_disconnect_after_availability_before_create_denies_post.json"
+    },
+    {
+      "test_id": "test_forced_deadlock_has_independent_sqlstate_and_recovers",
+      "commit_sha": "88639af439e4244131bd8c0435aa3df84aec7698",
+      "timestamp_utc": "2026-10-26T14:56:35.890618+00:00",
+      "env": "Windows-11-10.0.26300-SP0 / PostgreSQL17 + independent loopback recorder",
+      "fault_point": "adversarial raw SQL lock ordering in fixture only",
+      "before_state": {
+        "job": null,
+        "appointment": null,
+        "other_appointments": 0,
+        "audit_count": 8,
+        "contact_count": 0,
+        "job_ref": null,
+        "external_ref": null,
+        "correlation_ref": null,
+        "booking_ref": null,
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 0,
+          "events": 0
+        }
+      },
+      "observed_effect": {
+        "create_posts": 0,
+        "reconcile_gets": 0,
+        "events": 0
+      },
+      "after_state": {
+        "job": null,
+        "appointment": null,
+        "other_appointments": 0,
+        "audit_count": 8,
+        "contact_count": 0,
+        "job_ref": null,
+        "external_ref": null,
+        "correlation_ref": null,
+        "booking_ref": null,
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 0,
+          "events": 0
+        }
+      },
+      "oracle": [
+        "independent psycopg SQL",
+        "durable provider SQLite/request recorder",
+        "OS subprocess exit"
+      ],
+      "result": "PASS_LOCAL_RUNTIME",
+      "artifact_path": "artifacts\\phase26d\\fault-test_forced_deadlock_has_independent_sqlstate_and_recovers.json"
+    },
+    {
+      "test_id": "test_kill_after_committed_claim_preserves_unknown_without_post",
+      "commit_sha": "88639af439e4244131bd8c0435aa3df84aec7698",
+      "timestamp_utc": "2026-10-26T14:56:58.136447+00:00",
+      "env": "Windows-11-10.0.26300-SP0 / PostgreSQL17 + independent loopback recorder",
+      "fault_point": "OS exit after durable claim before HTTP",
+      "before_state": {
+        "job": "pending",
+        "appointment": "pending_external",
+        "other_appointments": 0,
+        "audit_count": 22,
+        "contact_count": 0,
+        "job_ref": "dd1d086618ad7b98",
+        "external_ref": "ab2d1a01190ab903",
+        "correlation_ref": "f5c090c7be6a10be",
+        "booking_ref": "cf8f48c41de09768",
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 0,
+          "events": 0
+        }
+      },
+      "observed_effect": {
+        "create_posts": 0,
+        "reconcile_gets": 1,
+        "events": 0
+      },
+      "after_state": {
+        "job": "uncertain",
+        "appointment": "uncertain_external",
+        "other_appointments": 0,
+        "audit_count": 24,
+        "contact_count": 0,
+        "job_ref": "dd1d086618ad7b98",
+        "external_ref": "ab2d1a01190ab903",
+        "correlation_ref": "f5c090c7be6a10be",
+        "booking_ref": "cf8f48c41de09768",
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 1,
+          "events": 0
+        }
+      },
+      "oracle": [
+        "independent psycopg SQL",
+        "durable provider SQLite/request recorder",
+        "OS subprocess exit"
+      ],
+      "result": "PASS_LOCAL_RUNTIME",
+      "artifact_path": "artifacts\\phase26d\\fault-test_kill_after_committed_claim_preserves_unknown_without_post.json"
+    },
+    {
+      "test_id": "test_kill_before_lease_then_normal_worker",
+      "commit_sha": "88639af439e4244131bd8c0435aa3df84aec7698",
+      "timestamp_utc": "2026-10-26T14:57:21.224444+00:00",
+      "env": "Windows-11-10.0.26300-SP0 / PostgreSQL17 + independent loopback recorder",
+      "fault_point": "OS exit before lease",
+      "before_state": {
+        "job": "pending",
+        "appointment": "pending_external",
+        "other_appointments": 0,
+        "audit_count": 22,
+        "contact_count": 0,
+        "job_ref": "25a401789fada97c",
+        "external_ref": "fe8eafb95ac4ccd4",
+        "correlation_ref": "0ea93a7f8c608908",
+        "booking_ref": "479bfafebc91c748",
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 0,
+          "events": 0
+        }
+      },
+      "observed_effect": {
+        "create_posts": 1,
+        "reconcile_gets": 0,
+        "events": 1
+      },
+      "after_state": {
+        "job": "completed",
+        "appointment": "confirmed",
+        "other_appointments": 0,
+        "audit_count": 29,
+        "contact_count": 0,
+        "job_ref": "25a401789fada97c",
+        "external_ref": "fe8eafb95ac4ccd4",
+        "correlation_ref": "0ea93a7f8c608908",
+        "booking_ref": "479bfafebc91c748",
+        "provider": {
+          "create_posts": 1,
+          "reconcile_gets": 0,
+          "events": 1
+        }
+      },
+      "oracle": [
+        "independent psycopg SQL",
+        "durable provider SQLite/request recorder",
+        "OS subprocess exit"
+      ],
+      "result": "PASS_LOCAL_RUNTIME",
+      "artifact_path": "artifacts\\phase26d\\fault-test_kill_before_lease_then_normal_worker.json"
+    },
+    {
+      "test_id": "test_lost_success_then_two_recovering_processes",
+      "commit_sha": "88639af439e4244131bd8c0435aa3df84aec7698",
+      "timestamp_utc": "2026-10-26T14:57:54.714954+00:00",
+      "env": "Windows-11-10.0.26300-SP0 / PostgreSQL17 + independent loopback recorder",
+      "fault_point": "provider durable success/reply then OS exit before DB receipt",
+      "before_state": {
+        "job": "pending",
+        "appointment": "pending_external",
+        "other_appointments": 0,
+        "audit_count": 22,
+        "contact_count": 0,
+        "job_ref": "a68a7d9d2ebd4002",
+        "external_ref": "00cdb1a762a926f0",
+        "correlation_ref": "8b6a95943a8c0d2b",
+        "booking_ref": "d15f7ca9bc5ae72f",
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 0,
+          "events": 0
+        }
+      },
+      "observed_effect": {
+        "create_posts": 1,
+        "reconcile_gets": 1,
+        "events": 1
+      },
+      "after_state": {
+        "job": "completed",
+        "appointment": "confirmed",
+        "other_appointments": 0,
+        "audit_count": 31,
+        "contact_count": 0,
+        "job_ref": "a68a7d9d2ebd4002",
+        "external_ref": "00cdb1a762a926f0",
+        "correlation_ref": "8b6a95943a8c0d2b",
+        "booking_ref": "d15f7ca9bc5ae72f",
+        "provider": {
+          "create_posts": 1,
+          "reconcile_gets": 1,
+          "events": 1
+        }
+      },
+      "oracle": [
+        "independent psycopg SQL",
+        "durable provider SQLite/request recorder",
+        "OS subprocess exit"
+      ],
+      "result": "PASS_LOCAL_RUNTIME",
+      "artifact_path": "artifacts\\phase26d\\fault-test_lost_success_then_two_recovering_processes.json"
+    },
+    {
+      "test_id": "test_native_restore_to_second_instance_preserves_uncertain_intent",
+      "commit_sha": "88639af439e4244131bd8c0435aa3df84aec7698",
+      "timestamp_utc": "2026-10-26T14:58:36.489172+00:00",
+      "env": "Windows-11-10.0.26300-SP0 / PostgreSQL17 + independent loopback recorder",
+      "fault_point": "native pg_dump restored into independent PostgreSQL instance then GET-only recovery",
+      "before_state": {
+        "job": "pending",
+        "appointment": "pending_external",
+        "other_appointments": 0,
+        "audit_count": 22,
+        "contact_count": 0,
+        "job_ref": "3ff59777377830a5",
+        "external_ref": "2f7f5c054a2ec5b5",
+        "correlation_ref": "a0b27e0db3e0e4f2",
+        "booking_ref": "bac1a069bdc3ccd9",
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 0,
+          "events": 0
+        }
+      },
+      "observed_effect": {
+        "create_posts": 1,
+        "reconcile_gets": 1,
+        "events": 1
+      },
+      "after_state": {
+        "job": "completed",
+        "appointment": "confirmed",
+        "other_appointments": 0,
+        "audit_count": 31,
+        "contact_count": 0,
+        "job_ref": "3ff59777377830a5",
+        "external_ref": "2f7f5c054a2ec5b5",
+        "correlation_ref": "a0b27e0db3e0e4f2",
+        "booking_ref": "bac1a069bdc3ccd9",
+        "provider": {
+          "create_posts": 1,
+          "reconcile_gets": 1,
+          "events": 1
+        }
+      },
+      "oracle": [
+        "independent psycopg SQL",
+        "durable provider SQLite/request recorder",
+        "OS subprocess exit"
+      ],
+      "result": "PASS_LOCAL_RUNTIME",
+      "artifact_path": "artifacts\\phase26d\\fault-test_native_restore_to_second_instance_preserves_uncertain_intent.json",
+      "restore": {
+        "dump_sha256": "8100422d99aed593ef36617f21f9205bf74eafb6ffcbc83b6fbd2455b3052921",
+        "dump_bytes": 250042,
+        "pg_restore_list_entries": 480,
+        "dump_seconds": 0.958,
+        "database_restore_validation_seconds": 2.648,
+        "snapshot_acknowledged_records_lost": 0,
+        "pg_verifybackup": "NOT_APPLICABLE_LOGICAL_DUMP",
+        "postgres_version": "17.11",
+        "catalog_counts": {
+          "foreign_keys": 83,
+          "check_constraints": 50,
+          "indexes": 194,
+          "ledger_trigger": 1
+        },
+        "all_table_hashes_match": true,
+        "all_catalog_definitions_match": true
+      }
+    },
+    {
+      "test_id": "test_removed_resource_access_after_availability_denies_create",
+      "commit_sha": "88639af439e4244131bd8c0435aa3df84aec7698",
+      "timestamp_utc": "2026-10-26T14:59:00.344864+00:00",
+      "env": "Windows-11-10.0.26300-SP0 / PostgreSQL17 + independent loopback recorder",
+      "fault_point": "resource ownership removed after availability before final admission",
+      "before_state": {
+        "job": "pending",
+        "appointment": "pending_external",
+        "other_appointments": 0,
+        "audit_count": 22,
+        "contact_count": 0,
+        "job_ref": "a937e39cdbad7c0a",
+        "external_ref": "3e16892ed0ac8aaf",
+        "correlation_ref": "ce6dd2f96d53796f",
+        "booking_ref": "30d04e3a1d6d0511",
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 0,
+          "events": 0
+        }
+      },
+      "observed_effect": {
+        "create_posts": 0,
+        "reconcile_gets": 0,
+        "events": 0
+      },
+      "after_state": {
+        "job": "blocked",
+        "appointment": "cancelled",
+        "other_appointments": 0,
+        "audit_count": 26,
+        "contact_count": 0,
+        "job_ref": "a937e39cdbad7c0a",
+        "external_ref": "3e16892ed0ac8aaf",
+        "correlation_ref": "ce6dd2f96d53796f",
+        "booking_ref": "30d04e3a1d6d0511",
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 0,
+          "events": 0
+        }
+      },
+      "oracle": [
+        "independent psycopg SQL",
+        "durable provider SQLite/request recorder",
+        "OS subprocess exit"
+      ],
+      "result": "PASS_LOCAL_RUNTIME",
+      "artifact_path": "artifacts\\phase26d\\fault-test_removed_resource_access_after_availability_denies_create.json"
+    },
+    {
+      "test_id": "test_revoked_uncertain_write_stays_unknown_without_unauthorized_get",
+      "commit_sha": "88639af439e4244131bd8c0435aa3df84aec7698",
+      "timestamp_utc": "2026-10-26T14:59:26.059007+00:00",
+      "env": "Windows-11-10.0.26300-SP0 / PostgreSQL17 + independent loopback recorder",
+      "fault_point": "revoked grant after accepted write/timeout before reconciliation",
+      "before_state": {
+        "job": "pending",
+        "appointment": "pending_external",
+        "other_appointments": 0,
+        "audit_count": 22,
+        "contact_count": 0,
+        "job_ref": "ba708f08a1712e4b",
+        "external_ref": "3b23709913b0afb8",
+        "correlation_ref": "f3b174023f6e0f6c",
+        "booking_ref": "567d3b0c72cf0d44",
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 0,
+          "events": 0
+        }
+      },
+      "observed_effect": {
+        "create_posts": 1,
+        "reconcile_gets": 0,
+        "events": 1
+      },
+      "after_state": {
+        "job": "uncertain",
+        "appointment": "uncertain_external",
+        "other_appointments": 0,
+        "audit_count": 31,
+        "contact_count": 0,
+        "job_ref": "ba708f08a1712e4b",
+        "external_ref": "3b23709913b0afb8",
+        "correlation_ref": "f3b174023f6e0f6c",
+        "booking_ref": "567d3b0c72cf0d44",
+        "provider": {
+          "create_posts": 1,
+          "reconcile_gets": 0,
+          "events": 1
+        }
+      },
+      "oracle": [
+        "independent psycopg SQL",
+        "durable provider SQLite/request recorder",
+        "OS subprocess exit"
+      ],
+      "result": "PASS_LOCAL_RUNTIME",
+      "artifact_path": "artifacts\\phase26d\\fault-test_revoked_uncertain_write_stays_unknown_without_unauthorized_get.json"
+    },
+    {
+      "test_id": "test_statement_timeout_is_classified_and_rolls_back",
+      "commit_sha": "88639af439e4244131bd8c0435aa3df84aec7698",
+      "timestamp_utc": "2026-10-26T14:59:32.690869+00:00",
+      "env": "Windows-11-10.0.26300-SP0 / PostgreSQL17 + independent loopback recorder",
+      "fault_point": "statement timeout after an uncommitted contact write",
+      "before_state": {
+        "job": null,
+        "appointment": null,
+        "other_appointments": 0,
+        "audit_count": 8,
+        "contact_count": 0,
+        "job_ref": null,
+        "external_ref": null,
+        "correlation_ref": null,
+        "booking_ref": null,
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 0,
+          "events": 0
+        }
+      },
+      "observed_effect": {
+        "create_posts": 0,
+        "reconcile_gets": 0,
+        "events": 0
+      },
+      "after_state": {
+        "job": null,
+        "appointment": null,
+        "other_appointments": 0,
+        "audit_count": 8,
+        "contact_count": 0,
+        "job_ref": null,
+        "external_ref": null,
+        "correlation_ref": null,
+        "booking_ref": null,
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 0,
+          "events": 0
+        }
+      },
+      "oracle": [
+        "independent psycopg SQL",
+        "durable provider SQLite/request recorder",
+        "OS subprocess exit"
+      ],
+      "result": "PASS_LOCAL_RUNTIME",
+      "artifact_path": "artifacts\\phase26d\\fault-test_statement_timeout_is_classified_and_rolls_back.json"
+    },
+    {
+      "test_id": "test_terminated_database_transaction_rolls_back_booking_transition",
+      "commit_sha": "88639af439e4244131bd8c0435aa3df84aec7698",
+      "timestamp_utc": "2026-10-26T14:59:49.806903+00:00",
+      "env": "Windows-11-10.0.26300-SP0 / PostgreSQL17 + independent loopback recorder",
+      "fault_point": "pg_terminate_backend after uncommitted booking updates",
+      "before_state": {
+        "job": "pending",
+        "appointment": "pending_external",
+        "other_appointments": 0,
+        "audit_count": 22,
+        "contact_count": 0,
+        "job_ref": "2bdba04edb9f91f0",
+        "external_ref": "6d1ee4ccf1d2b618",
+        "correlation_ref": "136f629ca4a57572",
+        "booking_ref": "eee92aeb2923ba70",
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 0,
+          "events": 0
+        }
+      },
+      "observed_effect": {
+        "create_posts": 0,
+        "reconcile_gets": 0,
+        "events": 0
+      },
+      "after_state": {
+        "job": "pending",
+        "appointment": "pending_external",
+        "other_appointments": 0,
+        "audit_count": 22,
+        "contact_count": 0,
+        "job_ref": "2bdba04edb9f91f0",
+        "external_ref": "6d1ee4ccf1d2b618",
+        "correlation_ref": "136f629ca4a57572",
+        "booking_ref": "eee92aeb2923ba70",
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 0,
+          "events": 0
+        }
+      },
+      "oracle": [
+        "independent psycopg SQL",
+        "durable provider SQLite/request recorder",
+        "OS subprocess exit"
+      ],
+      "result": "PASS_LOCAL_RUNTIME",
+      "artifact_path": "artifacts\\phase26d\\fault-test_terminated_database_transaction_rolls_back_booking_transition.json"
+    },
+    {
+      "test_id": "test_timeout_after_durable_accept_uses_get_only",
+      "commit_sha": "88639af439e4244131bd8c0435aa3df84aec7698",
+      "timestamp_utc": "2026-10-26T15:00:21.666248+00:00",
+      "env": "Windows-11-10.0.26300-SP0 / PostgreSQL17 + independent loopback recorder",
+      "fault_point": "HTTP timeout after independently committed provider event",
+      "before_state": {
+        "job": "pending",
+        "appointment": "pending_external",
+        "other_appointments": 0,
+        "audit_count": 22,
+        "contact_count": 0,
+        "job_ref": "726b4bcdc9c99f9f",
+        "external_ref": "e0630a626de39b4d",
+        "correlation_ref": "b77ca452ac1b71d2",
+        "booking_ref": "018979773ea06cd6",
+        "provider": {
+          "create_posts": 0,
+          "reconcile_gets": 0,
+          "events": 0
+        }
+      },
+      "observed_effect": {
+        "create_posts": 1,
+        "reconcile_gets": 1,
+        "events": 1
+      },
+      "after_state": {
+        "job": "completed",
+        "appointment": "confirmed",
+        "other_appointments": 0,
+        "audit_count": 31,
+        "contact_count": 0,
+        "job_ref": "726b4bcdc9c99f9f",
+        "external_ref": "e0630a626de39b4d",
+        "correlation_ref": "b77ca452ac1b71d2",
+        "booking_ref": "018979773ea06cd6",
+        "provider": {
+          "create_posts": 1,
+          "reconcile_gets": 1,
+          "events": 1
+        }
+      },
+      "oracle": [
+        "independent psycopg SQL",
+        "durable provider SQLite/request recorder",
+        "OS subprocess exit"
+      ],
+      "result": "PASS_LOCAL_RUNTIME",
+      "artifact_path": "artifacts\\phase26d\\fault-test_timeout_after_durable_accept_uses_get_only.json"
+    }
+  ],
+  "cleanup": {
+    "owned_containers_removed": [
+      "test-mid-phase26d-pg",
+      "test-mid-phase26d-restore"
+    ],
+    "verified_remaining_fixture_schemas": 0,
+    "unrelated_containers_changed": false,
+    "synthetic_binary_dumps": "retained ignored locally",
+    "raw_cleanup_artifact": "artifacts/phase26d/cleanup-receipt.json"
+  }
+}

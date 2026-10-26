@@ -266,6 +266,25 @@ class CustomerBookingBridge:
                     else:
                         if not self.available(tenant, appointment['starts_at'], appointment['duration_minutes'], appointment['id']):
                             raise DomainError('conflict', 409)
+                        # Linearize final write admission against revocation and
+                        # competing claims. A later disconnect cannot undo an
+                        # already admitted/in-flight HTTP write; retain its real
+                        # receipt or uncertainty and never replay the POST.
+                        with self.store.transaction():
+                            fresh = self.store.get('jobs',tenant,job['id'])
+                            if fresh.get('claim') != job['claim'] or fresh['status'] != 'running':
+                                raise DomainError('delivery_unknown',409)
+                            actor,row,resource = self.context(tenant,write=True)
+                            if row['id'] != job['connection_id'] or row['revision'] != job['connection_revision'] or row['resource_ids'][0] != job['resource_id']:
+                                raise DomainError('disabled',409)
+                            assistant = self.store.get('assistants',tenant,job['assistant_id'])
+                            conversation = self.store.get('conversations',tenant,job['conversation_id'])
+                            if assistant['status'] != 'active' or conversation['channel'] not in assistant['enabled_channels'] or conversation.get('human_escalation'):
+                                raise DomainError('disabled',409)
+                            self.engine.tools.authorize(actor,assistant,'CreateAppointment')
+                            token = self.service.token(actor,row['id'])
+                            self.store.update('jobs',tenant,job['id'],{'write_admitted_at':self.clock().isoformat(),
+                                'lease_until':(self.clock()+timedelta(seconds=60)).isoformat()})
                         start = datetime.fromisoformat(appointment['starts_at'])
                         response = adapter.call(token, 'POST', path.rsplit('/', 1)[0], params={'sendUpdates': 'none'}, json={
                             'id': job['event_id'], 'summary': 'Appointment',

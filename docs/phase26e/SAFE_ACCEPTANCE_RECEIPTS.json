@@ -1,0 +1,215 @@
+{
+  "baseline_sha": "c71b06a2a93352cf5353b704531d2dd1b6b77eb9",
+  "acceptance_source_sha": "36f3dd4f6b8862bd25c331ff63fa5f2ead9280bd",
+  "production_files_unchanged": {
+    "semantic_os/backend/assistant/customer_booking.py": true,
+    "semantic_os/backend/assistant/postgres_store.py": true
+  },
+  "historical_backend_log_hash_verified": true,
+  "historical_restore_dump_hash_verified": true,
+  "historical_445_backend_and_14_fault_tests": "PASS_LOCAL_ONLY, historical runtime SHA88639af, not fresh full regression",
+  "targeted_regression": {
+    "tests": 40,
+    "skipped": 0,
+    "seconds": 103.972,
+    "source_sha": "50b3dc2ba9029bb00358e2c1576cdb0f207e3697",
+    "result": "PASS_LOCAL_ONLY",
+    "raw_artifact": "artifacts\\phase26e\\security-booking-regression.txt",
+    "sha256": "c0554fe9d16036c0a4e176739cb7411998bc00f83e0e8223ee176cba8211f37d"
+  },
+  "strict_acceptance": {
+    "commit_sha": "36f3dd4f6b8862bd25c331ff63fa5f2ead9280bd",
+    "timestamp_utc": "2026-10-26T15:40:29.431781+00:00",
+    "rows": [
+      {
+        "locale": "bg-BG",
+        "tenant_ref": "2102b5abad796029",
+        "confirmed_sql_rows": 1,
+        "ledger_sql_rows": 12,
+        "provider_create_delta": 1,
+        "preview_cases": 8,
+        "status": "FAIL",
+        "usage_history_status": 500,
+        "independent_sqlstate": "42803",
+        "worker_network": [
+          {
+            "method": "GET",
+            "path_kind": "ownership_or_read",
+            "inside_transaction": false,
+            "global_advisory_lock_held": false
+          },
+          {
+            "method": "GET",
+            "path_kind": "ownership_or_read",
+            "inside_transaction": false,
+            "global_advisory_lock_held": false
+          },
+          {
+            "method": "POST",
+            "path_kind": "ownership_or_read",
+            "inside_transaction": false,
+            "global_advisory_lock_held": false
+          },
+          {
+            "method": "GET",
+            "path_kind": "ownership_or_read",
+            "inside_transaction": true,
+            "global_advisory_lock_held": true
+          },
+          {
+            "method": "POST",
+            "path_kind": "create",
+            "inside_transaction": false,
+            "global_advisory_lock_held": false
+          }
+        ],
+        "transport": "TestClient actual FastAPI + native PostgreSQL; independent loopback provider/domain HTTP",
+        "support_interventions": [
+          "fake OAuth exchange/identity, not real consent",
+          "install synthetic nonce file"
+        ],
+        "browser_completion": "NOT_TESTED"
+      },
+      {
+        "locale": "en-US",
+        "tenant_ref": "ce944570d55a5b2f",
+        "confirmed_sql_rows": 1,
+        "ledger_sql_rows": 12,
+        "provider_create_delta": 1,
+        "preview_cases": 8,
+        "status": "FAIL",
+        "usage_history_status": 500,
+        "independent_sqlstate": "42803",
+        "worker_network": [
+          {
+            "method": "GET",
+            "path_kind": "ownership_or_read",
+            "inside_transaction": false,
+            "global_advisory_lock_held": false
+          },
+          {
+            "method": "GET",
+            "path_kind": "ownership_or_read",
+            "inside_transaction": false,
+            "global_advisory_lock_held": false
+          },
+          {
+            "method": "POST",
+            "path_kind": "ownership_or_read",
+            "inside_transaction": false,
+            "global_advisory_lock_held": false
+          },
+          {
+            "method": "GET",
+            "path_kind": "ownership_or_read",
+            "inside_transaction": true,
+            "global_advisory_lock_held": true
+          },
+          {
+            "method": "POST",
+            "path_kind": "create",
+            "inside_transaction": false,
+            "global_advisory_lock_held": false
+          }
+        ],
+        "transport": "TestClient actual FastAPI + native PostgreSQL; independent loopback provider/domain HTTP",
+        "support_interventions": [
+          "fake OAuth exchange/identity, not real consent",
+          "install synthetic nonce file"
+        ],
+        "browser_completion": "NOT_TESTED"
+      }
+    ],
+    "provider": {
+      "create_posts": 2,
+      "reconcile_gets": 0,
+      "events": 2
+    },
+    "external_provider": "BLOCKED_APPROVAL",
+    "human_accessibility": "BLOCKED_HUMAN"
+  },
+  "browser_observations": {
+    "baseline_sha": "c71b06a2a93352cf5353b704531d2dd1b6b77eb9",
+    "collected_at_utc": "2026-10-26T15:37:58.011Z",
+    "environment": "ChatGPT in-app browser; synthetic Vue/FastAPI/native PostgreSQL fixture",
+    "reader": "No named human reader available",
+    "spoken_error": "BLOCKED_HUMAN",
+    "observations": {
+      "en_error": "Check the highlighted fields before saving or continuing.",
+      "bg_error": "Проверете отбелязаните полета преди запис или продължаване.",
+      "invalid_field_focused": true,
+      "aria_invalid": "true",
+      "aria_describedby": "setup-error",
+      "keyboard_correction_and_progression": true,
+      "saved_revision_resumed": 3,
+      "browser_preview_results": "6 required BG/EN PASS, mock only",
+      "locale_preserved_on_billing_and_usage": "bg-BG",
+      "mobile_320": {
+        "document_width": 305,
+        "clipped_controls": 0
+      },
+      "mobile_390": {
+        "document_width": 375,
+        "clipped_controls": 0
+      },
+      "text_zoom_200": "NOT_TESTED",
+      "complete_browser_signup_to_disconnect": "NOT_TESTED",
+      "usage_history_browser": "FAIL: localized provider error",
+      "screenshots": [
+        "artifacts/phase26e/setup-bg-320.png"
+      ],
+      "screenshot_limitation": "Initial fullPage screenshot failed; getScreenshot later succeeded"
+    }
+  },
+  "strict_test_result": "FAIL, 1 test, 47.367 seconds, zero skips",
+  "strict_raw_artifact": "artifacts\\phase26e\\journey-exact-sha.txt",
+  "strict_raw_sha256": "ef5aaa96e5c5a6f5b17753f754a8db0c8e938519ebfff99008009fd22b751684",
+  "ci": "BLOCKED_EXTERNAL_INFRA",
+  "human": "BLOCKED_HUMAN",
+  "complete_browser_journey": "NOT_TESTED",
+  "external_provider": "BLOCKED_APPROVAL",
+  "server_oracle": {
+    "raw_artifact": "artifacts\\phase26e\\postgres-server-oracle.json",
+    "sha256": "a25914261f064a0ebca68109abd711b492ffedc42154eb8dcb074d6ba2dbf49d",
+    "signals": [
+      {
+        "name": "test-mid-phase26d-pg",
+        "id": "17754b674c6786f0c6172ec9f6481b42b65fa1b7af9a41dde9dd146e7a5168b9",
+        "label": "test-mid-phase26d",
+        "port": "55426",
+        "error_signals": [
+          "2026-10-26 15:35:15.549 UTC [140] ERROR:  column \"billing_usage.data\" must appear in the GROUP BY clause or be used in an aggregate function at character 182",
+          "2026-10-26 15:35:16.347 UTC [143] ERROR:  column \"billing_usage.data\" must appear in the GROUP BY clause or be used in an aggregate function at character 182",
+          "2026-10-26 15:35:35.968 UTC [140] ERROR:  column \"billing_usage.data\" must appear in the GROUP BY clause or be used in an aggregate function at character 182",
+          "2026-10-26 15:35:36.891 UTC [145] ERROR:  column \"billing_usage.data\" must appear in the GROUP BY clause or be used in an aggregate function at character 182",
+          "2026-10-26 15:37:50.295 UTC [160] ERROR:  column \"billing_usage.data\" must appear in the GROUP BY clause or be used in an aggregate function at character 182",
+          "2026-10-26 15:37:50.772 UTC [176] ERROR:  column \"billing_usage.data\" must appear in the GROUP BY clause or be used in an aggregate function at character 182",
+          "2026-10-26 15:38:21.129 UTC [160] ERROR:  column \"billing_usage.data\" must appear in the GROUP BY clause or be used in an aggregate function at character 182",
+          "2026-10-26 15:38:21.802 UTC [189] ERROR:  column \"billing_usage.data\" must appear in the GROUP BY clause or be used in an aggregate function at character 182",
+          "2026-10-26 15:40:09.465 UTC [202] ERROR:  column \"billing_usage.data\" must appear in the GROUP BY clause or be used in an aggregate function at character 182",
+          "2026-10-26 15:40:10.103 UTC [205] ERROR:  column \"billing_usage.data\" must appear in the GROUP BY clause or be used in an aggregate function at character 182",
+          "2026-10-26 15:40:28.532 UTC [202] ERROR:  column \"billing_usage.data\" must appear in the GROUP BY clause or be used in an aggregate function at character 182",
+          "2026-10-26 15:40:29.201 UTC [208] ERROR:  column \"billing_usage.data\" must appear in the GROUP BY clause or be used in an aggregate function at character 182"
+        ]
+      },
+      {
+        "name": "test-mid-phase26d-restore",
+        "id": "6800f3442453cff58f1c86a0dc42bc56b32c857b0e5265aedec0a5a06314f82f",
+        "label": "test-mid-phase26d",
+        "port": "55427",
+        "error_signals": []
+      }
+    ]
+  },
+  "teardown": {
+    "temporary_browser_tab_closed": true,
+    "viewport_restored": true,
+    "synthetic_server_stopped": true,
+    "owned_containers_removed": [
+      "test-mid-phase26d-pg",
+      "test-mid-phase26d-restore"
+    ],
+    "unrelated_containers_changed": false,
+    "retained_historical_dump_and_logs": true
+  }
+}

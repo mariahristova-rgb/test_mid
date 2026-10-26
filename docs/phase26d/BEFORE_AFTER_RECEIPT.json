@@ -1,0 +1,23 @@
+{
+  "test_id": "reproduced_defects_before_after",
+  "before_commit_sha": "c9c38cda6665b6df8b76329b8588d5f40f587e05",
+  "fix_commit_sha": "5ebe2585399a25934be679a71179281d3c4c32cb",
+  "final_runtime_sha": "88639af439e4244131bd8c0435aa3df84aec7698",
+  "original_failure_artifact": "artifacts/phase26d/before-fix-failures.json",
+  "original_failure_sha256": "afd58859d640183110614b9e2eecb8a3a48f26f3d2d33816eee7d36aea5b3def",
+  "controls": [
+    {
+      "test": "disconnect_after_availability_before_create_denies_post",
+      "before": "FAIL: recorder observed one create POST and SQL projection confirmed after disconnect",
+      "expected": "zero create POSTs; no confirmed appointment",
+      "after": "PASS_LOCAL_RUNTIME: separate recorder thread disconnects before final admission; zero POSTs"
+    },
+    {
+      "test": "statement_timeout_is_classified_and_rolls_back",
+      "before": "ERROR: raw psycopg.errors.QueryCanceled from pg_sleep after uncommitted write",
+      "expected": "DomainError provider_error/503 and SQL rollback",
+      "after": "PASS_LOCAL_RUNTIME: controlled error and contact count unchanged"
+    }
+  ],
+  "boundary": "No real account, calendar, secret or provider network used; original failing assertions retained"
+}

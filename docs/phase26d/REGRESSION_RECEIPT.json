@@ -1,0 +1,27 @@
+{
+  "test_id": "backend_full_final",
+  "commit_sha": "88639af439e4244131bd8c0435aa3df84aec7698",
+  "timestamp_utc": "2026-10-26T14:54:31.990953+00:00",
+  "command": [
+    ".venv/Scripts/python.exe",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "semantic_os/backend/tests",
+    "-v"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 508.422,
+  "postgres_enabled": true,
+  "source_port": 55426,
+  "restore_port": 55427,
+  "raw_sha256": "62cc1244908cbf5a543f00805c00706529a8033ad852b313fa27541cf1f85414",
+  "raw_artifact": "artifacts/phase26d/backend-final.txt",
+  "tail": "test_logo_and_origin_injection_are_rejected (test_widget.WidgetTests.test_logo_and_origin_injection_are_rejected) ... ok\ntest_no_arbitrary_tool_fields_or_tenant_selection (test_widget.WidgetTests.test_no_arbitrary_tool_fields_or_tenant_selection) ... ok\ntest_optional_analytics_require_owner_enablement_and_explicit_visitor_consent (test_widget.WidgetTests.test_optional_analytics_require_owner_enablement_and_explicit_visitor_consent) ... ok\ntest_origin_cors_and_iframe_policy (test_widget.WidgetTests.test_origin_cors_and_iframe_policy) ... ok\ntest_public_ids_and_visitor_tokens_cannot_read_staff_configuration (test_widget.WidgetTests.test_public_ids_and_visitor_tokens_cannot_read_staff_configuration) ... ok\ntest_session_expiry_unpublish_and_revocation (test_widget.WidgetTests.test_session_expiry_unpublish_and_revocation) ... ok\ntest_snapshot_does_not_follow_legacy_instruction_edits (test_widget.WidgetTests.test_snapshot_does_not_follow_legacy_instruction_edits) ... ok\ntest_ticket_replay_expiry_and_wrong_parent (test_widget.WidgetTests.test_ticket_replay_expiry_and_wrong_parent) ... ok\n\n----------------------------------------------------------------------\nRan 445 tests in 503.011s\n\nOK\n",
+  "result": "PASS_LOCAL",
+  "backend_tests": 445,
+  "skipped": 0,
+  "native_postgres_booking_store_tests": 12,
+  "process_fault_tests": 14
+}

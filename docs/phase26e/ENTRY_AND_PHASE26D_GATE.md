@@ -1,0 +1,12 @@
+# Phase26E entry — Gate 0 BLOCKED
+
+26 October 2026, Europe/Sofia. Phase26E runtime implementation and new branch have NOT begun. The instruction explicitly requires stopping when Phase26D cannot close because CI infrastructure is externally blocked. Work remains on codex/phase26d-reliability-gates and Draft PR #4; no protected merge or rewritten history.
+
+Fetched refs and PRs match the supplied stack: main 4ddf9eed622e864d8ae55ecede93e3669ce3c2d5; 26A c0cd760fe5464f0d7668dadcaadce9924fac3043; 26B cbdc995a0466f78e7f89b3d16d5f964ca863926e; 26C 849d602aefdde6945fcbd3af51ab4711507dc9e5. Each adjacent merge base is its preceding head. PR1 open/non-draft, PR2/3/4 open/draft; all unmerged. At entry remote PR4 c9c38cda6665b6df8b76329b8588d5f40f587e05; local 5ebe2585399a25934be679a71179281d3c4c32cb ahead one commit, clean tracked worktree and no stashes. This newer local commit already preserved the reported runtime fixes and expanded fault oracle. It was not overwritten by the older remote. Security follow-up 88639af439e4244131bd8c0435aa3df84aec7698 updates certifi after a fresh advisory.
+
+GitHub check 121612762049 at remote c9c38cd returned authoritative failure annotation: “The job was not started because recent account payments have failed or your spending limit needs to be increased.” No tests executed; classify BLOCKED_EXTERNAL_INFRA, not application test failure or CI PASS. Billing settings remain untouched. Successful exact-source CI is a release gate and will not be bypassed.
+
+See ../phase26d/FINAL_EVIDENCE_AND_HANDOFF.md for executed local regression, real PostgreSQL/process/restore receipts, before/after failures, security audit, final branch/push state and unresolved human/journey/cloud/provider gates. No Phase26E PASS receipts or external approvals are manufactured. Next minimal action is account-owner resolution of Actions eligibility, then successful exact-head CI and review of the documented remaining local/human journey gates. No request to incur spend, deploy, enroll customers or use personal Calendar credentials is implied.
+
+## Restricted continuation authorized
+The owner subsequently authorized safe, independently verifiable acceptance on the existing Phase26D branch while CI remains externally blocked. This permits the new strict synthetic test and evidence review; it does not close Gate0 or authorize a Phase26E implementation branch. See END_TO_END_ACCEPTANCE.md for actual FAIL findings, bounded browser evidence and unchanged production source. CI and named human/independent review remain blocked.
