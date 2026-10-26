@@ -1,0 +1,17 @@
+{
+  "commit_sha": "88639af439e4244131bd8c0435aa3df84aec7698",
+  "test_id": "unapplied_mock_plan_controls",
+  "terraform": "1.14.9",
+  "google_provider": "6.50.0",
+  "result": "PASS_OFFLINE",
+  "runs": {
+    "missing_approval_is_rejected": "PASS",
+    "bounded_private_mock_plan": "PASS",
+    "unpinned_api_image_is_rejected": "PASS"
+  },
+  "apply_executed": false,
+  "cloud_calls": 0,
+  "raw_artifact": "artifacts\\phase26d\\terraform-final-verified.txt",
+  "raw_sha256": "37b3ae4828f4b0be630b8a6c7752fbb15886d323593640468d72ca7f9b977f6f",
+  "note": "Mock provider: intended resources only; no cloud identity/routing/billing acceptance"
+}

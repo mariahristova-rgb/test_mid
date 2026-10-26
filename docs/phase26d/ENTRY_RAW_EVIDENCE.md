@@ -13,3 +13,12 @@ Starting SHA849d602aefdde6945fcbd3af51ab4711507dc9e5 equals fetched Phase26C ori
 |Accessibility|Historical human FAIL: nothing spoken; no named reader/browser|Prior user report|Unresolved; manual BLOCKED_ENVIRONMENT|
 
 Initial Docker daemon unavailable. Start installed Docker Desktop only, then verify actual local topology before creating named disposable resources. No credentials/customer DB read. All new provider traffic must terminate at a dedicated loopback mock recorder. Current code review includes Store/backup/OAuth/tool/worker/API/providers and relevant setup/widget/integrations/billing/locale paths; no new provider feature is planned.
+
+## Runtime update — 26 October 2026
+Docker became available after the owner started Desktop. Only two new purpose=test-mid-phase26d containers were used: test-mid-phase26d-pg (127.0.0.1:55426) and test-mid-phase26d-restore (127.0.0.1:55427), each 512 MiB / 1 CPU / tmpfs. PostgreSQL 17.11; cached postgres:17-alpine image digest b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24. Docker exposed 16 CPUs and 7,983,759,360 bytes RAM. Existing voice/inference/database containers were not changed or inspected for customer content.
+
+The initial NOT_RUN rows above describe entry state, superseded only by the specific process/SQL/recorder receipts in POSTGRES_FAILURE_AND_RESTORE.md. They do not imply external acceptance.
+
+Initial remote c9c38cda6665b6df8b76329b8588d5f40f587e05 omitted runtime fixes because these were still being tested locally. Local 5ebe2585399a25934be679a71179281d3c4c32cb commits both fixes and expanded tests/restore oracle. 88639af439e4244131bd8c0435aa3df84aec7698 separately refreshes certifi after a new audit advisory. No fixes were lost, reset or recreated from assumed reports.
+
+GitHub check 121612762049 at c9c38cd independently returned: “The job was not started because recent account payments have failed or your spending limit needs to be increased.” There are no executed test steps/logs. Classify BLOCKED_EXTERNAL_INFRA, never PASS_CI or CODE_FAILURE. No billing setting was changed.

@@ -1,0 +1,53 @@
+{
+  "refs": [
+    {
+      "number": 1,
+      "base": "main",
+      "base_sha": "4ddf9eed622e864d8ae55ecede93e3669ce3c2d5",
+      "head": "codex/phase26a-reconciliation",
+      "head_sha": "c0cd760fe5464f0d7668dadcaadce9924fac3043",
+      "draft": false,
+      "merged": false,
+      "state": "open"
+    },
+    {
+      "number": 2,
+      "base": "codex/phase26a-reconciliation",
+      "base_sha": "c0cd760fe5464f0d7668dadcaadce9924fac3043",
+      "head": "codex/phase26b-customer-oauth",
+      "head_sha": "cbdc995a0466f78e7f89b3d16d5f964ca863926e",
+      "draft": true,
+      "merged": false,
+      "state": "open"
+    },
+    {
+      "number": 3,
+      "base": "codex/phase26b-customer-oauth",
+      "base_sha": "cbdc995a0466f78e7f89b3d16d5f964ca863926e",
+      "head": "codex/phase26c-staging-acceptance",
+      "head_sha": "849d602aefdde6945fcbd3af51ab4711507dc9e5",
+      "draft": true,
+      "merged": false,
+      "state": "open"
+    },
+    {
+      "number": 4,
+      "base": "codex/phase26c-staging-acceptance",
+      "base_sha": "849d602aefdde6945fcbd3af51ab4711507dc9e5",
+      "head": "codex/phase26d-reliability-gates",
+      "head_sha": "c9c38cda6665b6df8b76329b8588d5f40f587e05",
+      "draft": true,
+      "merged": false,
+      "state": "open"
+    }
+  ],
+  "ci": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"headRevision\":\"c9c38cda6665b6df8b76329b8588d5f40f587e05\",\"checks\":[{\"id\":121612762049,\"name\":\"checks\",\"head_sha\":\"c9c38cda6665b6df8b76329b8588d5f40f587e05\",\"status\":\"completed\",\"conclusion\":\"failure\",\"details_url\":\"https://github.com/mariahristova-rgb/test_mid/actions/runs/40334622202/job/121612762049\",\"output\":{\"title\":null,\"summary\":null,\"text\":null,\"annotations_count\":2}}],\"statuses\":[],\"annotations\":[{\"path\":\".github\",\"start_line\":1,\"end_line\":1,\"annotation_level\":\"failure\",\"message\":\"The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings\",\"title\":\"\",\"raw_details\":\"\"},{\"path\":\".github\",\"start_line\":1,\"end_line\":1,\"annotation_level\":\"notice\",\"message\":\"\\\"The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748\\\"\",\"title\":\"\",\"raw_details\":\"\"}],\"hasMore\":false,\"job\":null,\"jobs\":[],\"log\":null,\"logTruncated\":false}"
+      }
+    ],
+    "isError": false
+  }
+}
