@@ -34,7 +34,18 @@ class SyntheticJourneyTests(unittest.TestCase):
         self.recorder = Recorder(Path(self.temp.name) / 'provider.sqlite')
         self.addCleanup(self.recorder.close)
         proxy = transport(self.recorder.url)
+        self.worker_observing=False
+        self.worker_network=[]
         def fake_provider(request):
+            if self.worker_observing:
+                import psycopg
+                connection=getattr(self.fixture.store.transaction_state,'connection',None)
+                held=False
+                if connection is not None:
+                    with psycopg.connect(self.fixture.dsn) as oracle:
+                        held=oracle.execute("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=%s AND locktype='advisory' AND objid=26260001 AND granted)",(connection.info.backend_pid,)).fetchone()[0]
+                self.worker_network.append({'method':request.method,'path_kind':'create' if request.method=='POST' and request.url.path.endswith('/events') else 'ownership_or_read',
+                    'inside_transaction':connection is not None,'global_advisory_lock_held':held})
             if request.url.host == 'oauth2.googleapis.com':
                 return httpx.Response(200, json={'access_token':'synthetic-access', 'refresh_token':'synthetic-refresh',
                     'scope':' '.join(required_scopes('google', ['availability','create'])), 'expires_in':3600})
@@ -101,7 +112,9 @@ class SyntheticJourneyTests(unittest.TestCase):
             ledger_before=store.list('billing_usage',tenant)
             self.call('POST',f'/api/conversations/{conversation}/messages',payload)
             self.assertEqual(store.list('billing_usage',tenant),ledger_before)
-            app.state.customer_booking.worker(); app.state.customer_booking.worker()
+            observed_before=len(self.worker_network);self.worker_observing=True
+            try:app.state.customer_booking.worker();app.state.customer_booking.worker()
+            finally:self.worker_observing=False
             self.assertEqual(self.recorder.counts()['create_posts'],before+1)
             appointment=store.list('appointments',tenant)[0]
             self.assertEqual(appointment['status'],'confirmed')
@@ -157,6 +170,7 @@ class SyntheticJourneyTests(unittest.TestCase):
                 'confirmed_sql_rows':confirmed,'ledger_sql_rows':ledger,'provider_create_delta':1,
                 'preview_cases':8,'status':'PASS_LOCAL_ONLY' if history.status_code==200 else 'FAIL',
                 'usage_history_status':history.status_code,'independent_sqlstate':sqlstate,
+                'worker_network':self.worker_network[observed_before:],
                 'transport':'TestClient actual FastAPI + native PostgreSQL; independent loopback provider/domain HTTP',
                 'support_interventions':['fake OAuth exchange/identity, not real consent','install synthetic nonce file'],
                 'browser_completion':'NOT_TESTED'})
@@ -165,5 +179,8 @@ class SyntheticJourneyTests(unittest.TestCase):
         path.write_text(json.dumps({'commit_sha':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
             'timestamp_utc':datetime.now(timezone.utc).isoformat(),'rows':self.rows,'provider':self.recorder.counts(),
             'external_provider':'BLOCKED_APPROVAL','human_accessibility':'BLOCKED_HUMAN'},indent=2)+'\n',encoding='utf-8')
-        self.assertEqual([row['usage_history_status'] for row in self.rows],[200,200],
-            'Both actual PostgreSQL usage-history routes must succeed; do not substitute the summary endpoint')
+        failures=[]
+        for row in self.rows:
+            if row['usage_history_status']!=200:failures.append(row['locale']+':usage_history_http_'+str(row['usage_history_status']))
+            if any(call['global_advisory_lock_held'] for call in row['worker_network']):failures.append(row['locale']+':worker_network_under_global_lock')
+        self.assertEqual(failures,[], 'Strict acceptance failures; do not substitute summary or POST-only checks')
