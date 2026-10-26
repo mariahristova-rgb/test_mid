@@ -17,6 +17,17 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres -d phase26c_fixture"
           --health-interval 5s --health-timeout 5s --health-retries 12
+      restore_postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: phase26c_fixture
+          POSTGRES_PASSWORD: synthetic-runtime-only
+        ports:
+          - 55427:5432
+        options: >-
+          --memory 512m --cpus 1
+          --health-cmd "pg_isready -U postgres -d phase26c_fixture"
+          --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,8 +51,18 @@ jobs:
       - run: python scripts/check_source.py
       - run: python -m unittest discover -s semantic_os/backend/tests -v
         env:
+          PHASE26D_PG_DISPOSABLE: 'true'
+          PHASE26D_SOURCE_CONTAINER: ${{ job.services.postgres.id }}
+          PHASE26D_RESTORE_CONTAINER: ${{ job.services.restore_postgres.id }}
+          PHASE26D_RESTORE_DSN: host=127.0.0.1 port=55427 dbname=phase26c_fixture user=postgres password=synthetic-runtime-only
           PHASE26C_PG_DISPOSABLE: 'true'
           PHASE26C_PG_DSN: host=127.0.0.1 port=55426 dbname=phase26c_fixture user=postgres password=synthetic-runtime-only
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase26d-fault-receipts
+          path: artifacts/phase26d/*.json
+          if-no-files-found: warn
       - run: python scripts/evaluate_phase17.py
       - run: npm ci --ignore-scripts
         working-directory: semantic_os/frontend
