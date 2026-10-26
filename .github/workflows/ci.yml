@@ -61,7 +61,9 @@ jobs:
         if: always()
         with:
           name: phase26d-fault-receipts
-          path: artifacts/phase26d/*.json
+          path: |
+            artifacts/phase26d/*.json
+            artifacts/phase26e/*.json
           if-no-files-found: warn
       - run: python scripts/evaluate_phase17.py
       - run: npm ci --ignore-scripts

@@ -1,9 +1,11 @@
+> Safe acceptance update: PostgreSQL usage-history HTTP500/SQLSTATE42803 and worker ownership GET under global lock are now independently reproduced. The older local test counts remain historical PASS_LOCAL_ONLY; no current complete-suite PASS. See ../phase26e/END_TO_END_ACCEPTANCE.md.
+
 # Phase26D evidence and Phase26E Gate 0 handoff
 
 Date: 26 October 2026 (Europe/Sofia). Baseline: 849d602aefdde6945fcbd3af51ab4711507dc9e5. Dedicated branch codex/phase26d-reliability-gates; [Draft PR #4](https://github.com/mariahristova-rgb/test_mid/pull/4), base Phase26C. PR1/2/3 remain unmerged, main unchanged. Remote-at-entry c9c38cd lacked runtime fixes because they were local work in progress, subsequently committed as 5ebe2585399a25934be679a71179281d3c4c32cb. Certifi audit correction is separate commit 88639af439e4244131bd8c0435aa3df84aec7698. No stashes, resets, force pushes or lost changes. Final evidence-only commit carries the same tested runtime source; its SHA is returned in the delivery/PR.
 
 ## Reproduced defects and minimal changes
-- customer_booking.py final pre-write admission (lines 269–287): actual disconnect after availability previously still sent POST. Recheck current committed claim, connection/resource revision, consent/tool/assistant/channel before admission. Writes admitted before disconnect may complete; truthful receipt or uncertainty remains. No global lock across HTTP; reconciliation never recreates.
+- customer_booking.py final pre-write admission (lines 269â€“287): actual disconnect after availability previously still sent POST. Recheck current committed claim, connection/resource revision, consent/tool/assistant/channel before admission. Writes admitted before disconnect may complete; truthful receipt or uncertainty remains. The create POST is outside the global transaction, but later acceptance exposed ownership GET under that lock (LOCK-SCOPE-02); reconciliation never recreates.
 - postgres_store.py operational error boundaries (Database._execute, PostgresStore.connection/transaction): actual statement timeout leaked QueryCanceled. Controlled provider_error/503, rollback and pool/lock release now verified, including killed backend and bounded exhaustion. Global advisory lock unchanged.
 - Existing Python lock pins: certifi 2026.7.22 -> 2026.10.19 for PYSEC-2026-4320; no certificate validation bypass. Speech environments/models not started.
 - Existing fault test module/worker/recorder expanded; independent native dump restore helper and three offline Terraform mock-plan controls added. CI adds independent restore PostgreSQL service and executes plan tests. No API/schema/framework/provider feature change.
@@ -19,7 +21,7 @@ Exact changed files are the PR diff. Runtime source files: semantic_os/backend/a
 | `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` in semantic_os/frontend | 50 PASS / zero skips, typecheck/lint/build pass. Frontend source unchanged from 5ebe258; final backend lock patch does not alter it. Production-default build first; temporary mock-login fixture build separately. |
 | `npm test`, `npm run build` in unchanged artifacts/phase13b/ontelyx | 72 Vitest + 6 Node PASS, typecheck/build pass. First sandbox attempt failed on temporary-file ENOENT, preserved in tool output; unchanged rerun outside restricted temp environment passes. No website edits/push. |
 | `scripts/check_source.py` | 286 source/config files; zero failures. |
-| `scripts/check_migrations.py --output artifacts/phase26d/migrations-final.json` | SQLite versions 1–5/FK/integrity/preservation pass; native PostgreSQL restore separately verified. BackupManager remains SQLite-only and rejects PostgreSQL. |
+| `scripts/check_migrations.py --output artifacts/phase26d/migrations-final.json` | SQLite versions 1â€“5/FK/integrity/preservation pass; native PostgreSQL restore separately verified. BackupManager remains SQLite-only and rejects PostgreSQL. |
 | `python -m pip_audit -r semantic_os/backend/requirements.lock --no-deps --disable-pip` | First FAIL certifi advisory; minimal pin correction and repeat no known vulnerabilities. Existing incomplete package hashes remain a limitation. |
 | `npm --prefix semantic_os/frontend audit --audit-level=moderate` | Zero vulnerabilities. |
 | Terraform 1.14.9 `fmt -check -recursive`, `init -backend=false -input=false`, `validate`, `test -no-color` in semantic_os/deploy/phase26c | Vendor Google 6.50.0 valid; 3 mock plan tests pass. First sandbox DNS/plugin attempt failed; supported rerun passes. Never apply. POLICY_RECEIPT.json. |
@@ -44,7 +46,7 @@ Codex adversarial source review checked pre/post-admission revocation, stable ev
 - Executed local process/PostgreSQL experiments: PASS_LOCAL_ONLY.
 - Phase26D closure / Phase26E Gate 0: NO_GO / BLOCKED_EXTERNAL_INFRA; do not begin new Phase26E implementation or manufacture pass receipts.
 - Limited private staging: NO_GO, missing approval/cloud-runtime/backup/kill evidence.
-- External 3–5 business pilot: NO_GO, missing isolated provider and human/journey acceptance.
+- External 3â€“5 business pilot: NO_GO, missing isolated provider and human/journey acceptance.
 - Public production: NO_GO / out of scope.
 
 Owner next action: resolve GitHub Actions account eligibility without an automatic spend-limit change; then run exact-head CI and independent review. Engineer next local gate: complete the documented end-user journey, with genuine named human screen-reader observation when available. Provider/cloud actions require separately scoped fresh approvals; not requested or inferred here.
