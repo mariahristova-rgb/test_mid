@@ -11,7 +11,7 @@ class Recorder:
         self.db.execute('PRAGMA journal_mode=WAL');self.db.execute('PRAGMA synchronous=FULL')
         self.db.execute('CREATE TABLE events(id TEXT PRIMARY KEY,body TEXT NOT NULL)')
         self.db.execute('CREATE TABLE calls(kind TEXT NOT NULL)')
-        self.lock=RLock();self.mode='normal';self.on_availability=None
+        self.lock=RLock();self.mode='normal';self.on_availability=None;self.on_create=None
         owner=self
         class Handler(BaseHTTPRequestHandler):
             def log_message(self,*args):pass
@@ -33,6 +33,8 @@ class Recorder:
                         try:owner.db.execute('INSERT INTO events VALUES (?,?)',(body['id'],json.dumps(body)));status=201
                         except sqlite3.IntegrityError:status=409
                     value=body
+                    if owner.on_create:
+                        callback=owner.on_create;owner.on_create=None;callback()
                 elif '/events/' in path and self.command=='GET':
                     kind='lookup'
                     with owner.lock:row=owner.db.execute('SELECT body FROM events WHERE id=?',(path.rsplit('/',1)[1],)).fetchone()

@@ -61,7 +61,7 @@ class Database:
         if connection is None:
             if write:
                 with self.store.transaction(): return self.execute(statement, params)
-            with self.store.pool.connection() as connection:
+            with self.store.connection() as connection:
                 return self._execute(connection, translated, params)
         return self._execute(connection, translated, params)
     def _execute(self, connection, statement, params):
@@ -74,6 +74,9 @@ class Database:
                 return Rows(connection.execute(statement, params))
         except psycopg.IntegrityError:
             raise sqlite3.IntegrityError('Persistence constraint rejected') from None
+        except psycopg.OperationalError:
+            from .domain import DomainError
+            raise DomainError('provider_error',503) from None
         finally:
             self.store.query_count += 1
             self.store.query_seconds += perf_counter()-started
@@ -105,6 +108,17 @@ class PostgresStore(Store):
             raise
 
     @contextmanager
+    def connection(self):
+        """Bounded acquisition/transport failures use an existing redacted API code."""
+        import psycopg
+        from .domain import DomainError
+        try:
+            with self.pool.connection() as connection:
+                yield connection
+        except psycopg.OperationalError:
+            raise DomainError('provider_error',503) from None
+
+    @contextmanager
     def transaction(self):
         with self.lock:
             if self.db.in_transaction:
@@ -112,7 +126,7 @@ class PostgresStore(Store):
                 return
             callbacks = []
             try:
-                with self.pool.connection() as connection:
+                with self.connection() as connection:
                     with connection.transaction():
                         # Database-enforced cross-instance writer exclusion. The
                         # lock is released on commit, rollback, or connection loss.

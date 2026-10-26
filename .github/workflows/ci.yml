@@ -46,7 +46,7 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: '1.14.9'
-      - run: terraform fmt -check && terraform init -backend=false -input=false && terraform validate
+      - run: terraform fmt -check -recursive && terraform init -backend=false -input=false && terraform validate && terraform test -no-color
         working-directory: semantic_os/deploy/phase26c
       - run: python scripts/check_source.py
       - run: python -m unittest discover -s semantic_os/backend/tests -v

@@ -13,10 +13,21 @@ def run(path):
     from semantic_os.backend.tests.support.fault_recorder import transport
     data=json.loads(Path(path).read_text(encoding='utf-8'))
     info=psycopg.conninfo.conninfo_to_dict(data['dsn'])
-    if os.getenv('PHASE26D_PG_DISPOSABLE')!='true' or info.get('host')!='127.0.0.1' or info.get('port')!='55426' or info.get('dbname')!='phase26c_fixture' or not data['schema'].startswith('fixture_'):
+    if os.getenv('PHASE26D_PG_DISPOSABLE')!='true' or info.get('host')!='127.0.0.1' or info.get('port') not in ('55426','55427') or info.get('dbname')!='phase26c_fixture' or not data['schema'].startswith('fixture_'):
         raise RuntimeError('Disposable Phase26D fixture required')
     store=PostgresStore(data['dsn'],schema=data['schema'],pool_size=2)
     try:
+        if data.get('mode')=='counter':
+            from time import perf_counter
+            tenant=data['tenant'];iterations=data.get('iterations',10)
+            if tenant not in ('demo','other') or type(iterations) is not int or not 1 <= iterations <= 20:raise ValueError('Bounded synthetic workload only')
+            started=perf_counter()
+            for _ in range(iterations):
+                with store.transaction():
+                    row=store.find('operations_events',tenant,'phase26d-counter')
+                    store.update('operations_events',tenant,row['id'],{'value':row['value']+1})
+            print(json.dumps({'operations':iterations,'started_monotonic':started,'finished_monotonic':perf_counter()}))
+            return
         options={'applications':[PlatformOAuthApplication.model_validate(a) for a in data['applications']],
             'http':OfflineProviderHTTP(transport(data['recorder'])), 'platform_secret':lambda *args:'synthetic-only',
             'verify_identity':lambda *args:'synthetic-account'}
